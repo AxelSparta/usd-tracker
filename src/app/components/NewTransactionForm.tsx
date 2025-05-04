@@ -29,7 +29,7 @@ export default function NewTransactionForm () {
         name='pesos'
         type='number'
         placeholder='Cantidad pesos'
-        className='border rounded px-2 py-1 block w-full'
+        className='border border-gray-300 rounded px-2 py-1 block w-full'
         step='any'
         required
       />
@@ -38,13 +38,13 @@ export default function NewTransactionForm () {
         name='usd'
         type='number'
         placeholder='Cantidad USD recibidos'
-        className='border rounded px-2 py-1 block w-full'
+        className='border border-gray-300 rounded px-2 py-1 block w-full'
         step='any'
         required
       />
       <button
         type='submit'
-        className='bg-blue-500 text-white px-2 py-1 rounded mx-auto block'
+        className='bg-blue-500 text-white px-2 py-1 rounded mx-auto block border border-gray-300'
       >
         Guardar
       </button>

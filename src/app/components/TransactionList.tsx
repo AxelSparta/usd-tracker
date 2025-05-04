@@ -22,7 +22,7 @@ export default function TransactionList () {
       
       {transactions.length > 0 && (
         <>
-          <table className='min-w-full text-sm text-left text-gray-700 dark:text-gray-200 table-auto'>
+          <table className='min-w-full text-sm text-left text-gray-700 dark:text-gray-200 bg-gray-50 dark:bg-gray-800 table-auto border border-gray-300 dark:border-gray-900'>
             <thead className='bg-gray-100 dark:bg-gray-800 text-xs uppercase text-gray-600 dark:text-gray-400'>
               <tr>
                 <th scope='col' className='px-2 py-2'>
@@ -42,7 +42,7 @@ export default function TransactionList () {
             <tbody>
               {transactions.map((transaction, index) => (
                 <tr
-                  className='border-b dark:border-gray-700 hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors'
+                  className='border-b dark:border-gray-900 hover:bg-gray-200 dark:hover:bg-gray-900 transition-colors'
                   key={index}
                 >
                   <td className='px-2 py-2'>
