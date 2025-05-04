@@ -8,7 +8,7 @@ export default function Header () {
   const { changeDolarOption, dolarOption } = useTransactions()
   return (
     <header className='flex justify-between items-center p-2'>
-      <h1 className='text-xl font-bold'>COMPRAS USDT</h1>
+      <h1 className='text-xl font-bold'>COMPRAS USD</h1>
       <select
         value={dolarOption}
         className='border rounded px-2 py-1 cursor-pointer border-gray-300'
