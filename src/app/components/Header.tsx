@@ -3,12 +3,15 @@
 import ThemeSwitch from './ThemeSwitch'
 import { useTransactions } from '../context/TransactionsContext'
 import { DolarOption } from '../utils/dolarApi'
+import Link from 'next/link'
 
 export default function Header () {
   const { changeDolarOption, dolarOption } = useTransactions()
   return (
     <header className='flex justify-between items-center p-2'>
-      <h1 className='text-xl font-bold'>COMPRAS USD</h1>
+      <Link href='/'>
+        <h1 className='text-xl font-bold'>COMPRAS USD</h1>
+      </Link>
       <select
         value={dolarOption}
         className='border rounded px-2 py-1 cursor-pointer border-gray-300'
