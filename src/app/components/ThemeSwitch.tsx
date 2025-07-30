@@ -1,9 +1,9 @@
 'use client'
 
-import { FiSun, FiMoon } from 'react-icons/fi'
-import { useState, useEffect } from 'react'
 import { useTheme } from 'next-themes'
 import Image from 'next/image'
+import { useEffect, useState } from 'react'
+import { FiMoon, FiSun } from 'react-icons/fi'
 
 export default function ThemeSwitch () {
   const [mounted, setMounted] = useState(false)
@@ -27,7 +27,7 @@ export default function ThemeSwitch () {
   if (resolvedTheme === 'dark') {
     return (
       <button
-        className='cursor-pointer border rounded p-2 hover:bg-gray-200 hover:text-gray-800 transition ease-in-out '
+        className='cursor-pointer border rounded p-2 hover:bg-slate-600 transition ease-in-out '
         onClick={() => setTheme('light')}
       >
         <FiSun />

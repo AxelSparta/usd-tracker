@@ -1,18 +1,17 @@
-import type { Metadata } from 'next'
-import { Geist, Geist_Mono } from 'next/font/google'
-import './globals.css'
-import { Providers } from './providers'
-import Header from './components/Header'
+import { ClerkProvider } from '@clerk/nextjs'
 import { TransactionsProvider } from './context/TransactionsContext'
+import { Providers } from './providers'
+
+import { shadcn } from '@clerk/themes'
+import { Inter } from 'next/font/google'
+import './globals.css'
+
 import Footer from './components/Footer'
+import Header from './components/Header'
 
-const geistSans = Geist({
-  variable: '--font-geist-sans',
-  subsets: ['latin']
-})
+import type { Metadata } from 'next'
 
-const geistMono = Geist_Mono({
-  variable: '--font-geist-mono',
+const inter = Inter({
   subsets: ['latin']
 })
 
@@ -28,20 +27,26 @@ export default function RootLayout ({
   children: React.ReactNode
 }>) {
   return (
-    <html lang='es' suppressHydrationWarning>
-      <body
-        className={`${geistSans.className} ${geistMono.className} antialiased dark:bg-gradient-to-b dark:from-slate-700 dark:via-slate-800 dark:to-slate-950 bg-gradient-to-b from-slate-50 via-slate-200 to-slate-300 min-h-screen container mx-auto xs:p-0`}
-      >
-        <Providers>
-          <TransactionsProvider>
-            <div className='flex flex-col min-h-screen p-4'>
-              <Header />
-              {children}
-              <Footer />
-            </div>
-          </TransactionsProvider>
-        </Providers>
-      </body>
-    </html>
+    <ClerkProvider
+      appearance={{
+        baseTheme: shadcn
+      }}
+    >
+      <html lang='es' suppressHydrationWarning>
+        <body
+          className={`${inter.className} antialiased dark:bg-gradient-to-b dark:from-slate-700 dark:via-slate-800 dark:to-slate-950 bg-gradient-to-b from-slate-50 via-slate-200 to-slate-300 min-h-screen container mx-auto xs:p-0`}
+        >
+          <Providers>
+            <TransactionsProvider>
+              <div className='flex flex-col min-h-screen p-4'>
+                <Header />
+                {children}
+                <Footer />
+              </div>
+            </TransactionsProvider>
+          </Providers>
+        </body>
+      </html>
+    </ClerkProvider>
   )
 }
