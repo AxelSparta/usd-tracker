@@ -16,9 +16,7 @@ datasource db {
 
 model User {
   id           String        @id @default(uuid())
-  email        String        @unique
-  username     String
-  password     String
+  clerkUserId  String        @unique
   createdAt    DateTime      @default(now())
   updatedAt    DateTime      @updatedAt
   transactions Transaction[]
