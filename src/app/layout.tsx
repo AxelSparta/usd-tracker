@@ -1,14 +1,14 @@
+import { ClientProviders } from '@/app/providers'
 import { ClerkProvider } from '@clerk/nextjs'
-import { TransactionsProvider } from './context/TransactionsContext'
-import { Providers } from './providers'
 
 import { shadcn } from '@clerk/themes'
 import { Inter } from 'next/font/google'
 import './globals.css'
 
-import Footer from './components/Footer'
-import Header from './components/Header'
+import Footer from '../components/Footer'
+import Header from '../components/Header'
 
+import { TransactionsProvider } from '@/context/TransactionsContext'
 import type { Metadata } from 'next'
 
 const inter = Inter({
@@ -36,7 +36,7 @@ export default function RootLayout ({
         <body
           className={`${inter.className} antialiased dark:bg-gradient-to-b dark:from-slate-700 dark:via-slate-800 dark:to-slate-950 bg-gradient-to-b from-slate-50 via-slate-200 to-slate-300 min-h-screen container mx-auto xs:p-0`}
         >
-          <Providers>
+          <ClientProviders>
             <TransactionsProvider>
               <div className='flex flex-col min-h-screen p-4'>
                 <Header />
@@ -44,7 +44,7 @@ export default function RootLayout ({
                 <Footer />
               </div>
             </TransactionsProvider>
-          </Providers>
+          </ClientProviders>
         </body>
       </html>
     </ClerkProvider>

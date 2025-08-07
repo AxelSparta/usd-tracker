@@ -1,9 +1,11 @@
 'use client'
 
+import { useTransactions } from '@/context/TransactionsContext'
 import dayjs from 'dayjs'
-import { useTransactions } from '@/app/context/TransactionsContext'
+
 
 export default function DolarPrice () {
+  console.log('render DolarPrice')
   const { dolarData } = useTransactions()
   return (
     <div className='flex flex-col items-center gap-2 p-2'>

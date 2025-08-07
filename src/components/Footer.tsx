@@ -1,7 +1,6 @@
-import { RiNextjsFill } from 'react-icons/ri'
-import { FaGithub } from 'react-icons/fa'
-import { FaLinkedin } from 'react-icons/fa'
+import { FaGithub, FaLinkedin } from 'react-icons/fa'
 import { PiSuitcaseSimpleBold } from 'react-icons/pi'
+import { RiNextjsFill } from 'react-icons/ri'
 
 export default function Footer () {
   return (

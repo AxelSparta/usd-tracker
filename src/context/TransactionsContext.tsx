@@ -1,7 +1,8 @@
 'use client'
 
+import { DolarData, DolarOption } from '@/types/dolar.types'
 import { createContext, useContext, useEffect, useState } from 'react'
-import { DolarData, DolarOption, getDolar } from '../utils/dolarApi'
+import { getDolar } from '../services/dolarApi'
 
 export type Transaction = {
   pesos: number
