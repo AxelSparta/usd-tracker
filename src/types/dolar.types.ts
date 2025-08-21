@@ -1,11 +1,12 @@
-export type DolarOption =
-  | 'oficial'
-  | 'blue'
-  | 'bolsa'
-  | 'contadoconliqui'
-  | 'tarjeta'
-  | 'mayorista'
-  | 'cripto'
+export enum DolarOption {
+  Oficial = 'oficial',
+  Blue = 'blue',
+  Bolsa = 'bolsa',
+  ContadoConLiqui = 'contadoconliqui',
+  Tarjeta = 'tarjeta',
+  Mayorista = 'mayorista',
+  Cripto = 'cripto'
+}
 
 export type DolarData = {
   compra: number

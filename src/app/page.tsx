@@ -1,4 +1,6 @@
 import DolarPrice from "@/components/DolarPrice"
+import NewTransactionForm from "@/components/NewTransactionForm"
+import TransactionList from "@/components/TransactionList"
 
 export default async function Home () {
   console.log('index page')

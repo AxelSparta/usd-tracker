@@ -43,7 +43,7 @@ export const TransactionsProvider = ({
     compra: 0,
     venta: 0
   })
-  const [dolarOption, setDolarOption] = useState<DolarOption>('cripto')
+  const [dolarOption, setDolarOption] = useState<DolarOption>(DolarOption.Cripto)
 
   const [transactions, setTransactions] = useState<Transaction[]>([])
   const [transactionsData, setTransactionsData] = useState<TransactionsData>({

@@ -8,7 +8,6 @@ import './globals.css'
 import Footer from '../components/Footer'
 import Header from '../components/Header'
 
-import { TransactionsProvider } from '@/context/TransactionsContext'
 import type { Metadata } from 'next'
 
 const inter = Inter({
@@ -37,13 +36,11 @@ export default function RootLayout ({
           className={`${inter.className} antialiased dark:bg-gradient-to-b dark:from-slate-700 dark:via-slate-800 dark:to-slate-950 bg-gradient-to-b from-slate-50 via-slate-200 to-slate-300 min-h-screen container mx-auto xs:p-0`}
         >
           <ClientProviders>
-            <TransactionsProvider>
-              <div className='flex flex-col min-h-screen p-4'>
-                <Header />
-                {children}
-                <Footer />
-              </div>
-            </TransactionsProvider>
+            <div className='flex flex-col min-h-screen p-4'>
+              <Header />
+              {children}
+              <Footer />
+            </div>
           </ClientProviders>
         </body>
       </html>
