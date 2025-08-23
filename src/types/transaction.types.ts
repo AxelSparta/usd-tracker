@@ -1,4 +1,7 @@
-export type TransactionType = 'BUY' | 'SELL'
+export enum TransactionType {
+  BUY = 'BUY',
+  SELL = 'SELL'
+}
 
 export type Transaction = {
   id: string
@@ -10,7 +13,9 @@ export type Transaction = {
 }
 
 export type TransactionsData = {
-  totalPesos: number
   totalUsd: number
-  gananciaPerdida: number
+  totalPesos: number
+  averageCost: number
+  realizedProfit: number
+  unrealizedProfit: number
 }

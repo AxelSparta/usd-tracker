@@ -1,81 +1,184 @@
 'use client'
 
+import { Button } from '@/components/ui/button'
+import {
+  Form,
+  FormControl,
+  FormField,
+  FormItem,
+  FormLabel,
+  FormMessage
+} from '@/components/ui/form'
+import { Input } from '@/components/ui/input'
+import { useTransactionStore } from '@/store/transaction.store'
+import { TransactionType } from '@/types/transaction.types'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { CalendarIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
+import { toast } from 'sonner'
 import { z } from 'zod'
-import { useTransactions } from '../context/TransactionsContext'
+import { Calendar } from './ui/calendar'
+import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
+import { RadioGroup, RadioGroupItem } from './ui/radio-group'
+import { Toaster } from './ui/sonner'
 
-const transactionSchema = z.object({
+const transactionFormSchema = z.object({
   pesosAmount: z
     .number()
     .nonnegative('La cantidad de pesos no puede ser negativa'),
   usdAmount: z.number().nonnegative('La cantidad de USD no puede ser negativa'),
-  date: z.date()
+  date: z.date(),
+  type: z.enum(TransactionType)
 })
 
 export default function NewTransactionForm () {
-  const { addTransaction } = useTransactions()
-  const form = useForm<z.infer<typeof transactionSchema>>({
-    resolver: zodResolver(transactionSchema),
+  const addTransaction = useTransactionStore(state => state.addTransaction)
+
+  const form = useForm<z.infer<typeof transactionFormSchema>>({
+    resolver: zodResolver(transactionFormSchema),
     defaultValues: {
       pesosAmount: 0,
       usdAmount: 0,
-      date: new Date(Date.now())
+      date: new Date(Date.now()),
+      type: TransactionType.BUY
     }
   })
 
-  const handleSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault()
-    const formData = new FormData(e.currentTarget)
-    const pesos = formData.get('pesos') as string
-    const usd = formData.get('usd') as string
-    const usdPerPesos = Number(pesos) / Number(usd)
-    const transaction = {
-      pesos: Number(pesos),
-      usd: Number(usd),
-      usdPerPesos
-    }
-    addTransaction(transaction)
-    console.log(transaction)
-    e.currentTarget.reset()
-  }
-
-  function onSubmit(values: z.infer<typeof transactionSchema>) {
+  async function onSubmit (values: z.infer<typeof transactionFormSchema>) {
     // Do something with the form values.
     // ✅ This will be type-safe and validated.
     console.log(values)
+    const newTransaction = {
+      pesos: values.pesosAmount,
+      usd: values.usdAmount,
+      usdPerPesos: values.pesosAmount / values.usdAmount,
+      type: values.type,
+      date: values.date.toLocaleDateString()
+    }
+    try {
+      await addTransaction(newTransaction)
+      toast.success('Transacción creada con éxito.')
+    } catch (err) {
+      toast.error('Algo malió sal.')
+    } finally {
+      form.reset()
+    }
   }
 
   return (
-    <form
-      className='flex flex-col gap-2 max-w-sm mx-auto lg:mx-0 py-4'
-      onSubmit={handleSubmit}
-    >
+    <div>
       <h2 className='text-xl font-bold text-center'>Nueva transacción</h2>
-      <input
-        id='pesos'
-        name='pesos'
-        type='number'
-        placeholder='Cantidad pesos'
-        className='border border-gray-300 rounded px-2 py-1 block w-full'
-        step='any'
-        required
-      />
-      <input
-        id='usd'
-        name='usd'
-        type='number'
-        placeholder='Cantidad USD recibidos'
-        className='border border-gray-300 rounded px-2 py-1 block w-full'
-        step='any'
-        required
-      />
-      <button
-        type='submit'
-        className='bg-blue-500 text-white px-2 py-1 rounded mx-auto block border border-gray-300'
-      >
-        Guardar
-      </button>
-    </form>
+      <Form {...form}>
+        <form
+          onSubmit={form.handleSubmit(onSubmit)}
+          className='space-y-4 max-w-lg mx-auto'
+        >
+          <FormField
+            control={form.control}
+            name='pesosAmount'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cantidad pesos</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    {...field}
+                    onChange={e => field.onChange(e.target.valueAsNumber)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='usdAmount'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Cantidad dólares</FormLabel>
+                <FormControl>
+                  <Input
+                    type='number'
+                    {...field}
+                    onChange={e => field.onChange(e.target.valueAsNumber)}
+                  />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='type'
+            render={({ field }) => (
+              <FormItem className='space-y-3'>
+                <FormLabel>Tipo de transacción</FormLabel>
+                <FormControl>
+                  <RadioGroup
+                    onValueChange={field.onChange}
+                    defaultValue={field.value}
+                    className='flex flex-col'
+                  >
+                    <FormItem className='flex items-center gap-3'>
+                      <FormControl>
+                        <RadioGroupItem value={TransactionType.BUY} />
+                      </FormControl>
+                      <FormLabel className='font-normal'>Compra</FormLabel>
+                    </FormItem>
+                    <FormItem className='flex items-center gap-3'>
+                      <FormControl>
+                        <RadioGroupItem value={TransactionType.SELL} />
+                      </FormControl>
+                      <FormLabel className='font-normal'>Venta</FormLabel>
+                    </FormItem>
+                  </RadioGroup>
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='date'
+            render={({ field }) => (
+              <FormItem className='flex flex-col'>
+                <FormLabel>Día de la transacción</FormLabel>
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <FormControl>
+                      <Button
+                        variant={'outline'}
+                        className={'w-[240px] pl-3 text-left font-normal'}
+                      >
+                        {field.value ? (
+                          <p>{field.value.toLocaleDateString()}</p>
+                        ) : (
+                          <span>Seleccionar fecha</span>
+                        )}
+                        <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
+                      </Button>
+                    </FormControl>
+                  </PopoverTrigger>
+                  <PopoverContent className='w-auto p-0' align='start'>
+                    <Calendar
+                      mode='single'
+                      selected={field.value}
+                      onSelect={field.onChange}
+                      disabled={date =>
+                        date > new Date() || date < new Date('1900-01-01')
+                      }
+                      captionLayout='dropdown'
+                    />
+                  </PopoverContent>
+                </Popover>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <Button type='submit'>Crear Transacción</Button>
+        </form>
+      </Form>
+      <Toaster richColors closeButton position='top-center' />
+    </div>
   )
 }

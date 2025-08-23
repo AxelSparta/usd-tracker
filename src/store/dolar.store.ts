@@ -29,7 +29,6 @@ const dolarApi: StateCreator<DolarState> = (set, get) => ({
 
 export const useDolarStore = create<DolarState>()(
   persist(dolarApi, {
-    name: 'dolar-storage',
-    skipHydration: true
+    name: 'dolar-storage'
   })
 )

@@ -1,9 +1,5 @@
-import { DolarOption } from '@/types/dolar.types'
-import type {
-  Transaction,
-  TransactionsData,
-  TransactionType
-} from '@/types/transaction.types'
+import { TransactionType } from '@/generated/prisma'
+import type { Transaction, TransactionsData } from '@/types/transaction.types'
 import { create } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useDolarStore } from './dolar.store'
@@ -29,7 +25,13 @@ export const useTransactionStore = create<State>()(
   persist(
     (set, get) => ({
       transactions: [],
-      transactionsData: { totalPesos: 0, totalUsd: 0, gananciaPerdida: 0 },
+      transactionsData: {
+        totalUsd: 0,
+        totalPesos: 0,
+        averageCost: 0,
+        realizedProfit: 0,
+        unrealizedProfit: 0
+      },
       isSignedIn: false,
       setSignedIn: (signed: boolean) => set({ isSignedIn: signed }),
 
@@ -85,18 +87,52 @@ export const useTransactionStore = create<State>()(
           get().updateTransactionsData(updated)
         }
       },
-      updateTransactionsData: (txs, dolarPriceOverride) => {
-        const totalPesos = txs.reduce((acc, tx) => acc + tx.pesos, 0)
-        const totalUsd = txs.reduce((acc, tx) => acc + tx.usd, 0)
-        const dolarPrice =
-          dolarPriceOverride ?? useDolarStore.getState().dolarData?.venta ?? 0
-        const gananciaPerdida = totalUsd * dolarPrice - totalPesos
-        set({ transactionsData: { totalPesos, totalUsd, gananciaPerdida } })
+      updateTransactionsData: txs => {
+        // const totalPesos = txs.reduce((acc, tx) => acc + tx.pesos, 0)
+        // const totalUsd = txs.reduce((acc, tx) => acc + tx.usd, 0)
+        // const dolarPrice =
+        //   dolarPriceOverride ?? useDolarStore.getState().dolarData?.venta ?? 0
+        // const gananciaPerdida = totalUsd * dolarPrice - totalPesos
+        // set({ transactionsData: { totalPesos, totalUsd, gananciaPerdida } })
+        let totalUsd = 0
+        let totalPesos = 0
+        let averageCost = 0
+        let realizedProfit = 0
+        const dolarPrice = useDolarStore.getState().dolarData?.venta ?? 0
+
+        for (const tx of txs) {
+          const { type, usd, pesos } = tx
+
+          if (type === TransactionType.BUY) {
+            totalPesos += pesos
+            totalUsd += usd
+            averageCost = totalPesos / totalUsd
+          }
+
+          if (type === TransactionType.SELL) {
+            const precioVenta = pesos / usd
+            const ganancia = (precioVenta - averageCost) * usd
+            
+            realizedProfit += ganancia
+            totalUsd -= usd
+          }
+        }
+
+        const unrealizedProfit = (dolarPrice - averageCost) * totalUsd
+
+        set({
+          transactionsData: {
+            totalUsd,
+            totalPesos,
+            averageCost,
+            realizedProfit,
+            unrealizedProfit
+          }
+        })
       }
     }),
     {
-      name: 'transactions-storage', // Key de localStorage
-      skipHydration: true // Evita problemas en SSR
+      name: 'transactions-storage' // Key de localStorage
     }
   )
 )
