@@ -1,5 +1,4 @@
 'use client'
-
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -23,37 +22,48 @@ import { RadioGroup, RadioGroupItem } from './ui/radio-group'
 import { Toaster } from './ui/sonner'
 
 const transactionFormSchema = z.object({
-  pesosAmount: z
-    .number()
-    .nonnegative('La cantidad de pesos no puede ser negativa'),
-  usdAmount: z.number().nonnegative('La cantidad de USD no puede ser negativa'),
+  pesosAmount: z.union([
+    z
+      .number('La cantidad de pesos debe ser un número.')
+      .nonnegative('La cantidad de pesos no puede ser un número negativo.'),
+    z.nan()
+  ]),
+  usdAmount: z.union([
+    z
+      .number('La cantidad de dólares debe ser un número.')
+      .nonnegative('La cantidad de dólares no puede ser un número negativo.'),
+    z.nan()
+  ]),
   date: z.date(),
   type: z.enum(TransactionType)
 })
 
 export default function NewTransactionForm () {
   const addTransaction = useTransactionStore(state => state.addTransaction)
+  const transactionsData = useTransactionStore(state => state.transactionsData)
 
   const form = useForm<z.infer<typeof transactionFormSchema>>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
-      pesosAmount: 0,
-      usdAmount: 0,
       date: new Date(Date.now()),
       type: TransactionType.BUY
     }
   })
 
   async function onSubmit (values: z.infer<typeof transactionFormSchema>) {
-    // Do something with the form values.
-    // ✅ This will be type-safe and validated.
-    console.log(values)
     const newTransaction = {
       pesos: values.pesosAmount,
       usd: values.usdAmount,
       usdPerPesos: values.pesosAmount / values.usdAmount,
       type: values.type,
       date: values.date.toLocaleDateString()
+    }
+    if (
+      newTransaction.type === TransactionType.SELL &&
+      newTransaction.usd > transactionsData.totalUsd
+    ) {
+      toast.error('No puedes vender más dólares de los que tienes.')
+      return
     }
     try {
       await addTransaction(newTransaction)
@@ -83,6 +93,7 @@ export default function NewTransactionForm () {
                   <Input
                     type='number'
                     {...field}
+                    value={field.value || ''}
                     onChange={e => field.onChange(e.target.valueAsNumber)}
                   />
                 </FormControl>
@@ -100,6 +111,7 @@ export default function NewTransactionForm () {
                   <Input
                     type='number'
                     {...field}
+                    value={field.value || ''}
                     onChange={e => field.onChange(e.target.valueAsNumber)}
                   />
                 </FormControl>
@@ -116,7 +128,7 @@ export default function NewTransactionForm () {
                 <FormControl>
                   <RadioGroup
                     onValueChange={field.onChange}
-                    defaultValue={field.value}
+                    value={field.value}
                     className='flex flex-col'
                   >
                     <FormItem className='flex items-center gap-3'>

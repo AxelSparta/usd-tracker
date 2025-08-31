@@ -1,6 +1,12 @@
 'use client'
 
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger
+} from '@/components/ui/popover'
 import { useTransactionStore } from '@/store/transaction.store'
+import { Button } from './ui/button'
 
 export default function TransactionList () {
   const transactions = useTransactionStore(state => state.transactions)
@@ -65,17 +71,32 @@ export default function TransactionList () {
                     <td className='px-2 py-2'>
                       {transaction.type === 'BUY' ? 'Compra' : 'Venta'}
                     </td>
+                    <td className='px-2 py-2'>{transaction.date}</td>
                     <td className='px-2 py-2'>
-                      {transaction.date}
-                    </td>
-                    <td className='px-2 py-2'>
-                      <button
-                        type='button'
-                        className='text-red-500 hover:text-red-600 border border-red-500 hover:border-red-600 rounded p-2'
-                        onClick={() => removeTransaction(transaction.id)}
-                      >
-                        Eliminar
-                      </button>
+                      <Popover>
+                        <PopoverTrigger>
+                          <Button
+                            className='cursor-pointer'
+                            variant='destructive'
+                            size='sm'
+                          >
+                            Eliminar
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent className='flex justify-between items-center gap-4'>
+                          <p>¿Estás seguro?</p>
+                          <Button
+                            className='cursor-pointer'
+                            variant='destructive'
+                            size='sm'
+                            onClick={() => {
+                              removeTransaction(transaction.id)
+                            }}
+                          >
+                            Sí
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
                     </td>
                   </tr>
                 ))}
@@ -102,7 +123,8 @@ export default function TransactionList () {
                     : 'text-red-500'
                 }`}
               >
-                Ganancia/Perdida realizada: {transactionsData.realizedProfit.toFixed(2)}
+                Ganancia/Perdida realizada:{' '}
+                {transactionsData.realizedProfit.toFixed(2)}
                 ARS
               </p>
               <p
@@ -112,7 +134,8 @@ export default function TransactionList () {
                     : 'text-red-500'
                 }`}
               >
-                Ganancia/Perdida no realizada: {transactionsData.unrealizedProfit.toFixed(2)}
+                Ganancia/Perdida no realizada:{' '}
+                {transactionsData.unrealizedProfit.toFixed(2)}
                 ARS
               </p>
             </div>

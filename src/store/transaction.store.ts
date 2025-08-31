@@ -1,6 +1,6 @@
 import { TransactionType } from '@/generated/prisma'
 import type { Transaction, TransactionsData } from '@/types/transaction.types'
-import { create } from 'zustand'
+import { create, StateCreator } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useDolarStore } from './dolar.store'
 
@@ -9,21 +9,20 @@ interface State {
   transactionsData: TransactionsData
 
   isSignedIn: boolean
-  setSignedIn: (signed: boolean) => void
-
+  
   getTransactions: () => Promise<void>
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>
+  sortTransactionsByDate: () => void
   removeTransaction: (id: string) => Promise<void>
-
   updateTransactionsData: (
     txs: Transaction[],
     dolarPriceOverride?: number
   ) => void
+  
+  setSignedIn: (signed: boolean) => void
 }
 
-export const useTransactionStore = create<State>()(
-  persist(
-    (set, get) => ({
+const storeApi: StateCreator<State> = (set, get) => ({
       transactions: [],
       transactionsData: {
         totalUsd: 0,
@@ -71,6 +70,7 @@ export const useTransactionStore = create<State>()(
         } else {
           const updated = [...get().transactions, newTransaction]
           set({ transactions: updated })
+          get().sortTransactionsByDate()
           get().updateTransactionsData(updated)
         }
       },
@@ -84,6 +84,7 @@ export const useTransactionStore = create<State>()(
         } else {
           const updated = get().transactions.filter(tx => tx.id !== id)
           set({ transactions: updated })
+          get().sortTransactionsByDate()
           get().updateTransactionsData(updated)
         }
       },
@@ -129,10 +130,20 @@ export const useTransactionStore = create<State>()(
             unrealizedProfit
           }
         })
+      },
+      sortTransactionsByDate: () => {
+        const sorted = [...get().transactions].sort(
+          (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
+        )
+        set({ transactions: sorted })
       }
-    }),
+    })
+
+export const useTransactionStore = create<State>()(
+  persist(
+    storeApi,
     {
-      name: 'transactions-storage' // Key de localStorage
+      name: 'transactions-storage'
     }
   )
 )
