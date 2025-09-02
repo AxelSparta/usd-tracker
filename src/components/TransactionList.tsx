@@ -74,7 +74,7 @@ export default function TransactionList () {
                     <td className='px-2 py-2'>{transaction.date}</td>
                     <td className='px-2 py-2'>
                       <Popover>
-                        <PopoverTrigger>
+                        <PopoverTrigger asChild>
                           <Button
                             className='cursor-pointer'
                             variant='destructive'

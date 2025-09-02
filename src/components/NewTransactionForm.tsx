@@ -11,6 +11,7 @@ import {
 import { Input } from '@/components/ui/input'
 import { useTransactionStore } from '@/store/transaction.store'
 import { TransactionType } from '@/types/transaction.types'
+import { useUser } from '@clerk/nextjs'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -41,6 +42,7 @@ const transactionFormSchema = z.object({
 export default function NewTransactionForm () {
   const addTransaction = useTransactionStore(state => state.addTransaction)
   const transactionsData = useTransactionStore(state => state.transactionsData)
+  const {isSignedIn} = useUser()
 
   const form = useForm<z.infer<typeof transactionFormSchema>>({
     resolver: zodResolver(transactionFormSchema),
@@ -82,7 +84,8 @@ export default function NewTransactionForm () {
         <form
           onSubmit={form.handleSubmit(onSubmit)}
           className='space-y-4 max-w-lg mx-auto'
-        >
+          >
+          {!isSignedIn && <p>Las transacciones serán guardadas de forma local, iniciar sesión para guardar en la nube.</p>}
           <FormField
             control={form.control}
             name='pesosAmount'

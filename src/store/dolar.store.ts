@@ -2,6 +2,7 @@ import { getDolar } from '@/services/dolarApi'
 import { type DolarData, DolarOption } from '@/types/dolar.types'
 import { create, StateCreator } from 'zustand'
 import { persist } from 'zustand/middleware'
+import { dolarStorage } from './storages/dolar.storage'
 
 interface DolarState {
   dolarData: DolarData | null
@@ -29,6 +30,7 @@ const dolarApi: StateCreator<DolarState> = (set, get) => ({
 
 export const useDolarStore = create<DolarState>()(
   persist(dolarApi, {
-    name: 'dolar-storage'
+    name: 'dolar-storage',
+    storage: dolarStorage
   })
 )

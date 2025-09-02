@@ -13,8 +13,7 @@ export default function DolarPrice () {
 
 
   useEffect(() => {
-    if (!dolarData) {
-      console.log(dolarData)
+    if (!dolarOption) {
       setDolarOption(DolarOption.Cripto)
     }
   }, [])
@@ -28,7 +27,7 @@ export default function DolarPrice () {
       <p className='font-bold'>Dolar: {dolarData?.nombre}</p>
       <select
         onChange={handleChange}
-        defaultValue={dolarOption}
+        value={dolarOption}
         className='border rounded px-2 py-1 cursor-pointer border-gray-300'
       >
         {dolarValues.map(option => (

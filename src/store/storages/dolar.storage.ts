@@ -1,17 +1,22 @@
 import {
-	createJSONStorage,
-	StateStorage
+  createJSONStorage,
+  StateStorage
 } from 'zustand/middleware'
 
 const storageApi: StateStorage = {
   getItem: function (name: string): string | null | Promise<string | null> {
-    throw new Error('Function not implemented.')
+    const dolarState = localStorage.getItem(name)
+    console.log(dolarState)
+    if (dolarState) return dolarState
+    return null
   },
   setItem: function (name: string, value: string): unknown | Promise<unknown> {
-    throw new Error('Function not implemented.')
+    localStorage.setItem(name, value)
+    return true
   },
   removeItem: function (name: string): unknown | Promise<unknown> {
-    throw new Error('Function not implemented.')
+    localStorage.removeItem(name)
+    return true
   }
 }
 
