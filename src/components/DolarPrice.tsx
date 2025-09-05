@@ -8,18 +8,23 @@ import { useEffect } from 'react'
 export default function DolarPrice () {
   const dolarData = useDolarStore(state => state.dolarData)
   const setDolarOption = useDolarStore(state => state.setDolarOption)
+  const fetchDolarData = useDolarStore(state => state.fetchDolarData)
   const dolarOption = useDolarStore(state => state.dolarOption)
   const dolarValues = Object.values(DolarOption)
 
-
   useEffect(() => {
-    if (!dolarOption) {
-      setDolarOption(DolarOption.Cripto)
+    // Si no hay datos cargados, se carga la opción por defecto
+    if (!dolarData) {
+      fetchDolarData(dolarOption ?? DolarOption.Cripto)
     }
-  }, [])
+  }, [dolarData, dolarOption, fetchDolarData])
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
     setDolarOption(e.target.value as DolarOption)
+  }
+
+  if (!dolarData) {
+    return <p className='text-center'>Cargando precio del dolar...</p>
   }
 
   return (

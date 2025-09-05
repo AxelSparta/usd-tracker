@@ -42,7 +42,8 @@ const transactionFormSchema = z.object({
 export default function NewTransactionForm () {
   const addTransaction = useTransactionStore(state => state.addTransaction)
   const transactionsData = useTransactionStore(state => state.transactionsData)
-  const {isSignedIn} = useUser()
+  const {isSignedIn, user} = useUser()
+  console.log(user)
 
   const form = useForm<z.infer<typeof transactionFormSchema>>({
     resolver: zodResolver(transactionFormSchema),

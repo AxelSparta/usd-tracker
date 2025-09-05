@@ -6,7 +6,6 @@ import {
 const storageApi: StateStorage = {
   getItem: function (name: string): string | null | Promise<string | null> {
     const dolarState = localStorage.getItem(name)
-    console.log(dolarState)
     if (dolarState) return dolarState
     return null
   },
