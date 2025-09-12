@@ -5,11 +5,11 @@ export enum TransactionType {
 
 export type Transaction = {
   id: string
-  pesos: number
-  usd: number
-  usdPerPesos: number
+  pesosAmount: number
+  dollarsAmount: number
+  usdPrice: number
   type: TransactionType
-  date: string
+  date: Date
 }
 
 export type TransactionsData = {

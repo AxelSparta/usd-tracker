@@ -1,4 +1,5 @@
 'use client'
+import { transactionFormSchema } from '@/app/validations/transaction'
 import { Button } from '@/components/ui/button'
 import {
   Form,
@@ -22,28 +23,10 @@ import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { RadioGroup, RadioGroupItem } from './ui/radio-group'
 import { Toaster } from './ui/sonner'
 
-const transactionFormSchema = z.object({
-  pesosAmount: z.union([
-    z
-      .number('La cantidad de pesos debe ser un número.')
-      .nonnegative('La cantidad de pesos no puede ser un número negativo.'),
-    z.nan()
-  ]),
-  usdAmount: z.union([
-    z
-      .number('La cantidad de dólares debe ser un número.')
-      .nonnegative('La cantidad de dólares no puede ser un número negativo.'),
-    z.nan()
-  ]),
-  date: z.date(),
-  type: z.enum(TransactionType)
-})
-
 export default function NewTransactionForm () {
   const addTransaction = useTransactionStore(state => state.addTransaction)
   const transactionsData = useTransactionStore(state => state.transactionsData)
-  const {isSignedIn, user} = useUser()
-  console.log(user)
+  const { isSignedIn } = useUser()
 
   const form = useForm<z.infer<typeof transactionFormSchema>>({
     resolver: zodResolver(transactionFormSchema),
@@ -55,23 +38,27 @@ export default function NewTransactionForm () {
 
   async function onSubmit (values: z.infer<typeof transactionFormSchema>) {
     const newTransaction = {
-      pesos: values.pesosAmount,
-      usd: values.usdAmount,
-      usdPerPesos: values.pesosAmount / values.usdAmount,
+      pesosAmount: values.pesosAmount,
+      dollarsAmount: values.dollarsAmount,
+      usdPrice: values.pesosAmount / values.dollarsAmount,
       type: values.type,
-      date: values.date.toLocaleDateString()
+      date: values.date
     }
     if (
       newTransaction.type === TransactionType.SELL &&
-      newTransaction.usd > transactionsData.totalUsd
+      newTransaction.dollarsAmount > transactionsData.totalUsd
     ) {
       toast.error('No puedes vender más dólares de los que tienes.')
       return
     }
     try {
-      await addTransaction(newTransaction)
+      await addTransaction({
+        isSignedIn: isSignedIn ?? false,
+        tx: newTransaction
+      })
       toast.success('Transacción creada con éxito.')
     } catch (err) {
+      console.error(err)
       toast.error('Algo malió sal.')
     } finally {
       form.reset()
@@ -85,8 +72,13 @@ export default function NewTransactionForm () {
         <form
           onSubmit={form.handleSubmit(onSubmit)}
           className='space-y-4 max-w-lg mx-auto'
-          >
-          {!isSignedIn && <p>Las transacciones serán guardadas de forma local, iniciar sesión para guardar en la nube.</p>}
+        >
+          {!isSignedIn && (
+            <p>
+              Las transacciones serán guardadas de forma local, iniciar sesión
+              para guardar en la nube.
+            </p>
+          )}
           <FormField
             control={form.control}
             name='pesosAmount'
@@ -107,7 +99,7 @@ export default function NewTransactionForm () {
           />
           <FormField
             control={form.control}
-            name='usdAmount'
+            name='dollarsAmount'
             render={({ field }) => (
               <FormItem>
                 <FormLabel>Cantidad dólares</FormLabel>

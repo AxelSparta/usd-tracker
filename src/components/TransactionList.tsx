@@ -90,7 +90,7 @@ export default function TransactionList () {
                             variant='destructive'
                             size='sm'
                             onClick={() => {
-                              removeTransaction(transaction.id)
+                              removeTransaction({ isSignedIn: false, transactionId: transaction.id })
                             }}
                           >
                             Sí

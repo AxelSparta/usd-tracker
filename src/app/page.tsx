@@ -3,7 +3,6 @@ import NewTransactionForm from "@/components/NewTransactionForm"
 import TransactionList from "@/components/TransactionList"
 
 export default async function Home () {
-  console.log('index page')
   return (
     <div className='flex-1'>
       <DolarPrice />
