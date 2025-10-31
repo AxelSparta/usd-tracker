@@ -96,13 +96,8 @@ const storeApi: StateCreator<State> = (set, get) => ({
       get().updateTransactionsData(updated)
     }
   },
+
   updateTransactionsData: txs => {
-    // const totalPesos = txs.reduce((acc, tx) => acc + tx.pesos, 0)
-    // const totalUsd = txs.reduce((acc, tx) => acc + tx.usd, 0)
-    // const dolarPrice =
-    //   dolarPriceOverride ?? useDolarStore.getState().dolarData?.venta ?? 0
-    // const gananciaPerdida = totalUsd * dolarPrice - totalPesos
-    // set({ transactionsData: { totalPesos, totalUsd, gananciaPerdida } })
     let totalUsd = 0
     let totalPesos = 0
     let averageCost = 0

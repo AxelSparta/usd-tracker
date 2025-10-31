@@ -17,7 +17,7 @@ const inter = Inter({
 export const metadata: Metadata = {
   title: 'Seguimiento de compras de USD',
   description:
-    'Web donde puedes guardar tus compras de USD y ver el precio actual del dolar junto con las ganancias o pérdidas'
+    'Aplicación web para registrar y gestionar compras de dólares, que muestra el valor actual del dólar en Argentina y calcula automáticamente tus ganancias o pérdidas en tiempo real.'
 }
 
 export default function RootLayout ({

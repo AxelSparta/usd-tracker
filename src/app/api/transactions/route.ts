@@ -35,10 +35,10 @@ export async function POST (req: Request) {
       data: {
         userId,
         pesosAmount: body.pesosAmount,
-        date: body.date,
+        date: new Date(body.date),
         dollarsAmount: body.dollarsAmount,
         type: body.type,
-        usdPrice: body.usdPerPesos
+        usdPrice: body.usdPrice
       }
     })
 

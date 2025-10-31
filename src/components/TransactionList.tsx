@@ -6,6 +6,8 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover'
 import { useTransactionStore } from '@/store/transaction.store'
+import { useAuth } from '@clerk/nextjs'
+import { useEffect } from 'react'
 import { Button } from './ui/button'
 
 export default function TransactionList () {
@@ -14,6 +16,13 @@ export default function TransactionList () {
     state => state.removeTransaction
   )
   const transactionsData = useTransactionStore(state => state.transactionsData)
+  const getTransactions = useTransactionStore(state => state.getTransactions)
+
+  const { isSignedIn } = useAuth()
+
+  useEffect(() => {
+    getTransactions({ isSignedIn: isSignedIn ?? false })
+  }, [isSignedIn])
 
   return (
     <div>
@@ -59,19 +68,19 @@ export default function TransactionList () {
                     key={transaction.id}
                   >
                     <td className='px-2 py-2'>
-                      {transaction.pesos.toFixed(2)}ARS
+                      {transaction.pesosAmount.toFixed(2)}ARS
                     </td>
                     <td className='px-2 py-2'>
-                      {transaction.usd.toFixed(2)}USD
+                      {transaction.dollarsAmount.toFixed(2)}USD
                     </td>
                     <td className='px-2 py-2'>
-                      {transaction.usdPerPesos.toFixed(2)}
+                      {transaction.usdPrice.toFixed(2)}
                       USD
                     </td>
                     <td className='px-2 py-2'>
                       {transaction.type === 'BUY' ? 'Compra' : 'Venta'}
                     </td>
-                    <td className='px-2 py-2'>{transaction.date}</td>
+                    <td className='px-2 py-2'>{`${transaction.date.toLocaleDateString}`}</td>
                     <td className='px-2 py-2'>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -90,7 +99,10 @@ export default function TransactionList () {
                             variant='destructive'
                             size='sm'
                             onClick={() => {
-                              removeTransaction({ isSignedIn: false, transactionId: transaction.id })
+                              removeTransaction({
+                                isSignedIn: false,
+                                transactionId: transaction.id
+                              })
                             }}
                           >
                             Sí
