@@ -1,6 +1,4 @@
-import { TransactionType } from '@/generated/prisma'
-import type { Transaction, TransactionsData } from '@/types/transaction.types'
-import { useAuth } from '@clerk/nextjs'; // para saber si hay user en server
+import { TransactionType, type Transaction, type TransactionsData } from '@/types/transaction.types'
 import { create, StateCreator } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useDolarStore } from './dolar.store'

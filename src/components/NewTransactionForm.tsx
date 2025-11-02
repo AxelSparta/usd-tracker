@@ -5,7 +5,6 @@ import {
   Card,
   CardContent,
   CardDescription,
-  CardFooter,
   CardHeader,
   CardTitle
 } from '@/components/ui/card'
@@ -20,7 +19,6 @@ import {
 import { Input } from '@/components/ui/input'
 import { useTransactionStore } from '@/store/transaction.store'
 import { TransactionType } from '@/types/transaction.types'
-import { useUser } from '@clerk/nextjs'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
@@ -29,12 +27,10 @@ import { z } from 'zod'
 import { Calendar } from './ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { RadioGroup, RadioGroupItem } from './ui/radio-group'
-import { Toaster } from './ui/sonner'
 
 export default function NewTransactionForm () {
   const addTransaction = useTransactionStore(state => state.addTransaction)
   const transactionsData = useTransactionStore(state => state.transactionsData)
-  const { isSignedIn } = useUser()
 
   const form = useForm<z.infer<typeof transactionFormSchema>>({
     resolver: zodResolver(transactionFormSchema),
@@ -61,7 +57,7 @@ export default function NewTransactionForm () {
     }
     try {
       await addTransaction({
-        isSignedIn: isSignedIn ?? false,
+        isSignedIn: false,
         tx: newTransaction
       })
       toast.success('Transacción creada con éxito.')
@@ -75,19 +71,12 @@ export default function NewTransactionForm () {
 
   return (
     <div>
-      <Card className='shadow-xl dark:bg-gray-700'>
+      <Card className='shadow-xl dark:bg-slate-800'>
         <CardHeader>
           <CardTitle>
             <h2>Agregar transacción</h2>
           </CardTitle>
-          <CardDescription>
-            {!isSignedIn && (
-              <p>
-                Las transacciones serán guardadas de forma local, iniciar sesión
-                para guardar en la nube.
-              </p>
-            )}
-          </CardDescription>
+
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -203,7 +192,6 @@ export default function NewTransactionForm () {
         </CardContent>
       </Card>
 
-      <Toaster richColors closeButton position='top-center' />
     </div>
   )
 }

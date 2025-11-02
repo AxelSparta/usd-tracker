@@ -1,6 +1,7 @@
-import DolarPrice from "@/components/DolarPrice"
-import NewTransactionForm from "@/components/NewTransactionForm"
-import TransactionList from "@/components/TransactionList"
+import DolarPrice from '@/components/DolarPrice'
+import NewTransactionForm from '@/components/NewTransactionForm'
+import TransactionList from '@/components/TransactionList'
+import { Toaster } from 'sonner'
 
 export default async function Home () {
   return (
@@ -10,6 +11,7 @@ export default async function Home () {
         <NewTransactionForm />
         <TransactionList />
       </div>
+      <Toaster richColors closeButton position='top-center' />
     </div>
   )
 }

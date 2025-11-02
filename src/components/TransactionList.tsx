@@ -6,8 +6,8 @@ import {
   PopoverTrigger
 } from '@/components/ui/popover'
 import { useTransactionStore } from '@/store/transaction.store'
-import { useAuth } from '@clerk/nextjs'
 import { useEffect } from 'react'
+import { toast } from 'sonner'
 import { Button } from './ui/button'
 
 export default function TransactionList () {
@@ -18,16 +18,28 @@ export default function TransactionList () {
   const transactionsData = useTransactionStore(state => state.transactionsData)
   const getTransactions = useTransactionStore(state => state.getTransactions)
 
-  const { isSignedIn } = useAuth()
 
   useEffect(() => {
-    getTransactions({ isSignedIn: isSignedIn ?? false })
-  }, [isSignedIn])
+    getTransactions({ isSignedIn: false })
+  }, [])
 
   const handleDeleteTransaction = (transactionId: string) => {
     const transaction = transactions.find(tx => tx.id === transactionId)
-    if (!transaction || (transaction.dollarsAmount > transactionsData.totalUsd && transaction.type === 'BUY')) return
-    removeTransaction({ isSignedIn: isSignedIn ?? false, transactionId })
+    if (
+      !transaction ||
+      (transaction.dollarsAmount > transactionsData.totalUsd &&
+        transaction.type === 'BUY')
+    ) {
+      toast.error(
+        'Ups, no podés borrar esta transacción: quedarías con dólares negativos.'
+      )
+
+      return
+    }
+    removeTransaction({ isSignedIn: false, transactionId })
+    toast.success(
+        'Transacción eliminada con éxito.'
+      )
   }
 
   return (
@@ -86,7 +98,9 @@ export default function TransactionList () {
                     <td className='px-2 py-2'>
                       {transaction.type === 'BUY' ? 'Compra' : 'Venta'}
                     </td>
-                    <td className='px-2 py-2'>{new Date(transaction.date).toLocaleDateString()}</td>
+                    <td className='px-2 py-2'>
+                      {new Date(transaction.date).toLocaleDateString()}
+                    </td>
                     <td className='px-2 py-2'>
                       <Popover>
                         <PopoverTrigger asChild>

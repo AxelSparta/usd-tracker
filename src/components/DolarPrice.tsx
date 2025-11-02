@@ -30,7 +30,7 @@ export default function DolarPrice () {
 
   return (
     <section>
-      <Card className='max-w-md mx-auto shadow-xl dark:bg-gray-700'>
+      <Card className='max-w-md mx-auto shadow-xl dark:bg-slate-800'>
         <CardHeader>
           <CardTitle>Dolar: {dolarData?.nombre}</CardTitle>
           <CardDescription>

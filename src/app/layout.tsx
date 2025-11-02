@@ -1,7 +1,3 @@
-import { ClientProviders } from '@/app/providers'
-import { ClerkProvider } from '@clerk/nextjs'
-
-import { shadcn } from '@clerk/themes'
 import { Inter } from 'next/font/google'
 import './globals.css'
 
@@ -26,24 +22,16 @@ export default function RootLayout ({
   children: React.ReactNode
 }>) {
   return (
-    <ClerkProvider
-      appearance={{
-        baseTheme: shadcn
-      }}
-    >
-      <html lang='es' suppressHydrationWarning>
-        <body
-          className={`${inter.className} antialiased dark:bg-gradient-to-b dark:from-slate-700 dark:via-slate-800 dark:to-slate-950 bg-gradient-to-b from-slate-50 via-slate-200 to-slate-300 min-h-screen container mx-auto xs:p-0`}
-        >
-          <ClientProviders>
-            <div className='flex flex-col min-h-screen p-4'>
-              <Header />
-              {children}
-              <Footer />
-            </div>
-          </ClientProviders>
-        </body>
-      </html>
-    </ClerkProvider>
+    <html lang='es' suppressHydrationWarning>
+      <body
+        className={`${inter.className} antialiased dark:bg-gradient-to-b dark:from-slate-700 dark:via-slate-800 dark:to-slate-950 bg-gradient-to-b from-slate-50 via-slate-200 to-slate-300 min-h-screen container mx-auto xs:p-0`}
+      >
+        <div className='flex flex-col min-h-screen p-4'>
+          <Header />
+          {children}
+          <Footer />
+        </div>
+      </body>
+    </html>
   )
 }
