@@ -24,6 +24,12 @@ export default function TransactionList () {
     getTransactions({ isSignedIn: isSignedIn ?? false })
   }, [isSignedIn])
 
+  const handleDeleteTransaction = (transactionId: string) => {
+    const transaction = transactions.find(tx => tx.id === transactionId)
+    if (!transaction || (transaction.dollarsAmount > transactionsData.totalUsd && transaction.type === 'BUY')) return
+    removeTransaction({ isSignedIn: isSignedIn ?? false, transactionId })
+  }
+
   return (
     <div>
       <h2 className='text-xl font-bold text-center mb-4'>
@@ -80,7 +86,7 @@ export default function TransactionList () {
                     <td className='px-2 py-2'>
                       {transaction.type === 'BUY' ? 'Compra' : 'Venta'}
                     </td>
-                    <td className='px-2 py-2'>{`${transaction.date.toLocaleDateString}`}</td>
+                    <td className='px-2 py-2'>{new Date(transaction.date).toLocaleDateString()}</td>
                     <td className='px-2 py-2'>
                       <Popover>
                         <PopoverTrigger asChild>
@@ -98,12 +104,9 @@ export default function TransactionList () {
                             className='cursor-pointer'
                             variant='destructive'
                             size='sm'
-                            onClick={() => {
-                              removeTransaction({
-                                isSignedIn: false,
-                                transactionId: transaction.id
-                              })
-                            }}
+                            onClick={() =>
+                              handleDeleteTransaction(transaction.id)
+                            }
                           >
                             Sí
                           </Button>
@@ -115,42 +118,44 @@ export default function TransactionList () {
               </tbody>
             </table>
             {/* Transaction data */}
-            <div className='flex flex-col py-2'>
-              <p className='text-lg font-bold px-2 py-2'>
-                Total: {transactionsData.totalUsd.toFixed(2)}
-                USD
-              </p>
-              <p className='text-lg font-bold px-2 py-2'>
-                Total: {transactionsData.totalPesos.toFixed(2)}
-                ARS
-              </p>
-              <p className='text-lg font-bold px-2 py-2'>
-                Costo promedio: {transactionsData.averageCost.toFixed(2)}
-                ARS
-              </p>
-              <p
-                className={`text-lg font-bold ${
-                  transactionsData.realizedProfit >= 0
-                    ? 'text-green-500'
-                    : 'text-red-500'
-                }`}
-              >
-                Ganancia/Perdida realizada:{' '}
-                {transactionsData.realizedProfit.toFixed(2)}
-                ARS
-              </p>
-              <p
-                className={`text-lg font-bold ${
-                  transactionsData.unrealizedProfit >= 0
-                    ? 'text-green-500'
-                    : 'text-red-500'
-                }`}
-              >
-                Ganancia/Perdida no realizada:{' '}
-                {transactionsData.unrealizedProfit.toFixed(2)}
-                ARS
-              </p>
-            </div>
+            {transactionsData && (
+              <div className='flex flex-col py-2'>
+                <p className='text-lg font-bold px-2 py-2'>
+                  Total: {transactionsData.totalUsd.toFixed(2)}
+                  USD
+                </p>
+                <p className='text-lg font-bold px-2 py-2'>
+                  Total: {transactionsData.totalPesos.toFixed(2)}
+                  ARS
+                </p>
+                <p className='text-lg font-bold px-2 py-2'>
+                  Costo promedio: {transactionsData.averageCost.toFixed(2)}
+                  ARS
+                </p>
+                <p
+                  className={`text-lg font-bold ${
+                    transactionsData.realizedProfit >= 0
+                      ? 'text-green-500'
+                      : 'text-red-500'
+                  }`}
+                >
+                  Ganancia/Perdida realizada:{' '}
+                  {transactionsData.realizedProfit.toFixed(2)}
+                  ARS
+                </p>
+                <p
+                  className={`text-lg font-bold ${
+                    transactionsData.unrealizedProfit >= 0
+                      ? 'text-green-500'
+                      : 'text-red-500'
+                  }`}
+                >
+                  Ganancia/Perdida no realizada:{' '}
+                  {transactionsData.unrealizedProfit.toFixed(2)}
+                  ARS
+                </p>
+              </div>
+            )}
           </>
         )}
       </div>

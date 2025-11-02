@@ -2,6 +2,14 @@
 import { transactionFormSchema } from '@/app/validations/transaction'
 import { Button } from '@/components/ui/button'
 import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardFooter,
+  CardHeader,
+  CardTitle
+} from '@/components/ui/card'
+import {
   Form,
   FormControl,
   FormField,
@@ -31,7 +39,7 @@ export default function NewTransactionForm () {
   const form = useForm<z.infer<typeof transactionFormSchema>>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
-      date: new Date(Date.now()),
+      date: new Date(),
       type: TransactionType.BUY
     }
   })
@@ -67,125 +75,134 @@ export default function NewTransactionForm () {
 
   return (
     <div>
-      <h2 className='text-xl font-bold text-center'>Nueva transacción</h2>
-      <Form {...form}>
-        <form
-          onSubmit={form.handleSubmit(onSubmit)}
-          className='space-y-4 max-w-lg mx-auto'
-        >
-          {!isSignedIn && (
-            <p>
-              Las transacciones serán guardadas de forma local, iniciar sesión
-              para guardar en la nube.
-            </p>
-          )}
-          <FormField
-            control={form.control}
-            name='pesosAmount'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cantidad pesos</FormLabel>
-                <FormControl>
-                  <Input
-                    type='number'
-                    {...field}
-                    value={field.value || ''}
-                    onChange={e => field.onChange(e.target.valueAsNumber)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
+      <Card className='shadow-xl dark:bg-gray-700'>
+        <CardHeader>
+          <CardTitle>
+            <h2>Agregar transacción</h2>
+          </CardTitle>
+          <CardDescription>
+            {!isSignedIn && (
+              <p>
+                Las transacciones serán guardadas de forma local, iniciar sesión
+                para guardar en la nube.
+              </p>
             )}
-          />
-          <FormField
-            control={form.control}
-            name='dollarsAmount'
-            render={({ field }) => (
-              <FormItem>
-                <FormLabel>Cantidad dólares</FormLabel>
-                <FormControl>
-                  <Input
-                    type='number'
-                    {...field}
-                    value={field.value || ''}
-                    onChange={e => field.onChange(e.target.valueAsNumber)}
-                  />
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name='type'
-            render={({ field }) => (
-              <FormItem className='space-y-3'>
-                <FormLabel>Tipo de transacción</FormLabel>
-                <FormControl>
-                  <RadioGroup
-                    onValueChange={field.onChange}
-                    value={field.value}
-                    className='flex flex-col'
-                  >
-                    <FormItem className='flex items-center gap-3'>
-                      <FormControl>
-                        <RadioGroupItem value={TransactionType.BUY} />
-                      </FormControl>
-                      <FormLabel className='font-normal'>Compra</FormLabel>
-                    </FormItem>
-                    <FormItem className='flex items-center gap-3'>
-                      <FormControl>
-                        <RadioGroupItem value={TransactionType.SELL} />
-                      </FormControl>
-                      <FormLabel className='font-normal'>Venta</FormLabel>
-                    </FormItem>
-                  </RadioGroup>
-                </FormControl>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <FormField
-            control={form.control}
-            name='date'
-            render={({ field }) => (
-              <FormItem className='flex flex-col'>
-                <FormLabel>Día de la transacción</FormLabel>
-                <Popover>
-                  <PopoverTrigger asChild>
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <Form {...form}>
+            <form onSubmit={form.handleSubmit(onSubmit)}
+              className='space-y-4'>
+              <FormField
+                control={form.control}
+                name='pesosAmount'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cantidad pesos</FormLabel>
                     <FormControl>
-                      <Button
-                        variant={'outline'}
-                        className={'w-[240px] pl-3 text-left font-normal'}
-                      >
-                        {field.value ? (
-                          <p>{field.value.toLocaleDateString()}</p>
-                        ) : (
-                          <span>Seleccionar fecha</span>
-                        )}
-                        <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
-                      </Button>
+                      <Input
+                        type='number'
+                        {...field}
+                        value={field.value || ''}
+                        onChange={e => field.onChange(e.target.valueAsNumber)}
+                      />
                     </FormControl>
-                  </PopoverTrigger>
-                  <PopoverContent className='w-auto p-0' align='start'>
-                    <Calendar
-                      mode='single'
-                      selected={field.value}
-                      onSelect={field.onChange}
-                      disabled={date =>
-                        date > new Date() || date < new Date('1900-01-01')
-                      }
-                      captionLayout='dropdown'
-                    />
-                  </PopoverContent>
-                </Popover>
-                <FormMessage />
-              </FormItem>
-            )}
-          />
-          <Button type='submit'>Crear Transacción</Button>
-        </form>
-      </Form>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='dollarsAmount'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Cantidad dólares</FormLabel>
+                    <FormControl>
+                      <Input
+                        type='number'
+                        {...field}
+                        value={field.value || ''}
+                        onChange={e => field.onChange(e.target.valueAsNumber)}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='type'
+                render={({ field }) => (
+                  <FormItem className='space-y-3'>
+                    <FormLabel>Tipo de transacción</FormLabel>
+                    <FormControl>
+                      <RadioGroup
+                        onValueChange={field.onChange}
+                        value={field.value}
+                        className='flex flex-col'
+                      >
+                        <FormItem className='flex items-center gap-3'>
+                          <FormControl>
+                            <RadioGroupItem value={TransactionType.BUY} />
+                          </FormControl>
+                          <FormLabel className='font-normal'>Compra</FormLabel>
+                        </FormItem>
+                        <FormItem className='flex items-center gap-3'>
+                          <FormControl>
+                            <RadioGroupItem value={TransactionType.SELL} />
+                          </FormControl>
+                          <FormLabel className='font-normal'>Venta</FormLabel>
+                        </FormItem>
+                      </RadioGroup>
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='date'
+                render={({ field }) => (
+                  <FormItem className='flex flex-col'>
+                    <FormLabel>Día de la transacción</FormLabel>
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <FormControl>
+                          <Button
+                            variant={'outline'}
+                            className={'w-[240px] pl-3 text-left font-normal'}
+                          >
+                            {field.value ? (
+                              <p>{field.value.toLocaleDateString()}</p>
+                            ) : (
+                              <span>Seleccionar fecha</span>
+                            )}
+                            <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
+                          </Button>
+                        </FormControl>
+                      </PopoverTrigger>
+                      <PopoverContent className='w-auto p-0' align='start'>
+                        <Calendar
+                          mode='single'
+                          selected={field.value}
+                          onSelect={field.onChange}
+                          disabled={date =>
+                            date > new Date() || date < new Date('1900-01-01')
+                          }
+                          captionLayout='dropdown'
+                        />
+                      </PopoverContent>
+                    </Popover>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <Button type='submit'>Crear Transacción</Button>
+            </form>
+          </Form>
+        </CardContent>
+      </Card>
+
       <Toaster richColors closeButton position='top-center' />
     </div>
   )

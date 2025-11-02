@@ -2,7 +2,6 @@ import { getDolar } from '@/services/dolarApi'
 import { type DolarData, DolarOption } from '@/types/dolar.types'
 import { create, StateCreator } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
-import { dolarStorage } from './storages/dolar.storage'
 
 interface DolarState {
   dolarData: DolarData | null
@@ -13,9 +12,13 @@ interface DolarState {
 const dolarApi: StateCreator<DolarState> = (set, get) => ({
   dolarData: null,
   dolarOption: '',
-  setDolarOption: async (option: DolarOption) => {
+  setDolarOption: async (option: DolarOption | '') => {
     set({ dolarData: null })
     try {
+      if (option === '') {
+        set({ dolarOption: option })
+        return
+      }
       const dolarData = await getDolar(option)
       set({ dolarData })
     } catch (error) {

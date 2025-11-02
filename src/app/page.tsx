@@ -7,8 +7,8 @@ export default async function Home () {
     <div className='flex-1'>
       <DolarPrice />
       <div className='grid grid-cols-1 lg:grid-cols-2 gap-2 py-4'>
-        {/* <NewTransactionForm /> */}
-        {/* <TransactionList /> */}
+        <NewTransactionForm />
+        <TransactionList />
       </div>
     </div>
   )

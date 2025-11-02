@@ -1,9 +1,9 @@
-import { TransactionType } from '@/generated/prisma';
-import type { Transaction, TransactionsData } from '@/types/transaction.types';
+import { TransactionType } from '@/generated/prisma'
+import type { Transaction, TransactionsData } from '@/types/transaction.types'
 import { useAuth } from '@clerk/nextjs'; // para saber si hay user en server
-import { create, StateCreator } from 'zustand';
-import { persist } from 'zustand/middleware';
-import { useDolarStore } from './dolar.store';
+import { create, StateCreator } from 'zustand'
+import { persist } from 'zustand/middleware'
+import { useDolarStore } from './dolar.store'
 
 interface State {
   transactions: Transaction[]
@@ -79,6 +79,7 @@ const storeApi: StateCreator<State> = (set, get) => ({
       get().updateTransactionsData(updated)
     }
   },
+
   removeTransaction: async ({ transactionId, isSignedIn }) => {
     if (isSignedIn) {
       const res = await fetch(`/api/transactions/${transactionId}`, {
@@ -134,6 +135,7 @@ const storeApi: StateCreator<State> = (set, get) => ({
       }
     })
   },
+
   sortTransactionsByDate: () => {
     const sorted = [...get().transactions].sort(
       (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
@@ -150,6 +152,10 @@ export const useTransactionStore = create<State>()(
 
 // 🔄 Suscripción: cuando cambie el dólar, recalcular transactionsData
 useDolarStore.subscribe(state => {
+  if (!state.dolarData) {
+    useTransactionStore.getState().updateTransactionsData([])
+    return
+  }
   const txs = useTransactionStore.getState().transactions
   useTransactionStore.getState().updateTransactionsData(txs)
 })
