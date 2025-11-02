@@ -5,6 +5,7 @@ import Footer from '../components/Footer'
 import Header from '../components/Header'
 
 import type { Metadata } from 'next'
+import { ClientProviders } from './providers'
 
 const inter = Inter({
   subsets: ['latin']
@@ -26,11 +27,13 @@ export default function RootLayout ({
       <body
         className={`${inter.className} antialiased dark:bg-gradient-to-b dark:from-slate-700 dark:via-slate-800 dark:to-slate-950 bg-gradient-to-b from-slate-50 via-slate-200 to-slate-300 min-h-screen container mx-auto xs:p-0`}
       >
-        <div className='flex flex-col min-h-screen p-4'>
-          <Header />
-          {children}
-          <Footer />
-        </div>
+        <ClientProviders>
+          <div className='flex flex-col min-h-screen p-4'>
+            <Header />
+            {children}
+            <Footer />
+          </div>
+        </ClientProviders>
       </body>
     </html>
   )
