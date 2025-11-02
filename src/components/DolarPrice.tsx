@@ -19,7 +19,9 @@ export default function DolarPrice () {
   const dolarValues = Object.values(DolarOption)
 
   useEffect(() => {
-    setDolarOption(dolarOption)
+    if (dolarOption) {
+      setDolarOption(dolarOption)
+    }
   }, [])
 
   const handleChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
@@ -28,7 +30,7 @@ export default function DolarPrice () {
 
   return (
     <section className=''>
-      <Card className='max-w-md mx-auto shadow-xl'>
+      <Card className='max-w-md mx-auto shadow-xl bg-gray-700'>
         <CardHeader>
           <CardTitle>Dolar: {dolarData?.nombre}</CardTitle>
           <CardDescription>
@@ -42,6 +44,7 @@ export default function DolarPrice () {
             value={dolarOption}
             className='border rounded px-2 py-1 cursor-pointer border-gray-300'
           >
+            <option value="" className='dark:bg-gray-800'>Seleccionar dolar</option>
             {dolarValues.map(option => (
               <option key={option} value={option} className='dark:bg-gray-800'>
                 Dolar {option}

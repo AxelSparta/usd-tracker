@@ -6,13 +6,13 @@ import { dolarStorage } from './storages/dolar.storage'
 
 interface DolarState {
   dolarData: DolarData | null
-  dolarOption: DolarOption
+  dolarOption: DolarOption | ''
   setDolarOption: (option: DolarOption) => void
 }
 
 const dolarApi: StateCreator<DolarState> = (set, get) => ({
   dolarData: null,
-  dolarOption: DolarOption.Cripto,
+  dolarOption: '',
   setDolarOption: async (option: DolarOption) => {
     set({ dolarData: null })
     try {
@@ -28,11 +28,7 @@ const dolarApi: StateCreator<DolarState> = (set, get) => ({
 export const useDolarStore = create<DolarState>()(
   devtools(
     persist(dolarApi, {
-      name: 'dolar-storage',
-      storage:
-        typeof window !== 'undefined'
-          ? dolarStorage
-          : undefined
+      name: 'dolar-storage'
     })
   )
 )
