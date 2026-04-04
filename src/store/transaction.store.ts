@@ -1,11 +1,12 @@
-import { TransactionType, type Transaction, type TransactionsData } from '@/types/transaction.types'
+import { TransactionType, type Transaction, type TransactionsDataMap } from '@/types/transaction.types'
+import { DolarOption } from '@/types/dolar.types'
 import { create, StateCreator } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { useDolarStore } from './dolar.store'
 
 interface State {
-  transactions: Transaction[]
-  transactionsData: TransactionsData
+  transactions: Partial<Record<DolarOption, Transaction[]>>
+  transactionsData: TransactionsDataMap
 
   getTransactions: ({ isSignedIn }: { isSignedIn: boolean }) => Promise<void>
   addTransaction: ({
@@ -15,7 +16,6 @@ interface State {
     tx: Omit<Transaction, 'id'>
     isSignedIn: boolean
   }) => Promise<void>
-  sortTransactionsByDate: () => void
   removeTransaction: ({
     isSignedIn,
     transactionId
@@ -23,28 +23,37 @@ interface State {
     transactionId: string
     isSignedIn: boolean
   }) => Promise<void>
-  updateTransactionsData: (txs: Transaction[]) => void
+  updateTransactionsData: (txs: Partial<Record<DolarOption, Transaction[]>>) => void
 }
 
+/** Utility to sort transactions by date (ascending) */
+const sortTxs = (txs: Transaction[]) => 
+  [...txs].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime())
+
 const storeApi: StateCreator<State> = (set, get) => ({
-  transactions: [],
-  transactionsData: {
-    totalUsd: 0,
-    totalPesos: 0,
-    averageCost: 0,
-    realizedProfit: 0,
-    unrealizedProfit: 0
-  },
+  transactions: {},
+  transactionsData: {},
 
   getTransactions: async ({ isSignedIn }) => {
     if (isSignedIn) {
       const res = await fetch('/api/transactions')
       if (!res.ok) return
       const data: Transaction[] = await res.json()
-      set({ transactions: data })
-      get().updateTransactionsData(data)
+      
+      const grouped = data.reduce((acc, tx) => {
+        if (!acc[tx.dolarOption]) acc[tx.dolarOption] = []
+        acc[tx.dolarOption]!.push(tx)
+        return acc
+      }, {} as Partial<Record<DolarOption, Transaction[]>>)
+
+      // Sort each group
+      for (const option in grouped) {
+        grouped[option as DolarOption] = sortTxs(grouped[option as DolarOption]!)
+      }
+
+      set({ transactions: grouped })
+      get().updateTransactionsData(grouped)
     } else {
-      // local
       const localTxs = get().transactions
       get().updateTransactionsData(localTxs)
     }
@@ -57,7 +66,21 @@ const storeApi: StateCreator<State> = (set, get) => ({
       dollarsAmount: tx.dollarsAmount,
       pesosAmount: tx.pesosAmount,
       usdPrice: tx.usdPrice,
-      type: tx.type
+      type: tx.type,
+      dolarOption: tx.dolarOption
+    }
+
+    if (tx.type === TransactionType.SELL) {
+      const currentGroup = get().transactions[tx.dolarOption] || []
+      const balanceAtDate = currentGroup
+        .filter(t => new Date(t.date) <= new Date(tx.date))
+        .reduce((acc, t) => {
+          return t.type === TransactionType.BUY ? acc + t.dollarsAmount : acc - t.dollarsAmount
+        }, 0)
+
+      if (tx.dollarsAmount > balanceAtDate) {
+        throw new Error(`No tienes suficientes dólares (${tx.dolarOption}) para vender en esa fecha. Balance disponible: ${balanceAtDate}`)
+      }
     }
 
     if (isSignedIn) {
@@ -68,77 +91,112 @@ const storeApi: StateCreator<State> = (set, get) => ({
       })
       if (!res.ok) return
       const newTx: Transaction = await res.json()
-      const updatedTransactions = [...get().transactions, newTx]
+      
+      const currentTxs = get().transactions[newTx.dolarOption] || []
+      const updatedTransactions = {
+        ...get().transactions,
+        [newTx.dolarOption]: sortTxs([...currentTxs, newTx])
+      }
       set({ transactions: updatedTransactions })
       get().updateTransactionsData(updatedTransactions)
     } else {
-      const updated = [...get().transactions, newTransaction]
+      const currentTxs = get().transactions[newTransaction.dolarOption] || []
+      const updated = {
+        ...get().transactions,
+        [newTransaction.dolarOption]: sortTxs([...currentTxs, newTransaction])
+      }
       set({ transactions: updated })
       get().updateTransactionsData(updated)
     }
   },
 
   removeTransaction: async ({ transactionId, isSignedIn }) => {
+    let foundOption: DolarOption | null = null
+    const allTxs = get().transactions
+    
+    for (const option in allTxs) {
+      if (allTxs[option as DolarOption]?.find(tx => tx.id === transactionId)) {
+        foundOption = option as DolarOption
+        break
+      }
+    }
+
+    if (!foundOption) return
+
     if (isSignedIn) {
       const res = await fetch(`/api/transactions/${transactionId}`, {
         method: 'DELETE'
       })
       if (!res.ok) return
-      const updatedTransactions = get().transactions.filter(
-        tx => tx.id !== transactionId
-      )
+      
+      const currentTxs = get().transactions[foundOption] || []
+      const updatedGroup = currentTxs.filter(tx => tx.id !== transactionId)
+      const updatedTransactions = {
+        ...get().transactions,
+        [foundOption]: updatedGroup
+      }
       set({ transactions: updatedTransactions })
       get().updateTransactionsData(updatedTransactions)
     } else {
-      const updated = get().transactions.filter(tx => tx.id !== transactionId)
-      set({ transactions: updated })
-      get().updateTransactionsData(updated)
+      const currentTxs = get().transactions[foundOption] || []
+      const updatedGroup = currentTxs.filter(tx => tx.id !== transactionId)
+      const updatedTransactions = {
+        ...get().transactions,
+        [foundOption]: updatedGroup
+      }
+      set({ transactions: updatedTransactions })
+      get().updateTransactionsData(updatedTransactions)
     }
   },
 
-  updateTransactionsData: txs => {
-    let totalUsd = 0
-    let totalPesos = 0
-    let averageCost = 0
-    let realizedProfit = 0
-    const dolarPrice = useDolarStore.getState().dolarData?.venta ?? 0
+  updateTransactionsData: groupedTxs => {
+    const newDataMap: TransactionsDataMap = {}
+    const currentDolarData = useDolarStore.getState().dolarData
+    const currentDolarOption = useDolarStore.getState().dolarOption
 
-    for (const tx of txs) {
-      const { type, dollarsAmount, pesosAmount } = tx
+    for (const option in groupedTxs) {
+      const dolarOption = option as DolarOption
+      const txs = groupedTxs[dolarOption] || []
 
-      if (type === TransactionType.BUY) {
-        totalPesos += pesosAmount
-        totalUsd += dollarsAmount
-        averageCost = totalPesos / totalUsd
+      let totalUsd = 0
+      let totalPesos = 0
+      let averageCost = 0
+      let realizedProfit = 0
+
+      for (const tx of txs) {
+        const { type, dollarsAmount, pesosAmount } = tx
+
+        if (type === TransactionType.BUY) {
+          totalPesos += pesosAmount
+          totalUsd += dollarsAmount
+          averageCost = totalUsd > 0 ? totalPesos / totalUsd : 0
+        }
+
+        if (type === TransactionType.SELL) {
+          const precioVenta = pesosAmount / dollarsAmount
+          const ganancia = (precioVenta - averageCost) * dollarsAmount
+
+          realizedProfit += ganancia
+          totalUsd -= dollarsAmount
+          totalPesos = totalUsd * averageCost
+        }
       }
 
-      if (type === TransactionType.SELL) {
-        const precioVenta = pesosAmount / dollarsAmount
-        const ganancia = (precioVenta - averageCost) * dollarsAmount
-
-        realizedProfit += ganancia
-        totalUsd -= dollarsAmount
+      let unrealizedProfit = 0
+      if (currentDolarOption === dolarOption && currentDolarData) {
+        unrealizedProfit = (currentDolarData.venta - averageCost) * totalUsd
       }
-    }
 
-    const unrealizedProfit = (dolarPrice - averageCost) * totalUsd
-
-    set({
-      transactionsData: {
+      newDataMap[dolarOption] = {
         totalUsd,
         totalPesos,
         averageCost,
         realizedProfit,
         unrealizedProfit
       }
-    })
-  },
+    }
 
-  sortTransactionsByDate: () => {
-    const sorted = [...get().transactions].sort(
-      (a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()
-    )
-    set({ transactions: sorted })
+    set({ transactionsData: newDataMap })
   }
 })
 
@@ -148,12 +206,7 @@ export const useTransactionStore = create<State>()(
   })
 )
 
-// 🔄 Suscripción: cuando cambie el dólar, recalcular transactionsData
 useDolarStore.subscribe(state => {
-  if (!state.dolarData) {
-    useTransactionStore.getState().updateTransactionsData([])
-    return
-  }
   const txs = useTransactionStore.getState().transactions
   useTransactionStore.getState().updateTransactionsData(txs)
 })

@@ -1,15 +1,14 @@
+import { TransactionFormValues } from '@/validations/transaction'
+import { DolarOption } from './dolar.types'
+
 export enum TransactionType {
   BUY = 'BUY',
-  SELL = 'SELL'
+  SELL = 'SELL',
 }
 
-export type Transaction = {
+export type Transaction = TransactionFormValues & {
   id: string
-  pesosAmount: number
-  dollarsAmount: number
   usdPrice: number
-  type: TransactionType
-  date: Date
 }
 
 export type TransactionsData = {
@@ -19,3 +18,5 @@ export type TransactionsData = {
   realizedProfit: number
   unrealizedProfit: number
 }
+
+export type TransactionsDataMap = Partial<Record<DolarOption, TransactionsData>>

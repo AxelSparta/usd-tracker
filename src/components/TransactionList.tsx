@@ -3,54 +3,76 @@
 import {
   Popover,
   PopoverContent,
-  PopoverTrigger
+  PopoverTrigger,
 } from '@/components/ui/popover'
 import { useTransactionStore } from '@/store/transaction.store'
 import { useEffect } from 'react'
 import { toast } from 'sonner'
 import { Button } from './ui/button'
+import Link from 'next/link'
+import { DolarOption } from '@/types/dolar.types'
 
-export default function TransactionList () {
-  const transactions = useTransactionStore(state => state.transactions)
+export default function TransactionList() {
+  const transactionsGrouped = useTransactionStore((state) => state.transactions)
   const removeTransaction = useTransactionStore(
-    state => state.removeTransaction
+    (state) => state.removeTransaction,
   )
-  const transactionsData = useTransactionStore(state => state.transactionsData)
-  const getTransactions = useTransactionStore(state => state.getTransactions)
+  const transactionsData = useTransactionStore(
+    (state) => state.transactionsData,
+  )
+  const getTransactions = useTransactionStore((state) => state.getTransactions)
 
+  const transactions = Object.values(transactionsGrouped).flat().sort(
+    (a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()
+  )
 
   useEffect(() => {
     getTransactions({ isSignedIn: false })
   }, [])
 
   const handleDeleteTransaction = (transactionId: string) => {
-    const transaction = transactions.find(tx => tx.id === transactionId)
+    let transaction = null
+    for (const option in transactionsGrouped) {
+      const found = transactionsGrouped[option as DolarOption]?.find(tx => tx.id === transactionId)
+      if (found) {
+        transaction = found
+        break
+      }
+    }
+
+    if (!transaction) return
+
+    const data = transactionsData[transaction.dolarOption]
     if (
-      !transaction ||
-      (transaction.dollarsAmount > transactionsData.totalUsd &&
-        transaction.type === 'BUY')
+      data &&
+      transaction.type === 'BUY' &&
+      transaction.dollarsAmount > data.totalUsd
     ) {
       toast.error(
-        'Ups, no podés borrar esta transacción: quedarías con dólares negativos.'
+        'Ups, no podés borrar esta transacción: quedarías con dólares negativos.',
       )
-
       return
     }
+    
     removeTransaction({ isSignedIn: false, transactionId })
-    toast.success(
-        'Transacción eliminada con éxito.'
-      )
+    toast.success('Transacción eliminada con éxito.')
   }
 
   return (
-    <div>
+    <section>
       <h2 className='text-xl font-bold text-center mb-4'>
         Transacciones realizadas
       </h2>
       {/* SIN TRANSACTIONS */}
       {transactions.length === 0 && (
         <p className='text-gray-500 text-center'>
-          No hay transacciones realizadas
+          No hay transacciones realizadas,{' '}
+          <Link
+            className='underline hover:text-blue-500'
+            href='/new-transaction'
+          >
+            agregá una para empezar
+          </Link>
         </p>
       )}
       <div className='overflow-x-auto'>
@@ -69,7 +91,10 @@ export default function TransactionList () {
                     USD por peso
                   </th>
                   <th scope='col' className='px-2 py-2'>
-                    Tipo de transacción
+                    Tipo
+                  </th>
+                  <th scope='col' className='px-2 py-2'>
+                    Dolar
                   </th>
                   <th scope='col' className='px-2 py-2'>
                     Fecha
@@ -80,7 +105,7 @@ export default function TransactionList () {
                 </tr>
               </thead>
               <tbody>
-                {transactions.map(transaction => (
+                {transactions.map((transaction) => (
                   <tr
                     className='border-b dark:border-gray-900 hover:bg-gray-200 dark:hover:bg-gray-900 transition-colors'
                     key={transaction.id}
@@ -97,6 +122,9 @@ export default function TransactionList () {
                     </td>
                     <td className='px-2 py-2'>
                       {transaction.type === 'BUY' ? 'Compra' : 'Venta'}
+                    </td>
+                    <td className='px-2 py-2'>
+                      {transaction.dolarOption}
                     </td>
                     <td className='px-2 py-2'>
                       {new Date(transaction.date).toLocaleDateString()}
@@ -131,48 +159,39 @@ export default function TransactionList () {
                 ))}
               </tbody>
             </table>
-            {/* Transaction data */}
-            {transactionsData && (
-              <div className='flex flex-col py-2'>
-                <p className='text-lg font-bold px-2 py-2'>
-                  Total: {transactionsData.totalUsd.toFixed(2)}
-                  USD
-                </p>
-                <p className='text-lg font-bold px-2 py-2'>
-                  Total: {transactionsData.totalPesos.toFixed(2)}
-                  ARS
-                </p>
-                <p className='text-lg font-bold px-2 py-2'>
-                  Costo promedio: {transactionsData.averageCost.toFixed(2)}
-                  ARS
-                </p>
-                <p
-                  className={`text-lg font-bold ${
-                    transactionsData.realizedProfit >= 0
-                      ? 'text-green-500'
-                      : 'text-red-500'
-                  }`}
-                >
-                  Ganancia/Perdida realizada:{' '}
-                  {transactionsData.realizedProfit.toFixed(2)}
-                  ARS
-                </p>
-                <p
-                  className={`text-lg font-bold ${
-                    transactionsData.unrealizedProfit >= 0
-                      ? 'text-green-500'
-                      : 'text-red-500'
-                  }`}
-                >
-                  Ganancia/Perdida no realizada:{' '}
-                  {transactionsData.unrealizedProfit.toFixed(2)}
-                  ARS
-                </p>
-              </div>
-            )}
+            {/* Transaction data per Dolar Option */}
+            <div className='mt-6 space-y-6'>
+              {Object.entries(transactionsData).map(([option, data]) => {
+                if (!data || data.totalUsd === 0 && data.realizedProfit === 0) return null
+                return (
+                  <div key={option} className='flex flex-col py-4 border rounded-lg bg-gray-50 dark:bg-gray-900/50 dark:border-gray-800 shadow-sm'>
+                    <h3 className='text-xl font-bold px-4 mb-2 text-blue-600 dark:text-blue-400'>
+                      Dólar {option}
+                    </h3>
+                    <div className='grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-2 px-4'>
+                      <p className='text-md font-semibold'>
+                        Total USD: <span className='font-normal'>{data.totalUsd.toFixed(2)}</span>
+                      </p>
+                      <p className='text-md font-semibold'>
+                        Total ARS: <span className='font-normal'>{data.totalPesos.toFixed(2)}</span>
+                      </p>
+                      <p className='text-md font-semibold'>
+                        Costo promedio: <span className='font-normal'>{data.averageCost.toFixed(2)} ARS</span>
+                      </p>
+                      <p className={`text-md font-semibold ${data.realizedProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        Ganancia realizada: <span>{data.realizedProfit.toFixed(2)} ARS</span>
+                      </p>
+                      <p className={`text-md font-semibold ${data.unrealizedProfit >= 0 ? 'text-green-500' : 'text-red-500'}`}>
+                        Ganancia no realizada: <span>{data.unrealizedProfit.toFixed(2)} ARS</span>
+                      </p>
+                    </div>
+                  </div>
+                )
+              })}
+            </div>
           </>
         )}
       </div>
-    </div>
+    </section>
   )
 }
