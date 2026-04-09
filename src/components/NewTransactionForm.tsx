@@ -1,20 +1,19 @@
 'use client'
-import { transactionFormSchema } from '@/app/validations/transaction'
-import { Button } from '@/components/ui/button'
 import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+  parseTransactionFormInput,
+  transactionFormSchema,
+  type TransactionFormInput,
+  type TransactionFormValues,
+} from '@/validations/transaction'
+import { Button } from '@/components/ui/button'
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import {
   Form,
   FormControl,
   FormField,
   FormItem,
   FormLabel,
-  FormMessage
+  FormMessage,
 } from '@/components/ui/form'
 import { Input } from '@/components/ui/input'
 import { useTransactionStore } from '@/store/transaction.store'
@@ -23,65 +22,75 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { CalendarIcon } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
-import { z } from 'zod'
+import { format } from 'date-fns'
 import { Calendar } from './ui/calendar'
 import { Popover, PopoverContent, PopoverTrigger } from './ui/popover'
 import { RadioGroup, RadioGroupItem } from './ui/radio-group'
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import { DolarOption } from '@/types/dolar.types'
+import { formatAmountArInput } from '@/lib/locale-amount'
+import { useRouter } from 'next/navigation'
 
-export default function NewTransactionForm () {
-  const addTransaction = useTransactionStore(state => state.addTransaction)
-  const transactionsData = useTransactionStore(state => state.transactionsData)
+export default function NewTransactionForm() {
+  const addTransaction = useTransactionStore((state) => state.addTransaction)
+  const router = useRouter()
 
-  const form = useForm<z.infer<typeof transactionFormSchema>>({
+  const form = useForm<TransactionFormInput>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
       date: new Date(),
-      type: TransactionType.BUY
-    }
+      type: TransactionType.BUY,
+      pesosAmount: '',
+      dollarsAmount: '',
+      dolarOption: DolarOption.Blue,
+    },
   })
 
-  async function onSubmit (values: z.infer<typeof transactionFormSchema>) {
+  async function onSubmit(data: TransactionFormInput) {
+    const values: TransactionFormValues = parseTransactionFormInput(data)
+
     const newTransaction = {
       pesosAmount: values.pesosAmount,
       dollarsAmount: values.dollarsAmount,
       usdPrice: values.pesosAmount / values.dollarsAmount,
       type: values.type,
-      date: values.date
+      date: values.date,
+      dolarOption: values.dolarOption,
     }
-    if (
-      newTransaction.type === TransactionType.SELL &&
-      newTransaction.dollarsAmount > transactionsData.totalUsd
-    ) {
-      toast.error('No puedes vender más dólares de los que tienes.')
-      return
-    }
+
     try {
       await addTransaction({
         isSignedIn: false,
-        tx: newTransaction
+        tx: newTransaction,
       })
       toast.success('Transacción creada con éxito.')
+      router.push('/')
     } catch (err) {
-      console.error(err)
-      toast.error('Algo malió sal.')
-    } finally {
-      form.reset()
+      if (err instanceof Error) {
+        toast.error(err.message)
+      } else {
+        toast.error('Algo malió sal.')
+      }
     }
   }
 
   return (
-    <div>
+    <div className='max-w-lg mx-auto my-10'>
       <Card className='shadow-xl dark:bg-slate-800'>
         <CardHeader>
           <CardTitle>
             <h2>Agregar transacción</h2>
           </CardTitle>
-
         </CardHeader>
         <CardContent>
           <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)}
-              className='space-y-4'>
+            <form onSubmit={form.handleSubmit(onSubmit)} className='space-y-4'>
               <FormField
                 control={form.control}
                 name='pesosAmount'
@@ -90,10 +99,17 @@ export default function NewTransactionForm () {
                     <FormLabel>Cantidad pesos</FormLabel>
                     <FormControl>
                       <Input
-                        type='number'
-                        {...field}
-                        value={field.value || ''}
-                        onChange={e => field.onChange(e.target.valueAsNumber)}
+                        type='text'
+                        inputMode='decimal'
+                        autoComplete='off'
+                        placeholder='0'
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value}
+                        onChange={(e) =>
+                          field.onChange(formatAmountArInput(e.target.value))
+                        }
                       />
                     </FormControl>
                     <FormMessage />
@@ -108,11 +124,45 @@ export default function NewTransactionForm () {
                     <FormLabel>Cantidad dólares</FormLabel>
                     <FormControl>
                       <Input
-                        type='number'
-                        {...field}
-                        value={field.value || ''}
-                        onChange={e => field.onChange(e.target.valueAsNumber)}
+                        type='text'
+                        inputMode='decimal'
+                        autoComplete='off'
+                        placeholder='0'
+                        name={field.name}
+                        ref={field.ref}
+                        onBlur={field.onBlur}
+                        value={field.value}
+                        onChange={(e) =>
+                          field.onChange(formatAmountArInput(e.target.value))
+                        }
                       />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+              <FormField
+                control={form.control}
+                name='dolarOption'
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Tipo de dólar</FormLabel>
+                    <FormControl>
+                      <Select
+                        onValueChange={field.onChange}
+                        value={field.value}
+                      >
+                        <SelectTrigger className='w-full'>
+                          <SelectValue placeholder='Seleccionar dolar' />
+                        </SelectTrigger>
+                        <SelectContent className='w-[200px]'>
+                          {Object.values(DolarOption).map((option) => (
+                            <SelectItem key={option} value={option}>
+                              Dolar {option}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     </FormControl>
                     <FormMessage />
                   </FormItem>
@@ -162,7 +212,7 @@ export default function NewTransactionForm () {
                             className={'w-[240px] pl-3 text-left font-normal'}
                           >
                             {field.value ? (
-                              <p>{field.value.toLocaleDateString()}</p>
+                              <p>{format(field.value, 'dd/MM/yyyy')}</p>
                             ) : (
                               <span>Seleccionar fecha</span>
                             )}
@@ -175,7 +225,7 @@ export default function NewTransactionForm () {
                           mode='single'
                           selected={field.value}
                           onSelect={field.onChange}
-                          disabled={date =>
+                          disabled={(date) =>
                             date > new Date() || date < new Date('1900-01-01')
                           }
                           captionLayout='dropdown'
@@ -191,7 +241,6 @@ export default function NewTransactionForm () {
           </Form>
         </CardContent>
       </Card>
-
     </div>
   )
 }

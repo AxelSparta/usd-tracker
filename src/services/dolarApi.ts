@@ -7,3 +7,8 @@ export const getDolar = async (option: DolarOption): Promise<DolarData> => {
   const data = await response.json()
   return data
 }
+
+export const getAllDolars = async (): Promise<DolarData[]> => {
+  const response = await fetch(BASE_DOLAR_URL)
+  return await response.json()
+}

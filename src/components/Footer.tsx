@@ -2,7 +2,7 @@ import { FaGithub, FaLinkedin } from 'react-icons/fa'
 import { PiSuitcaseSimpleBold } from 'react-icons/pi'
 import { RiNextjsFill } from 'react-icons/ri'
 
-export default function Footer () {
+export default function Footer() {
   return (
     <footer className='p-4 bg-white rounded-lg shadow-sm dark:bg-slate-800 mx-auto flex flex-col items-center gap-2 md:flex-row md:justify-between container'>
       <span className='text-sm text-gray-500 sm:text-center dark:text-gray-400 flex items-center justify-center gap-2'>
