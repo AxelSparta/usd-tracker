@@ -52,3 +52,16 @@ export function formatAmountArInput(raw: string): string {
 
   return intDisplay
 }
+
+/**
+ * Formatea un número para mostrar en la UI con formato AR (1.234,56)
+ */
+export function formatCurrency(amount: number | null | undefined, decimals: number = 2): string {
+  const value = amount ?? 0
+  if (isNaN(value)) return '0,00'
+
+  return new Intl.NumberFormat('es-AR', {
+    minimumFractionDigits: decimals,
+    maximumFractionDigits: decimals,
+  }).format(value)
+}

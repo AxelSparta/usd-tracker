@@ -1,30 +1,30 @@
-import { getDolar } from '@/services/dolarApi'
+import { getAllDolars } from '@/services/dolarApi'
 import { type DolarData, DolarOption } from '@/types/dolar.types'
 import { create, StateCreator } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 
 interface DolarState {
-  dolarData: DolarData | null
-  dolarOption: DolarOption | ''
-  setDolarOption: (option: DolarOption) => void
+  allDolarData: Record<DolarOption, DolarData> | null
+  fetchAllDolars: () => Promise<void>
 }
 
-const dolarApi: StateCreator<DolarState> = (set, get) => ({
-  dolarData: null,
-  dolarOption: '',
-  setDolarOption: async (option: DolarOption | '') => {
-    set({ dolarData: null })
+const dolarApi: StateCreator<DolarState> = (set) => ({
+  allDolarData: null,
+  fetchAllDolars: async () => {
     try {
-      if (option === '') {
-        set({ dolarOption: option })
-        return
-      }
-      const dolarData = await getDolar(option)
-      set({ dolarData })
+      const dolars = await getAllDolars()
+      const dataMap = dolars.reduce((acc, dolar) => {
+        const option = dolar.casa as DolarOption
+        if (Object.values(DolarOption).includes(option)) {
+          acc[option] = dolar
+        }
+        return acc
+      }, {} as Record<DolarOption, DolarData>)
+      
+      set({ allDolarData: dataMap })
     } catch (error) {
       console.error('Error fetching dolar data:', error)
     }
-    set({ dolarOption: option })
   }
 })
 

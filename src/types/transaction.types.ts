@@ -13,7 +13,8 @@ export type Transaction = TransactionFormValues & {
 
 export type TransactionsData = {
   totalUsd: number
-  totalPesos: number
+  investedPesos: number      // Lo que realmente pusiste de tu bolsillo
+  marketValuePesos: number   // El valor actual según el dólar hoy
   averageCost: number
   realizedProfit: number
   unrealizedProfit: number
