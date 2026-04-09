@@ -6,22 +6,67 @@ Este archivo orienta a **cualquier asistente de código** (Cursor, Claude, Gemin
 
 Aplicación web para registrar **compras y ventas** de USD/USDT orientada al mercado argentino: cotizaciones vía API pública, métricas de costo promedio y ganancias realizadas / no realizadas. Modo principal **local-first** con persistencia en el navegador; el store ya contempla ramas para usuario autenticado y API (aún por cablear por completo).
 
+## Funcionalidades implementadas (estado actual)
+
+- Alta de transacciones con:
+  - tipo de operación (`BUY` / `SELL`)
+  - monto en ARS
+  - monto en USD
+  - fecha de operación
+  - tipo de dólar (`dolarOption`)
+- Validación de formularios con Zod:
+  - campos obligatorios
+  - montos numéricos válidos (formato local AR)
+  - dólares mayores a cero
+  - fecha válida (sin futuras)
+- Protección de consistencia para ventas:
+  - ordenado por fecha ascendente
+  - desempate mismo día: compras antes que ventas
+  - error si una venta deja balance USD negativo en la línea temporal
+- Historial de transacciones agrupado por tipo de dólar.
+- Tabla con fecha, operación, montos, tipo de cambio y acción de borrado.
+- Borrado de transacciones con confirmación en UI.
+- Cálculo de métricas por grupo (`transactionsData`):
+  - posición USD (`totalUsd`)
+  - invertido en pesos (`investedPesos`)
+  - costo promedio (`averageCost`)
+  - valor de mercado (`marketValuePesos`)
+  - ganancia realizada (`realizedProfit`)
+  - ganancia no realizada (`unrealizedProfit`)
+- Cotizaciones en vivo desde DolarAPI:
+  - carga inicial al montar providers
+  - refresco automático cada 5 minutos
+  - mapeo por `DolarOption`
+- Re-cálculo automático de métricas cuando se actualizan cotizaciones.
+- Vista de tarjetas para cotizaciones destacadas: oficial, blue, bolsa, cripto.
+- Tema claro/oscuro/sistema con `next-themes`.
+- Persistencia local:
+  - `transactions-storage`
+  - `dolar-storage`
+- Navegación principal:
+  - `/` (dashboard: cotizaciones + historial)
+  - `/new-transaction` (alta de transacción)
+- Página 404 personalizada.
+- Notificaciones toast para feedback de éxito/error.
+
 ## Stack (versiones según `package.json`)
 
-| Área | Elección |
-|------|----------|
-| Framework | Next.js 16 (App Router) |
-| Lenguaje | TypeScript 6.x |
-| UI | React 19 |
-| Estilos | Tailwind CSS 4 (`@tailwindcss/postcss`) |
-| Estado | Zustand 5 + `persist` → `localStorage` |
-| Formularios | React Hook Form + Zod 4 + `@hookform/resolvers` |
-| Componentes base | Radix UI, `class-variance-authority`, `tailwind-merge` |
-| Tema | `next-themes` (claro / oscuro / sistema) |
-| Feedback | Sonner (toasts) |
-| Iconos | `lucide-react`, `react-icons` si hace falta marca |
-| Fechas | `date-fns`, `dayjs`, `react-day-picker` |
-| Datos externos | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key |
+
+| Área             | Elección                                                                    |
+| ---------------- | --------------------------------------------------------------------------- |
+| Framework        | Next.js 16 (App Router)                                                     |
+| Lenguaje         | TypeScript 6.x                                                              |
+| UI               | React 19                                                                    |
+| Estilos          | Tailwind CSS 4 (`@tailwindcss/postcss`)                                     |
+| Estado           | Zustand 5 + `persist` → `localStorage`                                      |
+| Formularios      | React Hook Form + Zod 4 + `@hookform/resolvers`                             |
+| Componentes base | Radix UI, `class-variance-authority`, `tailwind-merge`                      |
+| Tema             | `next-themes` (claro / oscuro / sistema)                                    |
+| Feedback         | Sonner (toasts)                                                             |
+| Iconos           | `lucide-react`, `react-icons` si hace falta marca                           |
+| Fechas           | `date-fns`, `dayjs`, `react-day-picker`                                     |
+| Datos externos   | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key |
+
 
 **Gestor de paquetes:** `pnpm` (usar `pnpm`, no mezclar con npm/yarn en este repo).
 
@@ -43,7 +88,7 @@ Aplicación web para registrar **compras y ventas** de USD/USDT orientada al mer
 
 ## Comportamiento importante del estado
 
-- **Persistencia:** Zustand `persist` con nombre de storage **`transactions-storage`** (no `transaction-storage`).
+- **Persistencia:** Zustand `persist` con nombre de storage `**transactions-storage.`**
 - **Suscripción:** En `transaction.store.ts`, suscripción a `useDolarStore`: al cambiar la cotización se vuelve a ejecutar `updateTransactionsData` sobre las transacciones actuales.
 - **Cálculos:** Costo promedio acumulado con compras; ventas ajustan posición y suman a ganancia realizada; ganancia no realizada usa el precio de venta del dólar **actualmente seleccionado** en `dolar.store` (`dolarData?.venta`). Cada transacción puede guardar su propio `dolarOption`; un desglose de métricas por tipo de dólar sigue pendiente (ver `docs/roadmap.md`).
 - **Modo remoto (preparado):** Si `isSignedIn` es verdadero, el store intenta `GET/POST /api/transactions` y `DELETE /api/transactions/:id`. Esas rutas pueden no existir aún; el flujo por defecto es local.
