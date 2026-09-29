@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest'
-import { sortTxs, validateTimeline } from '@/domain/timeline'
+import { findNegativeBalance, sortTxs, validateTimeline } from '@/domain/timeline'
 import { TransactionType } from '@/types/transaction.types'
 
 const { BUY, SELL } = TransactionType
@@ -60,5 +60,28 @@ describe('validateTimeline', () => {
         ]),
       ),
     ).toThrow()
+  })
+})
+
+describe('findNegativeBalance', () => {
+  const lot = (type: TransactionType, quantity: number, date = '2026-01-01') => ({
+    type,
+    quantity,
+    date,
+  })
+
+  it('devuelve la primera operación que deja el saldo negativo', () => {
+    const offending = lot(TransactionType.SELL, 2, '2026-01-02')
+    const txs = [lot(TransactionType.BUY, 1), offending, lot(TransactionType.BUY, 5, '2026-01-03')]
+    expect(findNegativeBalance(txs, (tx) => tx.quantity)).toBe(offending)
+  })
+
+  it('tolera el ruido de coma flotante al vender todo', () => {
+    const txs = [
+      lot(TransactionType.BUY, 0.1),
+      lot(TransactionType.BUY, 0.2),
+      lot(TransactionType.SELL, 0.3),
+    ]
+    expect(findNegativeBalance(txs, (tx) => tx.quantity)).toBeNull()
   })
 })

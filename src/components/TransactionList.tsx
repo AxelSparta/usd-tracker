@@ -13,50 +13,8 @@ import Link from 'next/link'
 import { DolarOption } from '@/types/dolar.types'
 import { formatCurrency } from '@/lib/locale-amount'
 import { cn } from '@/lib/utils'
+import { Stat, pnlClass } from './Stat'
 import { Trash2 } from 'lucide-react'
-
-type StatProps = {
-  label: string
-  value: string
-  secondaryLabel: string
-  secondaryValue: string
-  valueClassName?: string
-  secondaryClassName?: string
-}
-
-function Stat({
-  label,
-  value,
-  secondaryLabel,
-  secondaryValue,
-  valueClassName,
-  secondaryClassName,
-}: StatProps) {
-  return (
-    <div className='space-y-1 bg-card p-4'>
-      <p className='text-sm text-muted-foreground'>{label}</p>
-      <p
-        className={cn(
-          'text-xl font-semibold tabular-nums tracking-tight',
-          valueClassName,
-        )}
-      >
-        {value}
-      </p>
-      <p className='text-xs text-muted-foreground tabular-nums'>
-        {secondaryLabel}{' '}
-        <span className={cn('font-medium text-foreground', secondaryClassName)}>
-          {secondaryValue}
-        </span>
-      </p>
-    </div>
-  )
-}
-
-const pnlClass = (value: number) =>
-  value >= 0
-    ? 'text-emerald-600 dark:text-emerald-400'
-    : 'text-red-600 dark:text-red-400'
 
 export default function TransactionList() {
   const transactionsGrouped = useTransactionStore((state) => state.transactions)

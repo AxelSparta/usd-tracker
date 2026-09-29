@@ -1,9 +1,10 @@
 import { TransactionType, type Transaction } from '@/types/transaction.types'
 
-type TimelineTx = Pick<Transaction, 'type' | 'date' | 'dollarsAmount'>
+type DatedTx = Pick<Transaction, 'type' | 'date'>
+type TimelineTx = DatedTx & Pick<Transaction, 'dollarsAmount'>
 
 /** Sort by date ascending; same-day ties: BUY before SELL */
-export const sortTxs = <T extends TimelineTx>(txs: T[]): T[] =>
+export const sortTxs = <T extends DatedTx>(txs: T[]): T[] =>
   [...txs].sort((a, b) => {
     const dateDiff = new Date(a.date).getTime() - new Date(b.date).getTime()
     if (dateDiff !== 0) return dateDiff
@@ -11,19 +12,29 @@ export const sortTxs = <T extends TimelineTx>(txs: T[]): T[] =>
     return a.type === TransactionType.BUY ? -1 : 1
   })
 
-/** Lanza si en algún punto de la línea temporal (ya ordenada) el balance USD queda negativo */
-export const validateTimeline = (txs: TimelineTx[]) => {
+/**
+ * Primera operación (de una línea temporal ya ordenada) que deja el balance negativo,
+ * o `null` si la línea es consistente.
+ */
+export const findNegativeBalance = <T extends DatedTx>(
+  txs: T[],
+  getQuantity: (tx: T) => number,
+): T | null => {
   let balance = 0
+  // Tolerancia para no rechazar "vender todo" por ruido de coma flotante (0,1 + 0,2 − 0,3)
+  const epsilon = 1e-9
 
   for (const tx of txs) {
-    if (tx.type === TransactionType.BUY) {
-      balance += tx.dollarsAmount
-    } else {
-      balance -= tx.dollarsAmount
-    }
+    balance += tx.type === TransactionType.BUY ? getQuantity(tx) : -getQuantity(tx)
+    if (balance < -epsilon) return tx
+  }
+  return null
+}
 
-    if (balance < 0) {
-      throw new Error(`Balance negativo detectado en fecha ${tx.date}`)
-    }
+/** Lanza si en algún punto de la línea temporal (ya ordenada) el balance USD queda negativo */
+export const validateTimeline = (txs: TimelineTx[]) => {
+  const offending = findNegativeBalance(txs, (tx) => tx.dollarsAmount)
+  if (offending) {
+    throw new Error(`Balance negativo detectado en fecha ${offending.date}`)
   }
 }

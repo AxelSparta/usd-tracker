@@ -109,16 +109,16 @@ export default function AppSidebar() {
                         Pronto
                       </SidebarMenuBadge>
                     )}
-                    {section.href === '/dolar' && (
+                    {section.newItem && (
                       <SidebarMenuSub>
                         <SidebarMenuSubItem>
                           <SidebarMenuSubButton
                             asChild
-                            isActive={pathname === '/dolar/nueva'}
+                            isActive={pathname === section.newItem.href}
                           >
-                            <Link href='/dolar/nueva' onClick={handleNavigate}>
+                            <Link href={section.newItem.href} onClick={handleNavigate}>
                               <Plus />
-                              <span>Nueva transacción</span>
+                              <span>{section.newItem.label}</span>
                             </Link>
                           </SidebarMenuSubButton>
                         </SidebarMenuSubItem>

@@ -8,6 +8,8 @@ export type Section = {
   description: string
   icon: LucideIcon
   status: SectionStatus
+  /** Acción principal de la sección (sub-ítem del sidebar) */
+  newItem?: { href: string; label: string }
 }
 
 // Fuente única de las secciones: la usan el sidebar y la home.
@@ -20,12 +22,15 @@ export const sections: Section[] = [
       'Compras y ventas de USD por tipo de dólar, costo promedio y ganancias.',
     icon: DollarSign,
     status: 'active',
+    newItem: { href: '/dolar/nueva', label: 'Nueva transacción' },
   },
   {
     href: '/cripto',
     label: 'Cripto',
-    description: 'Seguimiento de tus criptomonedas con cotización en vivo.',
+    description:
+      'Compras y ventas de cualquier cripto en USD, con precios de CoinGecko.',
     icon: Bitcoin,
-    status: 'soon',
+    status: 'active',
+    newItem: { href: '/cripto/nueva', label: 'Nueva operación' },
   },
 ]

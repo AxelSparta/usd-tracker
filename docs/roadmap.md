@@ -4,8 +4,15 @@ Este roadmap define la evolución del producto en cuatro ejes:
 
 1. **Login** para dejar de depender solo del `localStorage`.
 2. **Persistencia en la nube** (Neon + Prisma) con sincronización local ↔ cloud.
-3. **Convertir el módulo de dólar en *una parte*** de la app (arquitectura multi-asset).
-4. **Transacciones de cripto + portfolio tracker de criptos.**
+3. **Convertir el módulo de dólar en *una parte*** de la app (shell multi-sección).
+4. **Módulo cripto independiente** (operaciones en USD, precios de CoinGecko) + portfolio tracker.
+
+> **Decisión (sep 2026): dólar y cripto son módulos separados.** No comparten modelo de
+> transacción, store ni formulario. Lo único en común para el usuario es la cotización
+> del **dólar cripto** (DolarAPI), que el módulo cripto usa para mostrar valores en pesos.
+> En código comparten solo piezas puras y genéricas: el motor de costo promedio
+> (`src/domain/position.ts`), el orden/validación de la línea temporal
+> (`src/domain/timeline.ts`) y los formateadores de `src/lib/locale-amount.ts`.
 
 > Guía de uso: cada fase es un hito desplegable por sí mismo. La Fase 0 es
 > prerrequisito de todo (sin desacoplamiento ni tests no se puede escalar limpio).
@@ -26,22 +33,25 @@ Este roadmap define la evolución del producto en cuatro ejes:
 - Cotizaciones DolarAPI (`src/services/dolarApi.ts`) con refresh cada 5 min en `providers.tsx`.
 - Persistencia local: Zustand `persist` → `transactions-storage` y `dolar-storage`.
 - Tema claro/oscuro/sistema, toasts (Sonner), UI en español.
-- Shell multi-sección: home (`/`), sidebar con Dólar (`/dolar`) y Cripto (`/cripto`, placeholder); secciones en `src/lib/sections.ts`.
+- Shell multi-sección: home (`/`), sidebar con Dólar (`/dolar`) y Cripto (`/cripto`); secciones en `src/lib/sections.ts`.
+- Módulo cripto (Fase 4, en curso): operaciones BUY/SELL en USD de cualquier moneda de
+  CoinGecko, posiciones con costo promedio y PnL, valor en pesos vía dólar cripto
+  (`src/features/crypto/`, proxy `src/app/api/crypto/*`).
 
 ### Hallazgos técnicos relevantes para la escala
 
 | #   | Hallazgo | Impacto |
 | --- | -------- | ------- |
 | 1   | ~~El cálculo leía directamente `useDolarStore`~~ — resuelto: `src/domain/metrics.ts` recibe un `MarketPriceMap` | — |
-| 2   | Todo el estado usa claves `Record<DolarOption, ...>` (`transactions`, `transactionsData`, `allDolarData`) | Las claves deben generalizarse a `AssetKey` (ej.: `dolar:blue`, `crypto:BTC`) |
-| 3   | El dominio está implícito: unidad = USD, reporte = ARS (`pesosAmount` / `dollarsAmount`) | Para cripto hay que definir moneda base de reporte y conversión ARS↔USD |
+| 2   | ~~Todo el estado usa claves `Record<DolarOption, ...>`~~ — ya no aplica: cripto tiene su propio store y no comparte claves con dólar | — |
+| 3   | ~~Dominio implícito USD/ARS~~ — resuelto: el motor genérico (`computePosition`) trabaja con `quantity`/`quoteAmount`; dólar reporta en ARS y cripto en USD | — |
 | 4   | `persist` sin `version`/`migrate` | Cambiar el enum/schema rompería datos guardados de usuarios reales |
 | 5   | Ramas API existentes (`isSignedIn`) son código muerto: los call sites hardcodean `false`, no existe `GET`, y los endpoints `POST`/`DELETE` no existen; los fallos son **silenciosos** | La fase de auth/cloud debe reconstruir este flujo con manejo real de errores |
 | 6   | ~~No hay ningún test~~ — resuelto: Vitest cubre `src/domain` y `src/lib/locale-amount` | — |
 | 7   | ~~`pnpm lint` roto (Next 16 eliminó `next lint`)~~ — resuelto: ESLint 9 CLI + `eslint-config-next` | — |
 | 8   | ~~Ciclo de imports `types` ↔ `validations`~~ — resuelto: `Transaction` es un tipo de dominio explícito | — |
 | 9   | ~~Fechas futuras solo bloqueadas en el `<Calendar>`~~ — resuelto: `refine` en el schema Zod | — |
-| 10  | Deuda menor: `ui/dialog` y `ui/alert-dialog` sin consumidores; `metadata` sin `metadataBase` (las imágenes OG/Twitter se resuelven contra `localhost:3000` en el build) | Limpieza en Fase 0 |
+| 10  | Deuda menor: `ui/alert-dialog` sin consumidores (`ui/dialog` ya lo usa `ui/command`); `metadata` sin `metadataBase` (las imágenes OG/Twitter se resuelven contra `localhost:3000` en el build) | Limpieza en Fase 0 |
 
 ### Rutas clave
 
@@ -49,7 +59,8 @@ Este roadmap define la evolución del producto en cuatro ejes:
 - `src/store/dolar.store.ts` — cotizaciones.
 - `src/types/{transaction,dolar}.types.ts`, `src/validations/transaction.ts`, `src/lib/locale-amount.ts`.
 - `src/components/{TransactionList,NewTransactionForm,DolarPrice}.tsx`.
-- `src/app/{page,providers,dolar/page,dolar/nueva/page}.tsx`, `src/components/AppSidebar.tsx`, `src/lib/sections.ts`.
+- `src/app/{page,providers,dolar/page,dolar/nueva/page,cripto/page,cripto/nueva/page}.tsx`, `src/components/AppSidebar.tsx`, `src/lib/sections.ts`.
+- `src/features/crypto/` — módulo cripto; `src/server/coingecko.ts` + `src/app/api/crypto/{prices,search}/route.ts`.
 
 ---
 
@@ -61,44 +72,52 @@ prisma/
 proxy.ts                         # Fase 1: clerkMiddleware() (Next 16 renombró middleware → proxy)
 src/
 ├── app/
-│   ├── api/transactions/        # CRUD protegido (Prisma + Neon)
-│   ├── (dashboard)/…            # rutas de UI
+│   ├── api/
+│   │   ├── crypto/{prices,search}/  # proxy a CoinGecko (hecho)
+│   │   ├── dolar/transactions/      # Fase 2: CRUD protegido
+│   │   └── crypto/transactions/     # Fase 2: CRUD protegido
+│   ├── dolar/…, cripto/…        # rutas de UI por módulo
 │   └── not-found.tsx
-├── domain/                      # motor agnóstico de activo: TS puro, sin React ni stores
-│   ├── asset.ts                 # AssetKey, AssetCategory, helpers dolar:* ↔ DolarOption
-│   ├── transaction.ts           # tipo Transaction de dominio + schema Zod compartido cliente/server
-│   ├── metrics.ts               # updateTransactionsData generalizado (recibe MarketPriceMap)
-│   ├── timeline.ts              # validateTimeline + sortTxs
+├── domain/                      # piezas puras y genéricas, sin React ni stores
+│   ├── position.ts              # computePosition: costo promedio + PnL realizado (hecho)
+│   ├── timeline.ts              # sortTxs, findNegativeBalance, validateTimeline (hecho)
 │   └── __tests__/
 ├── features/
-│   ├── dolar/                   # lo que hoy es la app entera, encapsulado
-│   │   ├── dolar.store.ts
-│   │   ├── dolarApi.ts
-│   │   └── components/ (DolarPrice, selectores de tipo de dólar)
-│   ├── crypto/
-│   │   ├── crypto.store.ts
-│   │   ├── cryptoApi.ts         # CoinGecko / Binance
-│   │   └── components/
-│   ├── transactions/            # store + form + listado (multi-asset)
-│   │   ├── transactions.store.ts
-│   │   ├── repository.ts        # interfaz local | remote (ver Fase 3)
+│   ├── dolar/                   # lo que hoy vive en store/, services/, components/ (mover)
+│   │   ├── dolar.store.ts, transaction.store.ts, dolarApi.ts
+│   │   └── components/ (DolarPrice, TransactionList, NewTransactionForm)
+│   ├── crypto/                  # hecho (Fase 4)
+│   │   ├── types.ts, metrics.ts, validations.ts, api.ts, hooks.ts
+│   │   ├── crypto.store.ts      # operaciones + metadatos de monedas (persist v1)
+│   │   ├── prices.store.ts      # último precio por moneda (persist v1, fallback offline)
 │   │   └── components/
 │   └── auth/                    # estado de sesión, sync local → cloud
 ├── components/ui/               # primitivos shadcn (sin cambios)
-├── lib/                         # utilidades genéricas (locale-amount, cn)
-└── server/                      # solo server: prisma client, queries con ownership check
+├── lib/                         # utilidades genéricas (locale-amount, cn, sections)
+└── server/                      # solo server: CoinGecko (hecho), prisma client, queries con ownership
 ```
 
-- **Un solo motor de cálculo** para dólar y cripto; cada feature aporta su fuente de precios detrás de una interfaz común: `MarketPriceMap = Record<AssetKey, { buy: number; sell: number }>`.
-- **Transacción genérica**: `category` (`dolar` | `crypto`), `assetKey`, `quantity`, `quoteAmount` (ARS), `type`, `date`, `userId` (cloud).
-- **Reglas de dependencias**: `domain` no importa nada de `features`, `app` ni `store`; `features/*` no se importan entre sí salvo vía `domain` (la composición de precios vive en un selector/hook de `app`). `server/` nunca se importa desde componentes cliente (usar `import 'server-only'`).
-- **Repositorio de transacciones**: el store habla con una interfaz `TransactionRepository` (`list/create/update/remove`) con implementaciones `localRepository` y `apiRepository`; así la rama `isSignedIn` deja de estar dispersa en cada acción.
+- **Dos módulos independientes.** Dólar: operaciones ARS ↔ USD por tipo de dólar, reporte en ARS.
+  Cripto: operaciones en USD por moneda de CoinGecko, reporte en USD con equivalente en pesos
+  usando el dólar cripto (cotización de compra).
+- **Motor compartido, modelos separados.** Cada módulo adapta sus operaciones a
+  `PositionLot` (`quantity`, `quoteAmount`) y redondea según su unidad; no hay un tipo
+  `Transaction` genérico ni `AssetKey`.
+- **Reglas de dependencias**: `domain` no importa nada de `features`, `app` ni `store`;
+  `features/*` no se importan entre sí (la excepción acordada: cripto **lee** la cotización
+  del dólar cripto de `useDolarStore`). `server/` nunca se importa desde componentes cliente.
+- **APIs externas detrás de route handlers**: el navegador no llama a CoinGecko directo; los
+  handlers validan parámetros, cachean con el Data Cache de Next (`next.revalidate`) y
+  validan la respuesta con Zod. La API key opcional (`COINGECKO_API_KEY`) queda en el server.
+- **Repositorio de transacciones** (Fases 2–3): cada store habla con una interfaz
+  `list/create/update/remove` con implementación local y remota; así la rama `isSignedIn`
+  deja de estar dispersa en cada acción.
 
 ---
 
 ## Fase 0 — Fundación técnica y desacoplamiento (multi-asset ready)
 
-**Objetivo:** que la matemática y los tipos no estén atados al dólar, con tests y lint que la blinden. *No cambia funcionalidad visible.*
+**Objetivo:** base técnica (tests, lint, dominio puro) para crecer sin romper. *No cambia funcionalidad visible.*
 
 - [x] **Tooling**: reemplazar `next lint` por ESLint CLI (`eslint` + `eslint-config-next`, flat config `eslint.config.mjs`) y agregar `"typecheck": "tsc --noEmit"`.
 - [x] **Tests del motor financiero** (instalar `vitest` + script `pnpm test`):
@@ -111,33 +130,29 @@ src/
   `useDolarStore` directamente. La suscripción cross-store queda en el store, no en el dominio.
 - [x] **Separar modelo de dominio y formulario**: `Transaction` deja de derivar de
   `TransactionFormValues`; el form mapea a dominio. Rompe el ciclo `types` ↔ `validations`.
-- [ ] **Generalizar claves**: introducir `type AssetKey = string` (formato
-  `dolar:blue`, `crypto:BTC`) y `AssetCategory = 'dolar' | 'crypto'`. Mantener
-  compatibilidad con `DolarOption` vía helpers de conversión.
-- [ ] **Migración de persistencia**: añadir `version: 1` + `migrate` al `persist` de
-  `transactions-storage` que convierta el formato viejo (`Record<DolarOption, Transaction[]>`)
-  al nuevo (lista plana con `category` + `assetKey`). *Decisión clave: pasar de
-  mapa agrupado a lista única con agrupación en selectors.* Testear la migración con un
-  snapshot real de `localStorage`.
-- [ ] **Métricas derivadas, no persistidas**: `transactionsData` pasa a ser un selector
-  memoizado (transacciones + precios → métricas) en lugar de estado que se sincroniza a mano.
-- [ ] **Definir moneda base de reporte** (decisión de producto):
-  - Opción A: todo reporta en ARS (coherente con el usuario argentino; cripto
-    convierte vía cotización USD/ARS).
-  - Opción B: reporta en USD/USDT con toggle ARS.
-  - Recomendación: **ARS como base**, con valor alternativo en USD.
+- [x] **Motor genérico de posición**: `src/domain/position.ts` (`computePosition`) con
+  `dust` configurable por unidad; `computeGroupMetrics` del dólar lo usa sin cambiar resultados.
+- [x] ~~Generalizar claves a `AssetKey`~~ — **descartado**: dólar y cripto son módulos separados.
+- [ ] **`version: 1` en `transactions-storage` y `dolar-storage`** (sin cambiar la forma):
+  deja lista la vía de `migrate` para cualquier cambio futuro. La migración a lista plana
+  con `assetKey` queda **descartada**.
+- [ ] **Métricas derivadas, no persistidas** (dólar): `transactionsData` pasa a ser un selector
+  memoizado en lugar de estado que se sincroniza a mano con `subscribe` (cripto ya lo hace así
+  con `useCryptoPortfolio`).
+- [x] **Moneda base de reporte** — decidido: dólar reporta en ARS; cripto en USD con
+  equivalente en ARS vía dólar cripto.
 - [x] **Validación de fecha en el schema**: rechazar fechas futuras en Zod, no solo en el `<Calendar>`.
-- [ ] **Métricas globales agregadas**: total del portfolio (todas las claves
-  combinadas) además de las métricas por grupo.
+- [ ] **Métricas globales agregadas del dólar**: total de todos los tipos de dólar además
+  de las métricas por grupo.
 - [ ] **Edición de transacciones** (hoy solo alta/borrado), revalidando la timeline.
 - [ ] **Banner "Modo local"** en la UI (se oculta en la Fase 3).
 - [x] Limpieza: `404.tsx` → `not-found.tsx`, eliminar `getDolar()` y `usdPrice`, errores
   de red de DolarAPI con toast (y chequeo de `response.ok`).
-- [ ] `ui/dialog`/`ui/alert-dialog` sin uso: reutilizarlos en la edición de transacciones o eliminarlos.
+- [ ] `ui/alert-dialog` sin uso: reutilizarlo en la edición de transacciones o eliminarlo.
 - [ ] `metadataBase` en `src/app/layout.tsx` para que las imágenes OG apunten al dominio real.
 
 **Criterio de salida:** `pnpm lint`, `pnpm typecheck` y `pnpm test` verdes, la app se
-comporta idéntico para el usuario (datos viejos migrados) y el dominio no importa ningún store.
+comporta idéntico para el usuario y el dominio no importa ningún store.
 
 ---
 
@@ -153,6 +168,7 @@ comporta idéntico para el usuario (datos viejos migrados) y el dominio no impor
 - [ ] `<UserButton />` / `<SignInButton />` en `AppSidebar.tsx` (footer) + estados signed-in/out.
 - [ ] **Estado de sesión en el cliente**: derivar `isSignedIn` de Clerk (reemplazar los
   `isSignedIn: false` hardcodeados en `NewTransactionForm.tsx` y `TransactionList.tsx`).
+  Las rutas `/api/crypto/{prices,search}` siguen públicas (solo leen precios).
 - [ ] Server-side: `auth()` de `@clerk/nextjs/server` en route handlers / server components
   (sin necesidad de `GET /api/me`).
 
@@ -167,40 +183,57 @@ la persistencia todavía.
 
 - [ ] Instancia en **Neon.tech** + `prisma` / `@prisma/client`; `prisma init`
   (output del cliente en `src/generated/prisma`, ya ignorado en git).
-- [ ] **Schema** (versión inicial alineada al modelo generalizado de la Fase 0):
+- [ ] **Schema** (una tabla por módulo, porque los modelos no comparten campos):
 
   ```prisma
   model User {
-    id           String        @id          // clerkId
-    transactions Transaction[]
+    id                 String              @id   // clerkId
+    dolarTransactions  DolarTransaction[]
+    cryptoTransactions CryptoTransaction[]
   }
 
-  model Transaction {
-    id          String   @id @default(uuid())
-    userId      String
-    user        User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    category    String            // 'dolar' | 'crypto'
-    assetKey    String            // 'dolar:blue' | 'crypto:BTC'
-    type        String            // 'BUY' | 'SELL'
-    quantity    Decimal           // USD o unidades de cripto
-    quoteAmount Decimal           // monto pagado/recibido en ARS
-    date        DateTime
-    createdAt   DateTime @default(now())
-    updatedAt   DateTime @updatedAt
-    @@index([userId, category, assetKey, date])
+  model DolarTransaction {
+    id            String   @id @default(uuid())
+    userId        String
+    user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    dolarOption   String            // 'blue' | 'oficial' | …
+    type          String            // 'BUY' | 'SELL'
+    dollarsAmount Decimal
+    pesosAmount   Decimal
+    date          DateTime
+    createdAt     DateTime @default(now())
+    updatedAt     DateTime @updatedAt
+    @@index([userId, dolarOption, date])
+  }
+
+  model CryptoTransaction {
+    id        String   @id @default(uuid())
+    userId    String
+    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+    coinId    String            // id de CoinGecko: 'bitcoin'
+    symbol    String            // metadatos para mostrar sin consultar CoinGecko
+    name      String
+    image     String?
+    type      String            // 'BUY' | 'SELL'
+    quantity  Decimal           // hasta 18 decimales
+    priceUsd  Decimal
+    date      DateTime
+    createdAt DateTime @default(now())
+    updatedAt DateTime @updatedAt
+    @@index([userId, coinId, date])
   }
   ```
 
-- [ ] **API CRUD** en `src/app/api/transactions/` (lógica en `src/server/`):
-  - `GET /api/transactions?category=` — listar del usuario (auth por `clerkId`).
-  - `POST /api/transactions` — crear (validar con el esquema Zod de `src/domain/`).
-  - `PATCH /api/transactions/:id` — editar.
-  - `DELETE /api/transactions/:id` — borrar.
+- [ ] **API CRUD** por módulo en `src/app/api/{dolar,crypto}/transactions/` (lógica en `src/server/`):
+  - `GET` — listar del usuario (auth por `clerkId`).
+  - `POST` — crear (validar con el esquema Zod del módulo).
+  - `PATCH /:id` — editar.
+  - `DELETE /:id` — borrar.
   - Ownership check en cada operación (un usuario no toca datos de otro).
   - `Decimal` ↔ `number`: convertir en un único mapper server-side.
 - [ ] **Reconstruir la rama remota del store** vía `apiRepository` (hoy falla silenciosamente):
   fetch inicial (`GET`), optimistic updates con rollback, toasts de error reales,
-  estados de carga/offline.
+  estados de carga/offline. Mismo patrón para `useCryptoStore`.
 - [ ] **Validación timeline en el server** (misma función del dominio que los tests
   ya cubren) para que no dependa del cliente.
 - [ ] Paridad local/cloud: mismos cálculos, mismos errores.
@@ -227,30 +260,38 @@ refresco y a otro dispositivo; sin sesión, todo sigue funcionando en local.
 
 ---
 
-## Fase 4 — Módulo de Cripto (transacciones)
+## Fase 4 — Módulo Cripto (independiente del dólar)
 
-**Objetivo:** que la app tenga dos clases de activo: dólar (lo actual) y cripto.
+**Objetivo:** un tracker de cripto propio: operaciones en USD de cualquier moneda,
+posiciones y PnL con precios de CoinGecko. Solo depende de la Fase 0.
 
-- [ ] **Fuente de precios**: elegir API (CoinGecko gratuita / Binance API);
-  crear `src/features/crypto/cryptoApi.ts` (precio spot por símbolo, refresh
-  configurable) y `crypto.store.ts` que exponga un `MarketPriceMap` con la misma forma que el de dólar.
-- [ ] **Catálogo de activos**: const de símbolos soportados (`BTC`, `ETH`,
-  `USDT`, `USDC`, …) con nombre y logo; extensible.
-- [ ] **Tipos y validaciones**: schema Zod de transacción cripto — cantidad > 0,
-  precio unitario o monto total, fecha sin futuras, y conversión a `quoteAmount` ARS
-  usando la cotización USD/ARS vigente (`dolar:blue` o el tipo elegido).
-- [ ] **Formulario unificado**: `NewTransactionForm` gana un selector de categoría
-  (Dólar | Cripto) que muestra el campo de tipo de dólar o el de símbolo cripto;
-  reutiliza el motor de cálculo y la validación de timeline (balance negativo por `assetKey`).
-- [ ] **Historial**: `TransactionList` agrupa por `assetKey` con etiquetas por
-  categoría (badges "Dólar"/"Cripto").
-- [ ] **Métricas por símbolo**: costo promedio, PnL realizado/no realizado con el
-  precio spot actual (mismo algoritmo ya testeado en la Fase 0).
-- [ ] Suscripción: refresco de precios cripto → recálculo de métricas (con métricas
-  derivadas por selector, esto sale gratis).
+**Modelo:** cada operación guarda `coinId` (id de CoinGecko), `type`, `quantity`,
+`priceUsd` y `date`. Métricas en USD por moneda (costo promedio ponderado, PnL realizado
+y no realizado); valor en pesos = valor USD × dólar cripto (compra).
 
-**Criterio de salida:** se puede comprar/vender BTC en ARS y ver posición, costo
-promedio y PnL igual que con el dólar.
+- [x] **Proxy a CoinGecko** (`src/server/coingecko.ts`, respuestas validadas con Zod):
+  - `GET /api/crypto/prices?ids=` → precio USD, variación 24 h, última actualización (cache 60 s).
+  - `GET /api/crypto/search?q=` → búsqueda de monedas; sin `q`, top 10 por capitalización (cache 1 h).
+  - `COINGECKO_API_KEY` opcional (clave Demo), documentada en `.env.example`.
+- [x] **Store** `useCryptoStore` (`crypto-storage`, `version: 1`): lista plana de operaciones
+  + metadatos de cada moneda usada; valida la línea temporal por moneda al agregar y borrar.
+- [x] **Precios** `useCryptoPricesStore` (`crypto-prices-storage`, `version: 1`): último
+  precio conocido (fallback si la API cae); refresco cada 60 s solo mientras se ve `/cripto`.
+- [x] **Métricas derivadas** (`computeCryptoPositions`, `summarizePortfolio`) sobre el motor
+  compartido `computePosition`, con tests.
+- [x] **Formulario** `/cripto/nueva`: buscador de monedas (combobox shadcn `command`),
+  compra/venta, cantidad, precio unitario USD (autocompletado con el precio actual), fecha.
+- [x] **Vista** `/cripto`: resumen (valor USD y ARS, invertido, PnL), cotización del dólar
+  cripto, tabla de posiciones abiertas e historial con borrado confirmado.
+- [ ] Probar el flujo completo en el navegador (alta, venta, borrado, API caída).
+- [ ] **Comisiones** (fee en USD o en la moneda) que ajusten el costo promedio.
+- [ ] **Edición de operaciones**, revalidando la línea temporal.
+- [ ] Detalle por moneda (`/cripto/[coinId]`): operaciones filtradas y métricas de la moneda.
+- [ ] Operaciones cripto ↔ cripto (swap BTC → ETH) como venta + compra enlazadas.
+- [ ] Manejo del rate limit en el cliente (backoff cuando `/api/crypto/prices` responde 429).
+
+**Criterio de salida:** se puede comprar/vender cualquier moneda en USD y ver posición,
+costo promedio, PnL y su valor en pesos, con precios que se actualizan solos.
 
 ---
 
@@ -258,17 +299,17 @@ promedio y PnL igual que con el dólar.
 
 **Objetivo:** pasar de "listas de transacciones" a **vista de portfolio**.
 
-- [ ] **Dashboard unificado**: valor total del portfolio (ARS y USD), desglose por
-  categoría (dólar / cripto) y por activo, % de allocation, PnL total
-  realizado + no realizado, costo total.
+- [ ] **Dashboard unificado** (en la home): valor total (ARS y USD) sumando los dos módulos,
+  cada uno con sus propias métricas; la conversión USD ↔ ARS usa el dólar cripto para cripto
+  y la cotización de cada tipo de dólar para el módulo dólar. Desglose por módulo y por activo,
+  % de allocation.
 - [ ] **Gráficos** (sugerencia: `recharts`):
   - composición del portfolio (donut / barras de allocation),
   - evolución temporal del valor (snapshot diario: tabla `PortfolioSnapshot`
     en Prisma o cálculo desde transacciones + histórico de precios).
-- [ ] **Detalle por activo**: drill-down desde el dashboard a la lista de
-  transacciones filtrada (query param `?asset=crypto:BTC`).
-- [ ] **Precios en vivo**: header con variación 24h para los activos en cartera; estados de
-  carga y fallback si la API cae (retry + último valor cacheado).
+- [ ] **Detalle por activo**: drill-down desde el dashboard a `/dolar` o `/cripto/[coinId]`.
+- [ ] **Precios en vivo**: variación 24 h de los activos en cartera (cripto ya la trae de
+  CoinGecko); estados de carga y fallback si la API cae.
 - [ ] Cotizaciones dólar destacadas (hoy `DolarPrice`) como una tarjeta más dentro
   del dashboard, no como la pantalla principal.
 - [ ] Extras (prioridad baja): export CSV/JSON, watchlist, refresh manual.
@@ -307,10 +348,9 @@ Fase 6 (calidad/operación): transversal, CI desde que existen tests (Fase 0)
 
 **Notas:**
 
-- La **Fase 4 (cripto)** solo requiere la Fase 0 para funcionar en local. Si se
-  desarrolla en paralelo a las Fases 1–3, el riesgo de "refactor de sync dos veces"
-  se mitiga porque ambas trabajan sobre el mismo modelo genérico (`assetKey`) y la
-  interfaz `TransactionRepository`.
+- La **Fase 4 (cripto)** solo requiere la Fase 0 para funcionar en local. Como es un
+  módulo con su propio store, las Fases 2–3 deben sumarle su tabla, su API y su
+  repositorio remoto (mismo patrón que dólar, sin modelo compartido).
 - La **Fase 6** es transversal: empezar con el pipeline de CI apenas hay tests (Fase 0).
 
 ---
