@@ -58,7 +58,6 @@ export default function NewTransactionForm() {
     const newTransaction = {
       pesosAmount: values.pesosAmount,
       dollarsAmount: values.dollarsAmount,
-      usdPrice: values.pesosAmount / values.dollarsAmount,
       type: values.type,
       date: values.date,
       dolarOption: values.dolarOption,

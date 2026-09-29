@@ -2,14 +2,15 @@
 
 import { useTheme } from 'next-themes'
 import Image from 'next/image'
-import { useEffect, useState } from 'react'
+import { useSyncExternalStore } from 'react'
 import { FiMoon, FiSun } from 'react-icons/fi'
 
-export default function ThemeSwitch () {
-  const [mounted, setMounted] = useState(false)
-  const { setTheme, resolvedTheme } = useTheme()
+const subscribe = () => () => {}
 
-  useEffect(() => setMounted(true), [])
+export default function ThemeSwitch () {
+  // false en SSR / hidratación, true en el cliente: evita mismatch del tema
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false)
+  const { setTheme, resolvedTheme } = useTheme()
 
   if (!mounted) {
     return (
