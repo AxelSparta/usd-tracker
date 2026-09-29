@@ -46,3 +46,49 @@ describe('useCryptoStore', () => {
     expect(useCryptoStore.getState().transactions).toHaveLength(1)
   })
 })
+
+describe('updateTransaction', () => {
+  beforeEach(() => useCryptoStore.setState({ transactions: [], coins: {} }))
+
+  const eth: Coin = { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', image: null }
+
+  it('edita la operación conservando el id', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    const [tx] = useCryptoStore.getState().transactions
+    useCryptoStore.getState().updateTransaction(
+      tx.id,
+      { ...tx, quantity: 2, priceUsd: 40_000 },
+      btc,
+    )
+    expect(useCryptoStore.getState().transactions).toEqual([
+      { ...tx, quantity: 2, priceUsd: 40_000 },
+    ])
+  })
+
+  it('rechaza reducir una compra por debajo de lo vendido después', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    add(TransactionType.SELL, 1, '2026-02-01')
+    const [buy] = useCryptoStore.getState().transactions
+    expect(() =>
+      useCryptoStore.getState().updateTransaction(buy.id, { ...buy, quantity: 0.5 }, btc),
+    ).toThrow('No tenés suficiente BTC para la venta del 01/02/2026.')
+  })
+
+  it('cambiar de moneda revalida la moneda de origen', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    add(TransactionType.SELL, 1, '2026-02-01')
+    const [buy] = useCryptoStore.getState().transactions
+    expect(() =>
+      useCryptoStore
+        .getState()
+        .updateTransaction(buy.id, { ...buy, coinId: 'ethereum' }, eth),
+    ).toThrow(/No se puede cambiar: la venta de BTC/)
+  })
+
+  it('cambiar de moneda guarda los metadatos de la nueva', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    const [buy] = useCryptoStore.getState().transactions
+    useCryptoStore.getState().updateTransaction(buy.id, { ...buy, coinId: 'ethereum' }, eth)
+    expect(useCryptoStore.getState().coins.ethereum).toEqual(eth)
+  })
+})

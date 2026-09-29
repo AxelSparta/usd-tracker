@@ -4,6 +4,7 @@ import {
   formatPercent,
   formatPrice,
   formatQuantity,
+  numberToArInput,
   parseLocaleAmount,
 } from '@/lib/locale-amount'
 
@@ -62,5 +63,11 @@ describe('formatPercent', () => {
     expect(formatPercent(1.234)).toBe('+1,23%')
     expect(formatPercent(-4.5)).toBe('-4,50%')
     expect(formatPercent(0)).toBe('0,00%')
+  })
+})
+
+describe('numberToArInput', () => {
+  it.each([1234.5, 0.00012345, 83_692, 1])('%d ida y vuelta sin pérdida', (n) => {
+    expect(parseLocaleAmount(numberToArInput(n))).toBe(n)
   })
 })

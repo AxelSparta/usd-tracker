@@ -5,7 +5,11 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { useTransactionStore } from '@/store/transaction.store'
+import {
+  useTransactionStore,
+  useTransactionsData,
+} from '@/store/transaction.store'
+import { summarizeTransactionsData } from '@/domain/metrics'
 import { useDolarStore } from '@/store/dolar.store'
 import { toast } from 'sonner'
 import { Button } from './ui/button'
@@ -14,6 +18,7 @@ import { DolarOption } from '@/types/dolar.types'
 import { formatCurrency } from '@/lib/locale-amount'
 import { cn } from '@/lib/utils'
 import { Stat, pnlClass } from './Stat'
+import EditTransactionDialog from './EditTransactionDialog'
 import { Trash2 } from 'lucide-react'
 
 export default function TransactionList() {
@@ -21,9 +26,7 @@ export default function TransactionList() {
   const removeTransaction = useTransactionStore(
     (state) => state.removeTransaction,
   )
-  const transactionsData = useTransactionStore(
-    (state) => state.transactionsData,
-  )
+  const transactionsData = useTransactionsData()
   const allDolarData = useDolarStore((state) => state.allDolarData)
 
   const handleDeleteTransaction = async (transactionId: string) => {
@@ -61,8 +64,40 @@ export default function TransactionList() {
     )
   }
 
+  const groupsWithData = Object.values(transactionsData).filter(Boolean).length
+  const totals = summarizeTransactionsData(transactionsData)
+
   return (
     <section className='space-y-12'>
+      {/* Con un solo tipo de dólar el total repetiría el resumen del grupo */}
+      {groupsWithData > 1 && (
+        <div className='space-y-4'>
+          <h2 className='text-lg font-semibold tracking-tight'>Total</h2>
+          <div className='grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3'>
+            <Stat
+              label='Posición USD'
+              value={formatCurrency(totals.totalUsd)}
+              secondaryLabel='Tipos de dólar'
+              secondaryValue={String(groupsWithData)}
+            />
+            <Stat
+              label='Valor actual'
+              value={`$${formatCurrency(totals.marketValuePesos)}`}
+              secondaryLabel='Invertido'
+              secondaryValue={`$${formatCurrency(totals.investedPesos)}`}
+            />
+            <Stat
+              label='PnL no realizado'
+              value={`$${formatCurrency(totals.unrealizedProfit)}`}
+              valueClassName={pnlClass(totals.unrealizedProfit)}
+              secondaryLabel='Realizado'
+              secondaryValue={`$${formatCurrency(totals.realizedProfit)}`}
+              secondaryClassName={pnlClass(totals.realizedProfit)}
+            />
+          </div>
+        </div>
+      )}
+
       {Object.entries(transactionsGrouped).map(([option, transactions]) => {
         if (!transactions || transactions.length === 0) return null
 
@@ -157,30 +192,33 @@ export default function TransactionList() {
                       <td className='px-4 py-3 text-right text-muted-foreground'>
                         ${formatCurrency(tx.pesosAmount / tx.dollarsAmount)}
                       </td>
-                      <td className='px-2 py-1 text-right'>
-                        <Popover>
-                          <PopoverTrigger asChild>
-                            <Button
-                              variant='ghost'
-                              size='icon'
-                              className='size-8 text-muted-foreground hover:text-destructive'
-                              aria-label='Eliminar transacción'
-                            >
-                              <Trash2 />
-                            </Button>
-                          </PopoverTrigger>
-                          <PopoverContent align='end' className='w-56 p-3'>
-                            <p className='mb-3 text-sm'>¿Eliminar esta transacción?</p>
-                            <Button
-                              className='w-full'
-                              variant='destructive'
-                              size='sm'
-                              onClick={() => handleDeleteTransaction(tx.id)}
-                            >
-                              Confirmar
-                            </Button>
-                          </PopoverContent>
-                        </Popover>
+                      <td className='px-2 py-1'>
+                        <div className='flex justify-end'>
+                          <EditTransactionDialog tx={tx} />
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                className='size-8 text-muted-foreground hover:text-destructive'
+                                aria-label='Eliminar transacción'
+                              >
+                                <Trash2 />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align='end' className='w-56 p-3'>
+                              <p className='mb-3 text-sm'>¿Eliminar esta transacción?</p>
+                              <Button
+                                className='w-full'
+                                variant='destructive'
+                                size='sm'
+                                onClick={() => handleDeleteTransaction(tx.id)}
+                              >
+                                Confirmar
+                              </Button>
+                            </PopoverContent>
+                          </Popover>
+                        </div>
                       </td>
                     </tr>
                   ))}

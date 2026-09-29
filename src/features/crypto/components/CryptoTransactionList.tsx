@@ -13,6 +13,7 @@ import { cn } from '@/lib/utils'
 import { TransactionType } from '@/types/transaction.types'
 import { useCryptoStore } from '../crypto.store'
 import CoinIcon from './CoinIcon'
+import EditCryptoTransactionDialog from './EditCryptoTransactionDialog'
 
 export default function CryptoTransactionList() {
   const transactions = useCryptoStore((s) => s.transactions)
@@ -86,30 +87,33 @@ export default function CryptoTransactionList() {
                   <td className='px-4 py-3 text-right font-medium'>
                     US${formatPrice(tx.quantity * tx.priceUsd)}
                   </td>
-                  <td className='px-2 py-1 text-right'>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant='ghost'
-                          size='icon'
-                          className='size-8 text-muted-foreground hover:text-destructive'
-                          aria-label='Eliminar operación'
-                        >
-                          <Trash2 />
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent align='end' className='w-56 p-3'>
-                        <p className='mb-3 text-sm'>¿Eliminar esta operación?</p>
-                        <Button
-                          className='w-full'
-                          variant='destructive'
-                          size='sm'
-                          onClick={() => handleDelete(tx.id)}
-                        >
-                          Confirmar
-                        </Button>
-                      </PopoverContent>
-                    </Popover>
+                  <td className='px-2 py-1'>
+                    <div className='flex justify-end'>
+                      <EditCryptoTransactionDialog tx={tx} coin={coin} />
+                      <Popover>
+                        <PopoverTrigger asChild>
+                          <Button
+                            variant='ghost'
+                            size='icon'
+                            className='size-8 text-muted-foreground hover:text-destructive'
+                            aria-label='Eliminar operación'
+                          >
+                            <Trash2 />
+                          </Button>
+                        </PopoverTrigger>
+                        <PopoverContent align='end' className='w-56 p-3'>
+                          <p className='mb-3 text-sm'>¿Eliminar esta operación?</p>
+                          <Button
+                            className='w-full'
+                            variant='destructive'
+                            size='sm'
+                            onClick={() => handleDelete(tx.id)}
+                          >
+                            Confirmar
+                          </Button>
+                        </PopoverContent>
+                      </Popover>
+                    </div>
                   </td>
                 </tr>
               )

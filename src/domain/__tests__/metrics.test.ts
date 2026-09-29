@@ -1,5 +1,9 @@
 import { describe, expect, it } from 'vitest'
-import { computeGroupMetrics, computeTransactionsData } from '@/domain/metrics'
+import {
+  computeGroupMetrics,
+  computeTransactionsData,
+  summarizeTransactionsData,
+} from '@/domain/metrics'
 import { DolarOption } from '@/types/dolar.types'
 import { TransactionType, type Transaction } from '@/types/transaction.types'
 
@@ -131,5 +135,39 @@ describe('computeTransactionsData', () => {
   it('omite grupos vacíos', () => {
     const data = computeTransactionsData({ [DolarOption.Blue]: [] }, {})
     expect(data).toEqual({})
+  })
+})
+
+describe('summarizeTransactionsData', () => {
+  it('suma todos los tipos de dólar (sin costo promedio)', () => {
+    const totals = summarizeTransactionsData({
+      [DolarOption.Blue]: {
+        totalUsd: 100,
+        investedPesos: 100_000.1,
+        marketValuePesos: 120_000,
+        averageCost: 1000,
+        realizedProfit: 500,
+        unrealizedProfit: 19_999.9,
+      },
+      [DolarOption.Oficial]: {
+        totalUsd: 50,
+        investedPesos: 45_000.2,
+        marketValuePesos: 50_000,
+        averageCost: 900,
+        realizedProfit: -200,
+        unrealizedProfit: 4_999.8,
+      },
+    })
+    expect(totals).toEqual({
+      totalUsd: 150,
+      investedPesos: 145_000.3,
+      marketValuePesos: 170_000,
+      realizedProfit: 300,
+      unrealizedProfit: 24_999.7,
+    })
+  })
+
+  it('sin grupos: todo en cero', () => {
+    expect(summarizeTransactionsData({}).totalUsd).toBe(0)
   })
 })

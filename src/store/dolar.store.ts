@@ -37,7 +37,11 @@ const dolarApi: StateCreator<DolarState> = (set) => ({
 export const useDolarStore = create<DolarState>()(
   devtools(
     persist(dolarApi, {
-      name: 'dolar-storage'
+      name: 'dolar-storage',
+      version: 1,
+      partialize: ({ allDolarData }) => ({ allDolarData }),
+      // v0 → v1: misma forma; la versión solo habilita migraciones futuras
+      migrate: (persistedState) => persistedState as Pick<DolarState, 'allDolarData'>,
     })
   )
 )

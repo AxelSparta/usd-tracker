@@ -47,6 +47,7 @@ Aplicación web para seguir tus ahorros en Argentina, con dos módulos independi
     - Ganancia realizada
     - Ganancia no realizada (PnL)
   - Re-cálculo automático de métricas cuando cambia la cotización
+  - Total agregado de todos los tipos de dólar
 
 - **Módulo cripto**
   - Buscador de cualquier moneda de CoinGecko (populares por defecto)
@@ -57,6 +58,7 @@ Aplicación web para seguir tus ahorros en Argentina, con dos módulos independi
 
 - **Gestión de historial**
   - Tabla por grupo de dólar con orden cronológico y badges por operación
+  - Edición de transacciones y operaciones cripto en un diálogo, revalidando el saldo
   - Eliminación de transacciones con confirmación
   - Estado vacío con CTA para crear la primera transacción
 

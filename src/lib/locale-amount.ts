@@ -96,3 +96,9 @@ export function formatPercent(amount: number): string {
     signDisplay: 'exceptZero',
   }).format(amount) + '%'
 }
+
+/**
+ * Número → texto editable (1234.5 → "1.234,5") para precargar inputs.
+ * Mismo formato que `formatQuantity`, que `parseLocaleAmount` lee de vuelta sin pérdida.
+ */
+export const numberToArInput = (amount: number): string => formatQuantity(amount)

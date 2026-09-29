@@ -22,9 +22,10 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 - Consistencia de la línea temporal (por tipo de dólar):
   - orden por fecha ascendente; mismo día: compras antes que ventas (`sortTxs`)
   - error si el balance USD queda negativo (`validateTimeline`), al vender **y** al borrar
-- Historial agrupado por tipo de dólar, con tabla (fecha, operación, montos, tipo de cambio) y borrado con confirmación.
-- Métricas **por tipo de dólar** (`transactionsData: Partial<Record<DolarOption, TransactionsData>>`):
-  `totalUsd`, `investedPesos`, `averageCost`, `marketValuePesos`, `realizedProfit`, `unrealizedProfit`.
+- Historial agrupado por tipo de dólar, con tabla (fecha, operación, montos, tipo de cambio), edición en diálogo (`EditTransactionDialog`) y borrado con confirmación.
+- Edición de transacciones en ambos módulos (`updateTransaction`): conserva el `id`, revalida el grupo destino y, si cambió el tipo de dólar / la moneda, también el de origen. El formulario es compartido entre alta y edición (`TransactionForm`, `CryptoTransactionForm`); las páginas de alta los envuelven (`NewTransactionForm`, `NewCryptoTransaction`).
+- Métricas **por tipo de dólar**, derivadas con `useTransactionsData()` (`TransactionsDataMap`, no se persisten):
+  `totalUsd`, `investedPesos`, `averageCost`, `marketValuePesos`, `realizedProfit`, `unrealizedProfit`; más un total (`summarizeTransactionsData`) cuando hay más de un tipo de dólar.
 - Cotizaciones DolarAPI: carga inicial y refresco cada 5 min en `providers.tsx`; recálculo automático de métricas al llegar nuevas cotizaciones.
 - Tarjetas de cotizaciones destacadas (`DolarPrice`): oficial, blue, bolsa, cripto.
 - Navegación con sidebar (shadcn `ui/sidebar`, colapsable a íconos, drawer en mobile): Inicio, Dólar (`/dolar`, `/dolar/nueva`) y Cripto (`/cripto`, `/cripto/nueva`). `/new-transaction` redirige a `/dolar/nueva` (`next.config.ts`).
@@ -35,6 +36,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - precios vía `/api/crypto/prices`, refresco cada 60 s solo mientras `/cripto` está montado (`useCryptoPriceSync`)
   - línea temporal validada por moneda al agregar y borrar (`findNegativeBalance`)
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
+- Aviso "Modo local" en la barra superior (`LocalModeBadge`, con tooltip).
 
 ## Stack (versiones según `package.json`)
 
@@ -71,8 +73,9 @@ src/
 │   ├── api/crypto/{prices,search}/route.ts  # proxy a CoinGecko (valida params, cachea)
 │   ├── not-found.tsx           # 404
 │   └── globals.css
-├── components/                 # piezas de la app (AppSidebar, ThemeSwitch, Stat, DolarPrice,
-│   │                           #   TransactionList, NewTransactionForm)
+├── components/                 # piezas de la app (AppSidebar, ThemeSwitch, LocalModeBadge, Stat,
+│   │                           #   DolarPrice, TransactionList, TransactionForm,
+│   │                           #   NewTransactionForm, EditTransactionDialog)
 │   └── ui/                     # primitivos shadcn — no meter lógica de negocio aquí
 ├── hooks/                      # use-mobile (lo usa ui/sidebar), use-mounted (contenido de localStorage)
 ├── domain/                     # motor financiero puro (sin React ni stores) + __tests__/
@@ -86,6 +89,7 @@ src/
 │   ├── prices.store.ts         # último precio por moneda (persist `crypto-prices-storage`, v1)
 │   ├── hooks.ts                # useCryptoPriceSync, useCryptoPortfolio
 │   └── components/             # CryptoPortfolio, CryptoTransactionList, CryptoTransactionForm,
+│                               #   NewCryptoTransaction, EditCryptoTransactionDialog,
 │                               #   CoinCombobox, CoinIcon
 ├── server/coingecko.ts         # solo server: cliente CoinGecko + schemas Zod de respuesta
 ├── lib/
@@ -94,7 +98,7 @@ src/
 │   └── utils.ts                # cn()
 ├── services/dolarApi.ts        # cliente HTTP DolarAPI
 ├── store/
-│   ├── transaction.store.ts    # transacciones + persist; delega cálculos a domain/
+│   ├── transaction.store.ts    # transacciones + persist v1 + useTransactionsData; cálculos en domain/
 │   └── dolar.store.ts          # allDolarData + persist; selectMarketPrices → MarketPriceMap
 ├── types/                      # dolar.types.ts (DolarOption, DolarData), transaction.types.ts
 └── validations/transaction.ts  # schema Zod del formulario + parseTransactionFormInput
@@ -108,10 +112,10 @@ src/
 
 ## Comportamiento importante del estado
 
-- **Persistencia:** Zustand `persist` con claves `transactions-storage` y `dolar-storage` (**sin `version`/`migrate`**), y `crypto-storage` / `crypto-prices-storage` (`version: 1`). Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
+- **Persistencia:** Zustand `persist` con claves `transactions-storage`, `dolar-storage`, `crypto-storage` y `crypto-prices-storage`, todas en `version: 1` con `partialize` (solo datos, nunca métricas derivadas). Ojo: si se sube `version` sin `migrate`, Zustand **descarta** lo guardado. `migrateTransactionsStorage` (v0 → v1) tiene test con un snapshot real. Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
 - **Forma de los datos:** `transactions: Partial<Record<DolarOption, Transaction[]>>`, cada grupo ordenado con `sortTxs`. Los montos se guardan como `number`; la fecha, como `Date` serializada a string por `persist` (usar `new Date(tx.date)` al leer).
-- **Suscripción:** `useDolarStore.subscribe` (al final de `transaction.store.ts`) re-ejecuta `updateTransactionsData` en cada cambio del dolar store.
-- **Cálculos:** el algoritmo vive en `src/domain/position.ts` (`computePosition`, con `dust` según la unidad: 0,0001 para USD, 1e-9 por defecto para cripto) y cada módulo lo adapta. Dólar (`src/domain/metrics.ts`): costo promedio ponderado con compras; cada venta suma `(precio venta − costo promedio) × USD` a la ganancia realizada y reduce la posición; la no realizada usa `MarketPrice.sell` **del mismo tipo de dólar del grupo**. Los precios se inyectan: `updateTransactionsData` arma el `MarketPriceMap` con `selectMarketPrices(useDolarStore.getState())`. Cualquier cambio en la matemática va acompañado de tests en `src/domain/__tests__/`.
+- **Métricas derivadas:** no hay suscripción entre stores. `useTransactionsData` (dólar) y `useCryptoPortfolio` (cripto) recalculan con `useMemo` cuando cambian las transacciones o los precios. No volver a guardar métricas en el estado.
+- **Cálculos:** el algoritmo vive en `src/domain/position.ts` (`computePosition`, con `dust` según la unidad: 0,0001 para USD, 1e-9 por defecto para cripto) y cada módulo lo adapta. Dólar (`src/domain/metrics.ts`): costo promedio ponderado con compras; cada venta suma `(precio venta − costo promedio) × USD` a la ganancia realizada y reduce la posición; la no realizada usa `MarketPrice.sell` **del mismo tipo de dólar del grupo**. Los precios se inyectan: `useTransactionsData` arma el `MarketPriceMap` con `selectMarketPrices({ allDolarData })`. Cualquier cambio en la matemática va acompañado de tests en `src/domain/__tests__/`.
 - **Modo remoto (código muerto):** si `isSignedIn` es `true`, el store hace `POST /api/transactions` y `DELETE /api/transactions/:id`. Los call sites pasan `isSignedIn: false` hardcodeado, no existe `GET` ni esas rutas, y un `!res.ok` hace `return` sin error. No extender esta rama; se reconstruye en las Fases 1–3.
 
 ## Convenciones de desarrollo

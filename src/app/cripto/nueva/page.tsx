@@ -1,10 +1,10 @@
 import type { Metadata } from 'next'
-import CryptoTransactionForm from '@/features/crypto/components/CryptoTransactionForm'
+import NewCryptoTransaction from '@/features/crypto/components/NewCryptoTransaction'
 
 export const metadata: Metadata = {
   title: 'Nueva operación cripto',
 }
 
 export default function NewCryptoTransactionPage() {
-  return <CryptoTransactionForm />
+  return <NewCryptoTransaction />
 }

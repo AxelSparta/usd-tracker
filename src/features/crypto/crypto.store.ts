@@ -11,6 +11,11 @@ interface CryptoState {
   coins: Record<string, Coin>
 
   addTransaction: (tx: Omit<CryptoTransaction, 'id'>, coin: Coin) => void
+  updateTransaction: (
+    transactionId: string,
+    tx: Omit<CryptoTransaction, 'id'>,
+    coin: Coin,
+  ) => void
   removeTransaction: (transactionId: string) => void
 }
 
@@ -47,6 +52,34 @@ const storeApi: StateCreator<CryptoState> = (set, get) => ({
       transactions: [...transactions, newTransaction],
       coins: { ...coins, [coin.id]: coin },
     })
+  },
+
+  updateTransaction: (transactionId, tx, coin) => {
+    const { transactions, coins } = get()
+    const previous = transactions.find((t) => t.id === transactionId)
+    if (!previous) return
+
+    const updated = transactions.map((t) =>
+      t.id === transactionId ? { id: transactionId, ...tx } : t,
+    )
+
+    assertCoinTimeline(
+      updated.filter((t) => t.coinId === tx.coinId),
+      coin,
+      (symbol, date) =>
+        `No tenés suficiente ${symbol} para la venta del ${date}.`,
+    )
+    // Si cambió la moneda, la de origen pierde esta operación
+    if (previous.coinId !== tx.coinId) {
+      assertCoinTimeline(
+        updated.filter((t) => t.coinId === previous.coinId),
+        coins[previous.coinId],
+        (symbol, date) =>
+          `No se puede cambiar: la venta de ${symbol} del ${date} quedaría sin saldo.`,
+      )
+    }
+
+    set({ transactions: updated, coins: { ...coins, [coin.id]: coin } })
   },
 
   removeTransaction: (transactionId) => {

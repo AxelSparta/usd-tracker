@@ -26,12 +26,15 @@ Este roadmap define la evolución del producto en cuatro ejes:
 ### Lo que funciona hoy
 
 - Alta de transacciones BUY/SELL en ARS/USD con tipo de dólar (`DolarOption`) y validación Zod.
-- Historial agrupado por tipo de dólar con borrado confirmado.
-- Métricas por grupo en `updateTransactionsData` (`src/store/transaction.store.ts`):
+- Historial agrupado por tipo de dólar con edición (diálogo) y borrado confirmado.
+- Métricas por grupo **derivadas** con `useTransactionsData` (`src/store/transaction.store.ts`):
   posición USD, costo promedio, invertido ARS, valor de mercado,
-  PnL realizado (costo promedio) y no realizado (marca a mercado con la cotización del mismo tipo de dólar).
+  PnL realizado (costo promedio) y no realizado (marca a mercado con la cotización del mismo tipo de dólar),
+  más un total agregado (`summarizeTransactionsData`) cuando hay más de un tipo de dólar.
 - Cotizaciones DolarAPI (`src/services/dolarApi.ts`) con refresh cada 5 min en `providers.tsx`.
-- Persistencia local: Zustand `persist` → `transactions-storage` y `dolar-storage`.
+- Persistencia local: Zustand `persist` → `transactions-storage`, `dolar-storage`,
+  `crypto-storage` y `crypto-prices-storage`, todas con `version: 1` + `migrate`.
+- Aviso "Modo local" en la barra superior (`LocalModeBadge`).
 - Tema claro/oscuro/sistema, toasts (Sonner), UI en español.
 - Shell multi-sección: home (`/`), sidebar con Dólar (`/dolar`) y Cripto (`/cripto`); secciones en `src/lib/sections.ts`.
 - Módulo cripto (Fase 4, en curso): operaciones BUY/SELL en USD de cualquier moneda de
@@ -45,13 +48,13 @@ Este roadmap define la evolución del producto en cuatro ejes:
 | 1   | ~~El cálculo leía directamente `useDolarStore`~~ — resuelto: `src/domain/metrics.ts` recibe un `MarketPriceMap` | — |
 | 2   | ~~Todo el estado usa claves `Record<DolarOption, ...>`~~ — ya no aplica: cripto tiene su propio store y no comparte claves con dólar | — |
 | 3   | ~~Dominio implícito USD/ARS~~ — resuelto: el motor genérico (`computePosition`) trabaja con `quantity`/`quoteAmount`; dólar reporta en ARS y cripto en USD | — |
-| 4   | `persist` sin `version`/`migrate` | Cambiar el enum/schema rompería datos guardados de usuarios reales |
+| 4   | ~~`persist` sin `version`/`migrate`~~ — resuelto: todos los stores en `version: 1`; migración v0 → v1 de `transactions-storage` testeada con un snapshot real | — |
 | 5   | Ramas API existentes (`isSignedIn`) son código muerto: los call sites hardcodean `false`, no existe `GET`, y los endpoints `POST`/`DELETE` no existen; los fallos son **silenciosos** | La fase de auth/cloud debe reconstruir este flujo con manejo real de errores |
 | 6   | ~~No hay ningún test~~ — resuelto: Vitest cubre `src/domain` y `src/lib/locale-amount` | — |
 | 7   | ~~`pnpm lint` roto (Next 16 eliminó `next lint`)~~ — resuelto: ESLint 9 CLI + `eslint-config-next` | — |
 | 8   | ~~Ciclo de imports `types` ↔ `validations`~~ — resuelto: `Transaction` es un tipo de dominio explícito | — |
 | 9   | ~~Fechas futuras solo bloqueadas en el `<Calendar>`~~ — resuelto: `refine` en el schema Zod | — |
-| 10  | Deuda menor: `ui/alert-dialog` sin consumidores (`ui/dialog` ya lo usa `ui/command`); `metadata` sin `metadataBase` (las imágenes OG/Twitter se resuelven contra `localhost:3000` en el build) | Limpieza en Fase 0 |
+| 10  | ~~Deuda menor: `ui/alert-dialog` sin uso, sin `metadataBase`~~ — resuelto: `alert-dialog` eliminado, `metadataBase` apunta al dominio real | — |
 
 ### Rutas clave
 
@@ -115,7 +118,7 @@ src/
 
 ---
 
-## Fase 0 — Fundación técnica y desacoplamiento (multi-asset ready)
+## Fase 0 — Fundación técnica y desacoplamiento ✅
 
 **Objetivo:** base técnica (tests, lint, dominio puro) para crecer sin romper. *No cambia funcionalidad visible.*
 
@@ -133,23 +136,24 @@ src/
 - [x] **Motor genérico de posición**: `src/domain/position.ts` (`computePosition`) con
   `dust` configurable por unidad; `computeGroupMetrics` del dólar lo usa sin cambiar resultados.
 - [x] ~~Generalizar claves a `AssetKey`~~ — **descartado**: dólar y cripto son módulos separados.
-- [ ] **`version: 1` en `transactions-storage` y `dolar-storage`** (sin cambiar la forma):
-  deja lista la vía de `migrate` para cualquier cambio futuro. La migración a lista plana
+- [x] **`version: 1` en `transactions-storage` y `dolar-storage`**: `migrate` v0 → v1 deja de
+  persistir `transactionsData`; `dolar-storage` no cambia de forma. La migración a lista plana
   con `assetKey` queda **descartada**.
-- [ ] **Métricas derivadas, no persistidas** (dólar): `transactionsData` pasa a ser un selector
-  memoizado en lugar de estado que se sincroniza a mano con `subscribe` (cripto ya lo hace así
-  con `useCryptoPortfolio`).
+- [x] **Métricas derivadas, no persistidas** (dólar): `useTransactionsData` calcula con `useMemo`
+  desde transacciones + cotizaciones; se eliminaron `transactionsData`, `updateTransactionsData`
+  y la suscripción entre stores.
 - [x] **Moneda base de reporte** — decidido: dólar reporta en ARS; cripto en USD con
   equivalente en ARS vía dólar cripto.
 - [x] **Validación de fecha en el schema**: rechazar fechas futuras en Zod, no solo en el `<Calendar>`.
-- [ ] **Métricas globales agregadas del dólar**: total de todos los tipos de dólar además
-  de las métricas por grupo.
-- [ ] **Edición de transacciones** (hoy solo alta/borrado), revalidando la timeline.
-- [ ] **Banner "Modo local"** en la UI (se oculta en la Fase 3).
+- [x] **Métricas globales agregadas del dólar**: `summarizeTransactionsData` (sin costo
+  promedio, que mezclaría cotizaciones); se muestra con más de un tipo de dólar.
+- [x] **Edición de transacciones**: `updateTransaction` revalida el grupo destino y, si cambió
+  el tipo de dólar, también el de origen. Formulario compartido alta/edición (`TransactionForm`).
+- [x] **Aviso "Modo local"** en la barra superior (se oculta en la Fase 3).
 - [x] Limpieza: `404.tsx` → `not-found.tsx`, eliminar `getDolar()` y `usdPrice`, errores
   de red de DolarAPI con toast (y chequeo de `response.ok`).
-- [ ] `ui/alert-dialog` sin uso: reutilizarlo en la edición de transacciones o eliminarlo.
-- [ ] `metadataBase` en `src/app/layout.tsx` para que las imágenes OG apunten al dominio real.
+- [x] `ui/alert-dialog` y `@radix-ui/react-alert-dialog` eliminados (la edición usa `ui/dialog`).
+- [x] `metadataBase` en `src/app/layout.tsx`; metadatos OG/Twitter renombrados a Portfolio Tracker.
 
 **Criterio de salida:** `pnpm lint`, `pnpm typecheck` y `pnpm test` verdes, la app se
 comporta idéntico para el usuario y el dominio no importa ningún store.
@@ -252,7 +256,7 @@ refresco y a otro dispositivo; sin sesión, todo sigue funcionando en local.
   (dialog) subirlas a la nube; idempotencia por `id` (los `crypto.randomUUID()`
   locales pueden conservarse como IDs).
 - [ ] Logout: no borrar locales automáticamente (pensado en re-login / uso offline).
-- [ ] Ocultar banner "Modo local" al autenticarse; reflejar estado de sync
+- [ ] Ocultar el aviso "Modo local" (`LocalModeBadge`) al autenticarse; reflejar estado de sync
   ("sincronizado / pendiente").
 - [ ] Manejo de conflictos simples (la nube manda tras el primer sync; documentar la regla).
 
@@ -283,9 +287,10 @@ y no realizado); valor en pesos = valor USD × dólar cripto (compra).
   compra/venta, cantidad, precio unitario USD (autocompletado con el precio actual), fecha.
 - [x] **Vista** `/cripto`: resumen (valor USD y ARS, invertido, PnL), cotización del dólar
   cripto, tabla de posiciones abiertas e historial con borrado confirmado.
-- [ ] Probar el flujo completo en el navegador (alta, venta, borrado, API caída).
+- [ ] Probar el flujo completo en el navegador (alta, venta, edición, borrado, API caída).
 - [ ] **Comisiones** (fee en USD o en la moneda) que ajusten el costo promedio.
-- [ ] **Edición de operaciones**, revalidando la línea temporal.
+- [x] **Edición de operaciones** (diálogo en el historial): revalida la moneda destino y, si
+  cambió la moneda, también la de origen.
 - [ ] Detalle por moneda (`/cripto/[coinId]`): operaciones filtradas y métricas de la moneda.
 - [ ] Operaciones cripto ↔ cripto (swap BTC → ETH) como venta + compra enlazadas.
 - [ ] Manejo del rate limit en el cliente (backoff cuando `/api/crypto/prices` responde 429).
