@@ -22,6 +22,7 @@ Aplicación web (**DolarTracker**, evolucionando a Portfolio Tracker) para regis
   `totalUsd`, `investedPesos`, `averageCost`, `marketValuePesos`, `realizedProfit`, `unrealizedProfit`.
 - Cotizaciones DolarAPI: carga inicial y refresco cada 5 min en `providers.tsx`; recálculo automático de métricas al llegar nuevas cotizaciones.
 - Tarjetas de cotizaciones destacadas (`DolarPrice`): oficial, blue, bolsa, cripto.
+- Navegación con sidebar (shadcn `ui/sidebar`, colapsable a íconos, drawer en mobile): Inicio, Dólar (`/dolar`, `/dolar/nueva`) y Cripto (`/cripto`, placeholder). `/new-transaction` redirige a `/dolar/nueva` (`next.config.ts`).
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
 
 ## Stack (versiones según `package.json`)
@@ -48,20 +49,24 @@ Aplicación web (**DolarTracker**, evolucionando a Portfolio Tracker) para regis
 ```
 src/
 ├── app/
-│   ├── layout.tsx              # server: metadata, fuente, Header/Footer, <Toaster>
+│   ├── layout.tsx              # server: metadata, fuente, SidebarProvider + AppSidebar, <Toaster>
 │   ├── providers.tsx           # client: ThemeProvider + fetch/refresh de cotizaciones
-│   ├── page.tsx                # "/" → DolarPrice + TransactionList
-│   ├── new-transaction/page.tsx# "/new-transaction" → NewTransactionForm
+│   ├── page.tsx                # "/" → home: intro + tarjetas de secciones + "cómo funciona"
+│   ├── dolar/page.tsx          # "/dolar" → DolarPrice + TransactionList
+│   ├── dolar/nueva/page.tsx    # "/dolar/nueva" → NewTransactionForm
+│   ├── cripto/page.tsx         # "/cripto" → placeholder "próximamente"
 │   ├── not-found.tsx           # 404
 │   └── globals.css
-├── components/                 # piezas de la app (Header, Footer, ThemeSwitch, DolarPrice,
+├── components/                 # piezas de la app (AppSidebar, ThemeSwitch, DolarPrice,
 │   │                           #   TransactionList, NewTransactionForm)
 │   └── ui/                     # primitivos shadcn — no meter lógica de negocio aquí
+├── hooks/use-mobile.ts         # breakpoint mobile (lo usa ui/sidebar)
 ├── domain/                     # motor financiero puro (sin React ni stores) + __tests__/
 │   ├── metrics.ts              # computeGroupMetrics, computeTransactionsData, MarketPriceMap
 │   └── timeline.ts             # sortTxs, validateTimeline
 ├── lib/
 │   ├── locale-amount.ts        # parse/format de montos AR (parseLocaleAmount, formatCurrency…)
+│   ├── sections.ts             # secciones/trackers (sidebar + home); nueva sección = nueva entrada
 │   └── utils.ts                # cn()
 ├── services/dolarApi.ts        # cliente HTTP DolarAPI
 ├── store/
@@ -89,7 +94,8 @@ src/
 - Formularios: React Hook Form + esquemas Zod en `src/validations/`; los montos se validan como string y se convierten con `parseTransactionFormInput`.
 - Formato de números en UI: `formatCurrency` (`es-AR`); no usar `toFixed` para mostrar.
 - Errores de negocio: el store lanza `Error` con mensaje en español; el componente lo muestra con `toast.error`.
-- Estilos: utilidades Tailwind + `cn()`; variantes `dark:` donde aplique.
+- Estilos: utilidades Tailwind + `cn()`; variantes `dark:` donde aplique. Estética minimalista: tokens de shadcn (`bg-card`, `border`, `text-muted-foreground`) en vez de `gray-*`/`slate-*`, sin sombras ni gradientes; color solo como señal (PnL, compra/venta).
+- `shadcn add` puede reescribir el import de `cn` a un paquete npm `cn`: verificar que quede `@/lib/utils` y no agregar esa dependencia.
 - Nuevos primitivos UI: vía shadcn (`components.json`) en `src/components/ui/`.
 - Páginas: el layout raíz es servidor; los componentes interactivos llevan `'use client'`.
 - Next 16: el antiguo `middleware.ts` ahora es `proxy.ts`; 404 con `not-found.tsx`. Ver `.agents/skills/next-best-practices/`.

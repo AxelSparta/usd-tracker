@@ -6,7 +6,13 @@ import {
   type TransactionFormValues,
 } from '@/validations/transaction'
 import { Button } from '@/components/ui/button'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import {
+  Card,
+  CardContent,
+  CardDescription,
+  CardHeader,
+  CardTitle,
+} from '@/components/ui/card'
 import {
   Form,
   FormControl,
@@ -69,7 +75,7 @@ export default function NewTransactionForm() {
         tx: newTransaction,
       })
       toast.success('Transacción creada con éxito.')
-      router.push('/')
+      router.push('/dolar')
     } catch (err) {
       if (err instanceof Error) {
         toast.error(err.message)
@@ -80,12 +86,15 @@ export default function NewTransactionForm() {
   }
 
   return (
-    <div className='max-w-lg mx-auto my-10'>
-      <Card className='shadow-xl dark:bg-slate-800'>
+    <div className='mx-auto w-full max-w-md'>
+      <Card className='shadow-none'>
         <CardHeader>
           <CardTitle>
-            <h2>Agregar transacción</h2>
+            <h1 className='text-lg tracking-tight'>Nueva transacción</h1>
           </CardTitle>
+          <CardDescription>
+            Registrá una compra o venta de dólares.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <Form {...form}>
@@ -235,7 +244,9 @@ export default function NewTransactionForm() {
                   </FormItem>
                 )}
               />
-              <Button type='submit'>Crear Transacción</Button>
+              <Button type='submit' className='w-full'>
+                Guardar transacción
+              </Button>
             </form>
           </Form>
         </CardContent>

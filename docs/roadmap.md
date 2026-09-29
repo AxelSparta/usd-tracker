@@ -26,6 +26,7 @@ Este roadmap define la evolución del producto en cuatro ejes:
 - Cotizaciones DolarAPI (`src/services/dolarApi.ts`) con refresh cada 5 min en `providers.tsx`.
 - Persistencia local: Zustand `persist` → `transactions-storage` y `dolar-storage`.
 - Tema claro/oscuro/sistema, toasts (Sonner), UI en español.
+- Shell multi-sección: home (`/`), sidebar con Dólar (`/dolar`) y Cripto (`/cripto`, placeholder); secciones en `src/lib/sections.ts`.
 
 ### Hallazgos técnicos relevantes para la escala
 
@@ -48,7 +49,7 @@ Este roadmap define la evolución del producto en cuatro ejes:
 - `src/store/dolar.store.ts` — cotizaciones.
 - `src/types/{transaction,dolar}.types.ts`, `src/validations/transaction.ts`, `src/lib/locale-amount.ts`.
 - `src/components/{TransactionList,NewTransactionForm,DolarPrice}.tsx`.
-- `src/app/{page,providers,new-transaction/page}.tsx`.
+- `src/app/{page,providers,dolar/page,dolar/nueva/page}.tsx`, `src/components/AppSidebar.tsx`, `src/lib/sections.ts`.
 
 ---
 
@@ -148,8 +149,8 @@ comporta idéntico para el usuario (datos viejos migrados) y el dominio no impor
   commiteadas; documentar nombres en un `.env.example` con `!.env.example` en `.gitignore`).
 - [ ] Instalar `@clerk/nextjs`; `<ClerkProvider>` en el layout raíz (o `ClientProviders`).
 - [ ] `proxy.ts` en la raíz con `clerkMiddleware()` + `createRouteMatcher` para proteger
-  `/api/*` (y `/new-transaction` solo si se abandona el modo anónimo; el modo local debe seguir funcionando sin login).
-- [ ] `<UserButton />` / `<SignInButton />` en `Header.tsx` + estados signed-in/out.
+  `/api/*` (y `/dolar/nueva` solo si se abandona el modo anónimo; el modo local debe seguir funcionando sin login).
+- [ ] `<UserButton />` / `<SignInButton />` en `AppSidebar.tsx` (footer) + estados signed-in/out.
 - [ ] **Estado de sesión en el cliente**: derivar `isSignedIn` de Clerk (reemplazar los
   `isSignedIn: false` hardcodeados en `NewTransactionForm.tsx` y `TransactionList.tsx`).
 - [ ] Server-side: `auth()` de `@clerk/nextjs/server` en route handlers / server components

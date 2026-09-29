@@ -1,64 +1,54 @@
 'use client'
 
-import {
-  Card,
-  CardContent,
-  CardHeader,
-  CardTitle
-} from '@/components/ui/card'
+import { Skeleton } from '@/components/ui/skeleton'
+import { formatCurrency } from '@/lib/locale-amount'
 import { useDolarStore } from '@/store/dolar.store'
 import { DolarOption } from '@/types/dolar.types'
 import dayjs from 'dayjs'
 
+// Mostramos los dólares más comunes
+const displayOptions = [
+  DolarOption.Oficial,
+  DolarOption.Blue,
+  DolarOption.Bolsa,
+  DolarOption.Cripto
+]
+
 export default function DolarPrice () {
   const allDolarData = useDolarStore(state => state.allDolarData)
 
-  if (!allDolarData) {
-    return (
-      <section className="text-center p-4">
-        <p className="animate-pulse">Cargando precios...</p>
-      </section>
-    )
-  }
-
-  // Mostramos los dólares más comunes
-  const displayOptions = [
-    DolarOption.Oficial,
-    DolarOption.Blue,
-    DolarOption.Bolsa,
-    DolarOption.Cripto
-  ]
-
   return (
-    <section className="p-4">
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 max-w-6xl mx-auto">
+    <section aria-labelledby='cotizaciones' className='space-y-4'>
+      <h2 id='cotizaciones' className='text-sm font-medium text-muted-foreground'>
+        Cotizaciones
+      </h2>
+      <div className='grid grid-cols-2 gap-px overflow-hidden rounded-lg border bg-border lg:grid-cols-4'>
         {displayOptions.map(option => {
-          const data = allDolarData[option]
+          const data = allDolarData?.[option]
+
+          if (!allDolarData) {
+            return (
+              <div key={option} className='space-y-3 bg-card p-4'>
+                <Skeleton className='h-4 w-16' />
+                <Skeleton className='h-7 w-24' />
+                <Skeleton className='h-3 w-20' />
+              </div>
+            )
+          }
           if (!data) return null
-          
+
           return (
-            <Card key={option} className='shadow-md dark:bg-slate-800'>
-              <CardHeader className="pb-2">
-                <CardTitle className="text-lg">Dólar {data.nombre}</CardTitle>
-                <p className="text-xs text-muted-foreground">
-                  {dayjs(data.fechaActualizacion).format('DD/MM/YYYY HH:mm')}
-                </p>
-              </CardHeader>
-              <CardContent>
-                <div className="flex justify-between items-center">
-                  <div>
-                    <p className="text-xs uppercase text-muted-foreground">Compra</p>
-                    <p className="text-xl font-bold">${data.compra}</p>
-                  </div>
-                  <div className="text-right">
-                    <p className="text-xs uppercase text-muted-foreground">Venta</p>
-                    <p className="text-xl font-bold text-green-600 dark:text-green-400">
-                      ${data.venta}
-                    </p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+            <div key={option} className='space-y-1 bg-card p-4'>
+              <p className='text-sm text-muted-foreground'>{data.nombre}</p>
+              <p className='text-2xl font-semibold tabular-nums tracking-tight'>
+                ${formatCurrency(data.venta)}
+              </p>
+              <p className='text-xs text-muted-foreground tabular-nums'>
+                Compra ${formatCurrency(data.compra)}
+                <span className='mx-1.5'>·</span>
+                {dayjs(data.fechaActualizacion).format('DD/MM HH:mm')}
+              </p>
+            </div>
           )
         })}
       </div>

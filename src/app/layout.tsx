@@ -1,8 +1,12 @@
 import { Inter } from 'next/font/google'
 import './globals.css'
 
-import Footer from '../components/Footer'
-import Header from '../components/Header'
+import AppSidebar from '@/components/AppSidebar'
+import {
+  SidebarInset,
+  SidebarProvider,
+  SidebarTrigger,
+} from '@/components/ui/sidebar'
 
 import type { Metadata } from 'next'
 import { ClientProviders } from './providers'
@@ -14,8 +18,8 @@ const inter = Inter({
 
 export const metadata: Metadata = {
   title: {
-    default: 'DolarTracker - Seguimiento de Inversiones en USD',
-    template: '%s | DolarTracker'
+    default: 'Portfolio Tracker - Dólar y cripto en Argentina',
+    template: '%s | Portfolio Tracker'
   },
   description:
     'Controlá tu portafolio de dólares en tiempo real. Calculá PnL realizado y no realizado, costo promedio y balance total según el valor del Dólar Blue, MEP, Cripto y más en Argentina.',
@@ -57,15 +61,19 @@ export default function RootLayout({
 }>) {
   return (
     <html lang='es' suppressHydrationWarning>
-      <body
-        className={`${inter.className} antialiased dark:bg-linear-to-b dark:from-slate-800 dark:via-slate-850 dark:to-slate-950 bg-linear-to-b from-slate-50 via-slate-150 to-slate-200 min-h-screen`}
-      >
+      <body className={`${inter.className} antialiased`}>
         <ClientProviders>
-          <main className='container mx-auto flex flex-col p-4 min-h-screen'>
-            <Header />
-            {children}
-            <Footer />
-          </main>
+          <SidebarProvider>
+            <AppSidebar />
+            <SidebarInset>
+              <header className='sticky top-0 z-10 flex h-12 items-center border-b bg-background/80 px-4 backdrop-blur'>
+                <SidebarTrigger className='-ml-1 text-muted-foreground' />
+              </header>
+              <div className='mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8 md:px-8 md:py-12'>
+                {children}
+              </div>
+            </SidebarInset>
+          </SidebarProvider>
           <Toaster richColors closeButton position='top-center' />
         </ClientProviders>
       </body>

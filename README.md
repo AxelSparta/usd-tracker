@@ -66,8 +66,10 @@ Permite cargar compras y ventas, consultar cotizaciones en vivo y ver métricas 
 
 ## 📍 Rutas principales
 
-- `/` → tablero principal con cotizaciones + historial + métricas
-- `/new-transaction` → formulario para cargar transacciones
+- `/` → inicio con las secciones disponibles
+- `/dolar` → cotizaciones e historial de transacciones en USD
+- `/dolar/nueva` → formulario para cargar transacciones (`/new-transaction` redirige acá)
+- `/cripto` → próximamente
 
 ## 🛠️ Comandos
 
