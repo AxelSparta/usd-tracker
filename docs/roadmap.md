@@ -326,7 +326,7 @@ ganó y cómo evolucionó.
 
 ## Fase 6 — Calidad, operación y despliegue
 
-- [ ] CI (GitHub Actions): `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build` en cada PR.
+- [x] CI (GitHub Actions, `.github/workflows/ci.yml`): `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build` en cada PR y en cada push a `main`.
 - [ ] Tests E2E mínimos (Playwright): alta de transacción, login, sync.
 - [ ] Manejo robusto de errores de red: retries/backoff para DolarAPI y la API de
   cripto, estados de fallback, toasts diferenciados.

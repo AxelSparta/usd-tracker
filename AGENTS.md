@@ -144,7 +144,7 @@ pnpm test       # Vitest (vitest.config.mts), tests en src/**/*.test.ts
 pnpm test:watch
 ```
 
-Antes de dar un cambio por terminado: `pnpm lint && pnpm typecheck && pnpm test`; si toca UI, además probar el flujo en `pnpm dev`.
+CI (`.github/workflows/ci.yml`) corre lint, typecheck, test y build en cada PR y push a `main` (pnpm 12, Node 24). Antes de dar un cambio por terminado: `pnpm lint && pnpm typecheck && pnpm test`; si toca UI, además probar el flujo en `pnpm dev`.
 
 ## Variables de entorno
 
