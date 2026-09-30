@@ -1,6 +1,7 @@
 import { parseLocaleAmount } from '@/lib/locale-amount'
 import { DolarOption } from '@/types/dolar.types'
 import { TransactionType } from '@/types/transaction.types'
+import { endOfDay } from 'date-fns'
 import { z } from 'zod'
 
 const pesosAmountField = z
@@ -18,7 +19,9 @@ const dollarsAmountField = z
 export const transactionFormSchema = z.object({
   pesosAmount: pesosAmountField,
   dollarsAmount: dollarsAmountField,
-  date: z.date({ error: () => 'La fecha es requerida' }),
+  date: z
+    .date({ error: () => 'La fecha es requerida' })
+    .refine((d) => d <= endOfDay(new Date()), 'La fecha no puede ser futura'),
   type: z.enum(TransactionType),
   dolarOption: z.enum(DolarOption),
 })

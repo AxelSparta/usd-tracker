@@ -1,4 +1,3 @@
-import { TransactionFormValues } from '@/validations/transaction'
 import { DolarOption } from './dolar.types'
 
 export enum TransactionType {
@@ -6,9 +5,15 @@ export enum TransactionType {
   SELL = 'SELL',
 }
 
-export type Transaction = TransactionFormValues & {
+/** Modelo de dominio (independiente del formulario). */
+export type Transaction = {
   id: string
-  usdPrice: number
+  type: TransactionType
+  pesosAmount: number
+  dollarsAmount: number
+  /** `Date` al crearla; string ISO tras rehidratar desde `localStorage` */
+  date: Date | string
+  dolarOption: DolarOption
 }
 
 export type TransactionsData = {

@@ -1,49 +1,33 @@
 'use client'
 
 import { useTheme } from 'next-themes'
-import Image from 'next/image'
-import { useEffect, useState } from 'react'
-import { FiMoon, FiSun } from 'react-icons/fi'
+import { useSyncExternalStore } from 'react'
+import { Moon, Sun } from 'lucide-react'
+import { Button } from './ui/button'
+
+const subscribe = () => () => {}
 
 export default function ThemeSwitch () {
-  const [mounted, setMounted] = useState(false)
+  // false en SSR / hidratación, true en el cliente: evita mismatch del tema
+  const mounted = useSyncExternalStore(subscribe, () => true, () => false)
   const { setTheme, resolvedTheme } = useTheme()
 
-  useEffect(() => setMounted(true), [])
-
   if (!mounted) {
-    return (
-      <Image
-        src='data:image/svg+xml;base64,PHN2ZyBzdHJva2U9IiNGRkZGRkYiIGZpbGw9IiNGRkZGRkYiIHN0cm9rZS13aWR0aD0iMCIgdmlld0JveD0iMCAwIDI0IDI0IiBoZWlnaHQ9IjIwMHB4IiB3aWR0aD0iMjAwcHgiIHhtbG5zPSJodHRwOi8vd3d3LnczLm9yZy8yMDAwL3N2ZyI+PHJlY3Qgd2lkdGg9IjIwIiBoZWlnaHQ9IjIwIiB4PSIyIiB5PSIyIiBmaWxsPSJub25lIiBzdHJva2Utd2lkdGg9IjIiIHJ4PSIyIj48L3JlY3Q+PC9zdmc+Cg=='
-        width={36}
-        height={36}
-        sizes='36x36'
-        alt='Loading Light/Dark Toggle'
-        priority={false}
-        title='Loading Light/Dark Toggle'
-      />
-    )
+    return <div className='size-8' aria-hidden />
   }
 
-  if (resolvedTheme === 'dark') {
-    return (
-      <button
-        className='cursor-pointer border rounded p-2 hover:bg-slate-600 transition ease-in-out '
-        onClick={() => setTheme('light')}
-      >
-        <FiSun />
-      </button>
-    )
-  }
+  const isDark = resolvedTheme === 'dark'
 
-  if (resolvedTheme === 'light') {
-    return (
-      <button
-        className='cursor-pointer border rounded p-2 hover:bg-gray-200 hover:text-gray-800 transition ease-in-out'
-        onClick={() => setTheme('dark')}
-      >
-        <FiMoon />
-      </button>
-    )
-  }
+  return (
+    <Button
+      variant='ghost'
+      size='icon'
+      className='size-8 text-muted-foreground hover:text-foreground'
+      onClick={() => setTheme(isDark ? 'light' : 'dark')}
+      aria-label={isDark ? 'Cambiar a tema claro' : 'Cambiar a tema oscuro'}
+      title={isDark ? 'Tema claro' : 'Tema oscuro'}
+    >
+      {isDark ? <Sun /> : <Moon />}
+    </Button>
+  )
 }
