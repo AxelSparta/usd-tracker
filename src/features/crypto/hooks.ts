@@ -4,8 +4,7 @@ import { useEffect, useMemo } from 'react'
 import { computeCryptoPositions, summarizePortfolio } from './metrics'
 import { useCryptoStore } from './crypto.store'
 import { useCryptoPricesStore } from './prices.store'
-
-const REFRESH_MS = 60 * 1000
+import { priceRefreshDelay } from './refresh'
 
 /** Ids de las monedas con operaciones, en orden estable */
 const useHeldCoinIds = () => {
@@ -17,16 +16,32 @@ const useHeldCoinIds = () => {
   return useMemo(() => (key ? key.split(',') : []), [key])
 }
 
-/** Trae los precios de las monedas en cartera y los refresca cada minuto. */
+/**
+ * Trae los precios de las monedas en cartera y los refresca cada minuto;
+ * si la API falla (p. ej. 429), espacia los reintentos con backoff exponencial.
+ */
 export const useCryptoPriceSync = () => {
   const ids = useHeldCoinIds()
   const fetchPrices = useCryptoPricesStore((s) => s.fetchPrices)
 
   useEffect(() => {
     if (ids.length === 0) return
-    fetchPrices(ids)
-    const interval = setInterval(() => fetchPrices(ids), REFRESH_MS)
-    return () => clearInterval(interval)
+    let cancelled = false
+    let timeout: ReturnType<typeof setTimeout> | undefined
+    let failures = 0
+
+    const tick = async () => {
+      const ok = await fetchPrices(ids)
+      if (cancelled) return
+      failures = ok ? 0 : failures + 1
+      timeout = setTimeout(tick, priceRefreshDelay(failures))
+    }
+    tick()
+
+    return () => {
+      cancelled = true
+      clearTimeout(timeout)
+    }
   }, [ids, fetchPrices])
 }
 

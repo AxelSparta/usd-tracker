@@ -33,7 +33,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - operación = `coinId` (id de CoinGecko), `type`, `quantity`, `priceUsd`, `date`; metadatos de cada moneda (`Coin`) guardados aparte en el store
   - buscador de monedas (`CoinCombobox`, shadcn `command` con `shouldFilter={false}`) contra `/api/crypto/search`
   - posiciones y resumen **derivados** con `useCryptoPortfolio` (no se persisten): costo promedio, PnL realizado/no realizado en USD; valor ARS = valor USD × dólar cripto **compra**
-  - precios vía `/api/crypto/prices`, refresco cada 60 s solo mientras `/cripto` está montado (`useCryptoPriceSync`)
+  - precios vía `/api/crypto/prices`, refresco cada 60 s solo mientras `/cripto` está montado (`useCryptoPriceSync`); ante fallos (p. ej. 429) backoff exponencial hasta 10 min (`refresh.ts`)
   - línea temporal validada por moneda al agregar y borrar (`findNegativeBalance`)
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
 - Aviso "Modo local" en la barra superior (`LocalModeBadge`, con tooltip).
@@ -83,7 +83,7 @@ src/
 │   ├── metrics.ts              # dólar: computeGroupMetrics, computeTransactionsData, MarketPriceMap
 │   └── timeline.ts             # sortTxs, findNegativeBalance, validateTimeline
 ├── features/crypto/            # módulo cripto completo + __tests__/
-│   ├── types.ts, metrics.ts, validations.ts
+│   ├── types.ts, metrics.ts, validations.ts, refresh.ts (backoff de precios)
 │   ├── api.ts                  # fetch del navegador a /api/crypto/*
 │   ├── crypto.store.ts         # operaciones + monedas (persist `crypto-storage`, v1)
 │   ├── prices.store.ts         # último precio por moneda (persist `crypto-prices-storage`, v1)

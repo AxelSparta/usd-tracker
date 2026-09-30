@@ -2,11 +2,24 @@ import type { Coin, CoinPriceMap } from './types'
 
 // El navegador habla con nuestros route handlers, que a su vez consultan CoinGecko
 
+/** Error HTTP de `/api/crypto/*`: conserva el status (429 = rate limit de CoinGecko). */
+export class CryptoApiError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+  ) {
+    super(message)
+  }
+}
+
 const getJson = async <T>(url: string, signal?: AbortSignal): Promise<T> => {
   const response = await fetch(url, { signal })
   if (!response.ok) {
     const body = await response.json().catch(() => null)
-    throw new Error(body?.error ?? `Error ${response.status}`)
+    throw new CryptoApiError(
+      body?.error ?? `Error ${response.status}`,
+      response.status,
+    )
   }
   return response.json()
 }

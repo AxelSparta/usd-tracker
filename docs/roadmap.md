@@ -293,7 +293,9 @@ y no realizado); valor en pesos = valor USD × dólar cripto (compra).
   cambió la moneda, también la de origen.
 - [ ] Detalle por moneda (`/cripto/[coinId]`): operaciones filtradas y métricas de la moneda.
 - [ ] Operaciones cripto ↔ cripto (swap BTC → ETH) como venta + compra enlazadas.
-- [ ] Manejo del rate limit en el cliente (backoff cuando `/api/crypto/prices` responde 429).
+- [x] Manejo del rate limit en el cliente: tras un fallo de `/api/crypto/prices` (429 u otro), el refresco
+  pasa de 60 s a backoff exponencial 2 → 4 → 8 min con tope en 10 min (`priceRefreshDelay`), con toast
+  específico para el 429 y el último precio conocido como fallback.
 
 **Criterio de salida:** se puede comprar/vender cualquier moneda en USD y ver posición,
 costo promedio, PnL y su valor en pesos, con precios que se actualizan solos.
