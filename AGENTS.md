@@ -122,6 +122,7 @@ src/
 
 - Componentes funcionales con tipos explícitos para props.
 - Formularios: React Hook Form + esquemas Zod en `src/validations/`; los montos se validan como string y se convierten con `parseTransactionFormInput`.
+  - Con Radix `Select`, `<FormControl>` envuelve el `SelectTrigger`, no el `Select` (el root no renderiza DOM y el label quedaría sin asociar).
 - Formato de números en UI: `formatCurrency` (`es-AR`); no usar `toFixed` para mostrar.
 - Errores de negocio: el store lanza `Error` con mensaje en español; el componente lo muestra con `toast.error`.
 - Estilos: utilidades Tailwind + `cn()`; variantes `dark:` donde aplique. Estética minimalista: tokens de shadcn (`bg-card`, `border`, `text-muted-foreground`) en vez de `gray-*`/`slate-*`, sin sombras ni gradientes; color solo como señal (PnL, compra/venta).

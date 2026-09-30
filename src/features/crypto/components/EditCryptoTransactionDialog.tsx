@@ -48,25 +48,23 @@ export default function EditCryptoTransactionDialog({
             Se revalida el saldo de la moneda en toda la línea temporal.
           </DialogDescription>
         </DialogHeader>
-        {/* Se monta al abrir: el form arranca con los valores actuales */}
-        {open && (
-          <CryptoTransactionForm
-            submitLabel='Guardar cambios'
-            initialCoin={coin}
-            defaultValues={{
-              coinId: tx.coinId,
-              type: tx.type,
-              quantity: numberToArInput(tx.quantity),
-              priceUsd: numberToArInput(tx.priceUsd),
-              date: new Date(tx.date),
-            }}
-            onSubmit={(values, selectedCoin) => {
-              updateTransaction(tx.id, values, selectedCoin)
-              toast.success('Operación actualizada.')
-              setOpen(false)
-            }}
-          />
-        )}
+        {/* Radix desmonta el contenido al cerrar: cada apertura arranca con los valores actuales */}
+        <CryptoTransactionForm
+          submitLabel='Guardar cambios'
+          initialCoin={coin}
+          defaultValues={{
+            coinId: tx.coinId,
+            type: tx.type,
+            quantity: numberToArInput(tx.quantity),
+            priceUsd: numberToArInput(tx.priceUsd),
+            date: new Date(tx.date),
+          }}
+          onSubmit={(values, selectedCoin) => {
+            updateTransaction(tx.id, values, selectedCoin)
+            toast.success('Operación actualizada.')
+            setOpen(false)
+          }}
+        />
       </DialogContent>
     </Dialog>
   )

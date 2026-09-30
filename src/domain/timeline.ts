@@ -1,3 +1,4 @@
+import { format } from 'date-fns'
 import { TransactionType, type Transaction } from '@/types/transaction.types'
 
 type DatedTx = Pick<Transaction, 'type' | 'date'>
@@ -35,6 +36,7 @@ export const findNegativeBalance = <T extends DatedTx>(
 export const validateTimeline = (txs: TimelineTx[]) => {
   const offending = findNegativeBalance(txs, (tx) => tx.dollarsAmount)
   if (offending) {
-    throw new Error(`Balance negativo detectado en fecha ${offending.date}`)
+    const date = format(new Date(offending.date), 'dd/MM/yyyy')
+    throw new Error(`El saldo de USD quedaría negativo el ${date}.`)
   }
 }

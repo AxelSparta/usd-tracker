@@ -48,7 +48,16 @@ describe('validateTimeline', () => {
         { type: BUY, dollarsAmount: 50, date: '2026-01-01' },
         { type: SELL, dollarsAmount: 100, date: '2026-01-02' },
       ]),
-    ).toThrow(/Balance negativo/)
+    ).toThrow(/saldo de USD quedaría negativo/)
+  })
+
+  it('el mensaje muestra la fecha en formato dd/MM/yyyy', () => {
+    expect(() =>
+      validateTimeline([
+        { type: BUY, dollarsAmount: 50, date: new Date(2026, 0, 1) },
+        { type: SELL, dollarsAmount: 100, date: new Date(2026, 0, 2, 21, 5) },
+      ]),
+    ).toThrow('El saldo de USD quedaría negativo el 02/01/2026.')
   })
 
   it('rechaza una venta anterior a la compra aunque el total cierre', () => {

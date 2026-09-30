@@ -110,7 +110,7 @@ describe('updateTransaction', () => {
         dollarsAmount: 50,
         date: day('2026-01-01'),
       }),
-    ).toThrow(/Balance negativo/)
+    ).toThrow(/saldo de USD quedaría negativo/)
     expect(txsOf(DolarOption.Blue)).toEqual(before)
   })
 
@@ -126,6 +126,6 @@ describe('updateTransaction', () => {
         date: day('2026-01-01'),
         dolarOption: DolarOption.Oficial,
       }),
-    ).toThrow(/Balance negativo/)
+    ).toThrow(/saldo de USD quedaría negativo/)
   })
 })

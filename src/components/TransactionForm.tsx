@@ -126,23 +126,24 @@ export default function TransactionForm({
           render={({ field }) => (
             <FormItem>
               <FormLabel>Tipo de dólar</FormLabel>
-              <FormControl>
-                <Select
-                  onValueChange={field.onChange}
-                  value={field.value}
-                >
+              <Select
+                onValueChange={field.onChange}
+                value={field.value}
+              >
+                {/* FormControl en el trigger: Select (root) no renderiza DOM y perdería id/aria */}
+                <FormControl>
                   <SelectTrigger className='w-full'>
                     <SelectValue placeholder='Seleccionar dolar' />
                   </SelectTrigger>
-                  <SelectContent className='w-[200px]'>
-                    {Object.values(DolarOption).map((option) => (
-                      <SelectItem key={option} value={option}>
-                        Dolar {option}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </FormControl>
+                </FormControl>
+                <SelectContent className='w-[200px]'>
+                  {Object.values(DolarOption).map((option) => (
+                    <SelectItem key={option} value={option}>
+                      Dolar {option}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <FormMessage />
             </FormItem>
           )}

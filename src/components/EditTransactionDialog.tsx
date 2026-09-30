@@ -40,24 +40,22 @@ export default function EditTransactionDialog({ tx }: { tx: Transaction }) {
             Se revalida el saldo de toda la línea temporal.
           </DialogDescription>
         </DialogHeader>
-        {/* Se monta al abrir: el form arranca con los valores actuales */}
-        {open && (
-          <TransactionForm
-            submitLabel='Guardar cambios'
-            defaultValues={{
-              type: tx.type,
-              dolarOption: tx.dolarOption,
-              pesosAmount: numberToArInput(tx.pesosAmount),
-              dollarsAmount: numberToArInput(tx.dollarsAmount),
-              date: new Date(tx.date),
-            }}
-            onSubmit={(values) => {
-              updateTransaction(tx.id, values)
-              toast.success('Transacción actualizada.')
-              setOpen(false)
-            }}
-          />
-        )}
+        {/* Radix desmonta el contenido al cerrar: cada apertura arranca con los valores actuales */}
+        <TransactionForm
+          submitLabel='Guardar cambios'
+          defaultValues={{
+            type: tx.type,
+            dolarOption: tx.dolarOption,
+            pesosAmount: numberToArInput(tx.pesosAmount),
+            dollarsAmount: numberToArInput(tx.dollarsAmount),
+            date: new Date(tx.date),
+          }}
+          onSubmit={(values) => {
+            updateTransaction(tx.id, values)
+            toast.success('Transacción actualizada.')
+            setOpen(false)
+          }}
+        />
       </DialogContent>
     </Dialog>
   )
