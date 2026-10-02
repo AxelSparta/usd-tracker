@@ -15,22 +15,10 @@ type GroupedTransactions = Partial<Record<DolarOption, Transaction[]>>
 interface State {
   transactions: GroupedTransactions
 
-  addTransaction: ({
-    tx,
-    isSignedIn,
-  }: {
-    tx: Omit<Transaction, 'id'>
-    isSignedIn: boolean
-  }) => Promise<void>
-  /** Solo local: la rama remota se reconstruye en las Fases 2–3 */
+  /** Solo local: la persistencia remota se construye en las Fases 2–3 (repositorio) */
+  addTransaction: (tx: Omit<Transaction, 'id'>) => void
   updateTransaction: (transactionId: string, tx: Omit<Transaction, 'id'>) => void
-  removeTransaction: ({
-    isSignedIn,
-    transactionId,
-  }: {
-    transactionId: string
-    isSignedIn: boolean
-  }) => Promise<void>
+  removeTransaction: (transactionId: string) => void
 }
 
 const findGroup = (
@@ -48,7 +36,7 @@ const findGroup = (
 const storeApi: StateCreator<State> = (set, get) => ({
   transactions: {},
 
-  addTransaction: async ({ tx, isSignedIn }) => {
+  addTransaction: (tx) => {
     const newTransaction: Transaction = {
       id: crypto.randomUUID(),
       ...tx,
@@ -58,30 +46,12 @@ const storeApi: StateCreator<State> = (set, get) => ({
 
     validateTimeline(newGroup)
 
-    if (isSignedIn) {
-      const res = await fetch('/api/transactions', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(newTransaction),
-      })
-      if (!res.ok) return
-      const newTx: Transaction = await res.json()
-
-      const currentTxs = get().transactions[newTx.dolarOption] || []
-      set({
-        transactions: {
-          ...get().transactions,
-          [newTx.dolarOption]: sortTxs([...currentTxs, newTx]),
-        },
-      })
-    } else {
-      set({
-        transactions: {
-          ...get().transactions,
-          [newTransaction.dolarOption]: newGroup,
-        },
-      })
-    }
+    set({
+      transactions: {
+        ...get().transactions,
+        [newTransaction.dolarOption]: newGroup,
+      },
+    })
   },
 
   updateTransaction: (transactionId, tx) => {
@@ -109,38 +79,23 @@ const storeApi: StateCreator<State> = (set, get) => ({
     set({ transactions: updated })
   },
 
-  removeTransaction: async ({ transactionId, isSignedIn }) => {
+  removeTransaction: (transactionId) => {
     const foundOption = findGroup(get().transactions, transactionId)
     if (!foundOption) return
 
-    if (isSignedIn) {
-      const res = await fetch(`/api/transactions/${transactionId}`, {
-        method: 'DELETE',
-      })
-      if (!res.ok) return
+    const currentTxs = get().transactions[foundOption] || []
+    const sortedGroup = sortTxs(
+      currentTxs.filter((tx) => tx.id !== transactionId),
+    )
 
-      const currentTxs = get().transactions[foundOption] || []
-      set({
-        transactions: {
-          ...get().transactions,
-          [foundOption]: currentTxs.filter((tx) => tx.id !== transactionId),
-        },
-      })
-    } else {
-      const currentTxs = get().transactions[foundOption] || []
-      const sortedGroup = sortTxs(
-        currentTxs.filter((tx) => tx.id !== transactionId),
-      )
+    validateTimeline(sortedGroup)
 
-      validateTimeline(sortedGroup)
-
-      set({
-        transactions: {
-          ...get().transactions,
-          [foundOption]: sortedGroup,
-        },
-      })
-    }
+    set({
+      transactions: {
+        ...get().transactions,
+        [foundOption]: sortedGroup,
+      },
+    })
   },
 })
 

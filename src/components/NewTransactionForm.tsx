@@ -30,8 +30,8 @@ export default function NewTransactionForm() {
         <CardContent>
           <TransactionForm
             submitLabel='Guardar transacción'
-            onSubmit={async (tx) => {
-              await addTransaction({ isSignedIn: false, tx })
+            onSubmit={(tx) => {
+              addTransaction(tx)
               toast.success('Transacción creada con éxito.')
               router.push('/dolar')
             }}

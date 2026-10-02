@@ -1,4 +1,6 @@
 import { Inter } from 'next/font/google'
+import { ClerkProvider } from '@clerk/nextjs'
+import { esUY } from '@clerk/localizations'
 import './globals.css'
 
 import AppSidebar from '@/components/AppSidebar'
@@ -16,6 +18,26 @@ import { Toaster } from 'sonner'
 const inter = Inter({
   subsets: ['latin'],
 })
+
+// Clerk toma los colores del tema de shadcn: las variables CSS cambian solas con claro/oscuro
+const clerkAppearance = {
+  variables: {
+    colorPrimary: 'var(--primary)',
+    colorPrimaryForeground: 'var(--primary-foreground)',
+    colorBackground: 'var(--popover)',
+    colorForeground: 'var(--popover-foreground)',
+    colorMuted: 'var(--muted)',
+    colorMutedForeground: 'var(--muted-foreground)',
+    colorInput: 'var(--background)',
+    colorInputForeground: 'var(--foreground)',
+    colorBorder: 'var(--border)',
+    colorRing: 'var(--ring)',
+    colorDanger: 'var(--destructive)',
+    colorNeutral: 'var(--foreground)',
+    borderRadius: 'var(--radius)',
+    fontFamily: 'inherit',
+  },
+}
 
 const SITE_URL = 'https://usd-tracker.vercel.app'
 
@@ -67,21 +89,23 @@ export default function RootLayout({
   return (
     <html lang='es' suppressHydrationWarning>
       <body className={`${inter.className} antialiased`}>
-        <ClientProviders>
-          <SidebarProvider>
-            <AppSidebar />
-            <SidebarInset>
-              <header className='sticky top-0 z-10 flex h-12 items-center justify-between border-b bg-background/80 px-4 backdrop-blur'>
-                <SidebarTrigger className='-ml-1 text-muted-foreground' />
-                <LocalModeBadge />
-              </header>
-              <div className='mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8 md:px-8 md:py-12'>
-                {children}
-              </div>
-            </SidebarInset>
-          </SidebarProvider>
-          <Toaster richColors closeButton position='top-center' />
-        </ClientProviders>
+        <ClerkProvider localization={esUY} appearance={clerkAppearance}>
+          <ClientProviders>
+            <SidebarProvider>
+              <AppSidebar />
+              <SidebarInset>
+                <header className='sticky top-0 z-10 flex h-12 items-center justify-between border-b bg-background/80 px-4 backdrop-blur'>
+                  <SidebarTrigger className='-ml-1 text-muted-foreground' />
+                  <LocalModeBadge />
+                </header>
+                <div className='mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8 md:px-8 md:py-12'>
+                  {children}
+                </div>
+              </SidebarInset>
+            </SidebarProvider>
+            <Toaster richColors closeButton position='top-center' />
+          </ClientProviders>
+        </ClerkProvider>
       </body>
     </html>
   )

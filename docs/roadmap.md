@@ -49,7 +49,7 @@ Este roadmap define la evolución del producto en cuatro ejes:
 | 2   | ~~Todo el estado usa claves `Record<DolarOption, ...>`~~ — ya no aplica: cripto tiene su propio store y no comparte claves con dólar | — |
 | 3   | ~~Dominio implícito USD/ARS~~ — resuelto: el motor genérico (`computePosition`) trabaja con `quantity`/`quoteAmount`; dólar reporta en ARS y cripto en USD | — |
 | 4   | ~~`persist` sin `version`/`migrate`~~ — resuelto: todos los stores en `version: 1`; migración v0 → v1 de `transactions-storage` testeada con un snapshot real | — |
-| 5   | Ramas API existentes (`isSignedIn`) son código muerto: los call sites hardcodean `false`, no existe `GET`, y los endpoints `POST`/`DELETE` no existen; los fallos son **silenciosos** | La fase de auth/cloud debe reconstruir este flujo con manejo real de errores |
+| 5   | ~~Ramas API (`isSignedIn`) como código muerto con fallos silenciosos~~ — eliminadas en la Fase 1; la Fase 2 construye el repositorio remoto con manejo real de errores | — |
 | 6   | ~~No hay ningún test~~ — resuelto: Vitest cubre `src/domain` y `src/lib/locale-amount` | — |
 | 7   | ~~`pnpm lint` roto (Next 16 eliminó `next lint`)~~ — resuelto: ESLint 9 CLI + `eslint-config-next` | — |
 | 8   | ~~Ciclo de imports `types` ↔ `validations`~~ — resuelto: `Transaction` es un tipo de dominio explícito | — |
@@ -164,17 +164,21 @@ comporta idéntico para el usuario y el dominio no importa ningún store.
 
 **Objetivo:** identificar al usuario. *Solo login; los datos siguen en local.*
 
-- [ ] Crear proyecto en el Dashboard de **Clerk** (variables en `.env.local`, nunca
-  commiteadas; documentar nombres en un `.env.example` con `!.env.example` en `.gitignore`).
-- [ ] Instalar `@clerk/nextjs`; `<ClerkProvider>` en el layout raíz (o `ClientProviders`).
-- [ ] `proxy.ts` en la raíz con `clerkMiddleware()` + `createRouteMatcher` para proteger
-  `/api/*` (y `/dolar/nueva` solo si se abandona el modo anónimo; el modo local debe seguir funcionando sin login).
-- [ ] `<UserButton />` / `<SignInButton />` en `AppSidebar.tsx` (footer) + estados signed-in/out.
-- [ ] **Estado de sesión en el cliente**: derivar `isSignedIn` de Clerk (reemplazar los
-  `isSignedIn: false` hardcodeados en `NewTransactionForm.tsx` y `TransactionList.tsx`).
-  Las rutas `/api/crypto/{prices,search}` siguen públicas (solo leen precios).
-- [ ] Server-side: `auth()` de `@clerk/nextjs/server` en route handlers / server components
-  (sin necesidad de `GET /api/me`).
+- [x] Crear proyecto en el Dashboard de **Clerk** (claves de test en `.env`, nunca
+  commiteadas; nombres documentados en `.env.example`; `.clerk/` ignorado por el keyless mode).
+- [x] Instalar `@clerk/nextjs` (v7, Core 3) + `@clerk/localizations`; `<ClerkProvider>` en el layout raíz
+  con `esUY` (voseo) y `appearance.variables` apuntando a las variables CSS de shadcn (claro/oscuro).
+- [x] `src/proxy.ts` con `clerkMiddleware()` + `createRouteMatcher`: protege las futuras rutas de datos
+  (`/api/dolar/*`, `/api/crypto/transactions*`); páginas y precios siguen públicos (modo local sin login).
+- [x] `<UserButton />` / `<SignInButton mode='modal' />` en el footer del sidebar (`UserMenu.tsx`), con
+  `<Show when='signed-in' | 'signed-out'>` (Core 3 eliminó `SignedIn`/`SignedOut`) y skeleton mientras carga.
+- [x] **Estado de sesión en el cliente**: `useAuth()` de Clerk. Los `isSignedIn: false` hardcodeados se
+  **eliminaron** junto con la rama remota muerta del store del dólar: conectarla al `isSignedIn` real
+  habría mandado las operaciones de usuarios logueados a endpoints inexistentes y las habría perdido en
+  silencio. El store queda local y síncrono (como el de cripto); la Fase 2 suma el repositorio remoto.
+  `LocalModeBadge` aclara que, aun con sesión, los datos siguen siendo locales.
+- [ ] Server-side: `auth()` de `@clerk/nextjs/server` en route handlers — se usa al crear los
+  handlers de la Fase 2 (hoy no hay rutas con datos de usuario).
 
 **Criterio de salida:** se puede registrarse/iniciar sesión en la app, sin cambios en
 la persistencia todavía.

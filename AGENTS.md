@@ -9,7 +9,7 @@ Aplicación web (**Portfolio Tracker**, antes DolarTracker) orientada al mercado
 - **Dólar:** compras y ventas de USD en ARS por tipo de dólar (DolarAPI), métricas en ARS.
 - **Cripto:** compras y ventas de cualquier moneda de CoinGecko en USD, métricas en USD y equivalente en ARS con el dólar cripto.
 
-No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `src/lib/`, y cripto lee la cotización del dólar cripto de `useDolarStore`. Modo **local-first** con persistencia en el navegador. El store tiene ramas para usuario autenticado + API, pero hoy son **código muerto** (ver "Modo remoto").
+No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `src/lib/`, y cripto lee la cotización del dólar cripto de `useDolarStore`. Modo **local-first** con persistencia en el navegador; el login (Clerk) existe pero todavía no sincroniza datos (ver "Modo remoto").
 
 ## Funcionalidades implementadas (estado actual)
 
@@ -39,7 +39,8 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - precios vía `/api/crypto/prices`, refresco cada 60 s solo mientras `/cripto` está montado (`useCryptoPriceSync`); ante fallos (p. ej. 429) backoff exponencial hasta 10 min (`refresh.ts`)
   - línea temporal validada por moneda al agregar, editar y borrar (`findNegativeBalance`)
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
-- Aviso "Modo local" en la barra superior (`LocalModeBadge`, con tooltip).
+- Aviso "Modo local" en la barra superior (`LocalModeBadge`, con tooltip; con sesión aclara que todavía no hay sync).
+- **Login con Clerk** (Fase 1): `<ClerkProvider>` en el layout (localización `esUY`, colores vía variables CSS de shadcn), `src/proxy.ts` con `clerkMiddleware` (protege solo las futuras rutas `/api/dolar/*` y `/api/crypto/transactions*`), `UserMenu` en el pie del sidebar. Clerk v7 (Core 3): usar `<Show when='signed-in'>`, no `SignedIn`/`SignedOut`. La sesión **no** cambia la persistencia: todo sigue en `localStorage`.
 
 ## Stack (versiones según `package.json`)
 
@@ -58,6 +59,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 | Fechas           | `date-fns`, `dayjs`, `react-day-picker`                                     |
 | Datos externos   | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key; [CoinGecko](https://www.coingecko.com/en/api) vía `src/server/coingecko.ts` — key opcional |
 | Combobox         | `cmdk` (shadcn `ui/command`)                                                |
+| Auth             | Clerk (`@clerk/nextjs` 7, `@clerk/localizations`)                           |
 
 **Gestor de paquetes:** `pnpm` (no mezclar con npm/yarn). `pnpm-workspace.yaml` solo habilita los build scripts de `sharp` y `unrs-resolver`.
 
@@ -66,7 +68,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 ```
 src/
 ├── app/
-│   ├── layout.tsx              # server: metadata, fuente, SidebarProvider + AppSidebar, <Toaster>
+│   ├── layout.tsx              # server: metadata, fuente, ClerkProvider, SidebarProvider + AppSidebar, <Toaster>
 │   ├── providers.tsx           # client: ThemeProvider + fetch/refresh de cotizaciones
 │   ├── page.tsx                # "/" → home: intro + tarjetas de secciones + "cómo funciona"
 │   ├── dolar/page.tsx          # "/dolar" → DolarPrice + TransactionList
@@ -77,7 +79,7 @@ src/
 │   ├── api/crypto/{prices,search}/route.ts  # proxy a CoinGecko (valida params, cachea)
 │   ├── not-found.tsx           # 404
 │   └── globals.css
-├── components/                 # piezas de la app (AppSidebar, ThemeSwitch, LocalModeBadge, Stat,
+├── components/                 # piezas de la app (AppSidebar, UserMenu, ThemeSwitch, LocalModeBadge, Stat,
 │   │                           #   DolarPrice, TransactionList, TransactionForm,
 │   │                           #   NewTransactionForm, EditTransactionDialog)
 │   └── ui/                     # primitivos shadcn — no meter lógica de negocio aquí
@@ -95,6 +97,7 @@ src/
 │   └── components/             # CryptoPortfolio, CryptoCoinDetail, CryptoTransactionList,
 │                               #   CryptoTransactionForm, CryptoSwapForm, NewCryptoTransaction,
 │                               #   EditCryptoTransactionDialog, CoinCombobox, CoinIcon
+├── proxy.ts                    # clerkMiddleware (Next 16: ex middleware.ts)
 ├── server/coingecko.ts         # solo server: cliente CoinGecko + schemas Zod de respuesta
 ├── lib/
 │   ├── locale-amount.ts        # parse/format de montos AR (parseLocaleAmount, formatCurrency…)
@@ -120,7 +123,7 @@ src/
 - **Forma de los datos:** `transactions: Partial<Record<DolarOption, Transaction[]>>`, cada grupo ordenado con `sortTxs`. Los montos se guardan como `number`; la fecha, como `Date` serializada a string por `persist` (usar `new Date(tx.date)` al leer).
 - **Métricas derivadas:** no hay suscripción entre stores. `useTransactionsData` (dólar) y `useCryptoPortfolio` (cripto) recalculan con `useMemo` cuando cambian las transacciones o los precios. No volver a guardar métricas en el estado.
 - **Cálculos:** el algoritmo vive en `src/domain/position.ts` (`computePosition`, con `dust` según la unidad: 0,0001 para USD, 1e-9 por defecto para cripto) y cada módulo lo adapta. Dólar (`src/domain/metrics.ts`): costo promedio ponderado con compras; cada venta suma `(precio venta − costo promedio) × USD` a la ganancia realizada y reduce la posición; la no realizada usa `MarketPrice.sell` **del mismo tipo de dólar del grupo**. Los precios se inyectan: `useTransactionsData` arma el `MarketPriceMap` con `selectMarketPrices({ allDolarData })`. Cualquier cambio en la matemática va acompañado de tests en `src/domain/__tests__/`.
-- **Modo remoto (código muerto):** si `isSignedIn` es `true`, el store hace `POST /api/transactions` y `DELETE /api/transactions/:id`. Los call sites pasan `isSignedIn: false` hardcodeado, no existe `GET` ni esas rutas, y un `!res.ok` hace `return` sin error. No extender esta rama; se reconstruye en las Fases 1–3.
+- **Modo remoto:** todavía no existe. La vieja rama `isSignedIn` del store del dólar (fetch a endpoints inexistentes con fallos silenciosos) se eliminó en la Fase 1; los stores son locales y síncronos. La Fase 2 agrega un repositorio `list/create/update/remove` por módulo, sin volver a meter `fetch` dentro de cada acción.
 
 ## Convenciones de desarrollo
 
@@ -154,7 +157,8 @@ CI (`.github/workflows/ci.yml`) corre lint, typecheck, test y build en cada PR y
 
 - La cotización del dólar **no** requiere variables: URL fija en `dolarApi.ts`.
 - `COINGECKO_API_KEY` (opcional, clave Demo, header `x-cg-demo-api-key`): sin ella se usa la API pública con menor rate limit. Documentada en `.env.example` (excluido del ignore con `!.env.example`).
-- Puede existir un `.env` local (ignorado por git vía `.env*`) con claves para **futuras** integraciones (auth, DB). **No commitear secretos** ni volcar valores reales en documentación o issues. Si se agrega un `.env.example`, hay que excluirlo en `.gitignore` con `!.env.example`.
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` (claves de test de Clerk) en `.env`, documentadas en `.env.example`. Sin ellas, `next dev` usa el keyless mode de Clerk (carpeta `.clerk/`, ignorada) y `next build` igual compila (CI no tiene secretos).
+- El `.env` local (ignorado por git vía `.env*`) puede tener claves para **futuras** integraciones (DB). **No commitear secretos** ni volcar valores reales en documentación o issues. Si se agrega un `.env.example`, hay que excluirlo en `.gitignore` con `!.env.example`.
 
 ## Documentación y skills adicionales
 

@@ -45,3 +45,5 @@ next-env.d.ts
 
 # changes documentation
 /docs/cambios
+# Clerk keyless mode (claves temporales en dev sin .env)
+.clerk/

@@ -25,6 +25,7 @@ import {
 } from '@/components/ui/sidebar'
 import { sections } from '@/lib/sections'
 import ThemeSwitch from './ThemeSwitch'
+import UserMenu from './UserMenu'
 
 const socialLinks = [
   { href: 'https://github.com/axelsparta', label: 'GitHub', icon: FaGithub },
@@ -133,6 +134,7 @@ export default function AppSidebar() {
       </SidebarContent>
 
       <SidebarFooter>
+        <UserMenu />
         <div className='flex items-center justify-between gap-2 group-data-[collapsible=icon]:flex-col'>
           <ThemeSwitch />
           <ul className='flex items-center gap-1 group-data-[collapsible=icon]:hidden'>
