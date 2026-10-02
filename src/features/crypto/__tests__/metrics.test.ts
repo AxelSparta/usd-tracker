@@ -3,6 +3,7 @@ import {
   computeCryptoPositions,
   groupByCoin,
   summarizePortfolio,
+  toPositionLot,
 } from '@/features/crypto/metrics'
 import type { Coin, CryptoTransaction } from '@/features/crypto/types'
 import { TransactionType } from '@/types/transaction.types'
@@ -132,5 +133,65 @@ describe('summarizePortfolio', () => {
   it('hasMissingPrices si una posición abierta no tiene precio', () => {
     const positions = computeCryptoPositions([buy('bitcoin', 1, 50_000)], coins, {})
     expect(summarizePortfolio(positions).hasMissingPrices).toBe(true)
+  })
+})
+
+describe('comisiones', () => {
+  const withFee = (t: CryptoTransaction, amount: number, currency: 'USD' | 'COIN') => ({
+    ...t,
+    fee: { amount, currency },
+  })
+
+  it('compra con comisión en USD: suma al costo', () => {
+    const [btc] = computeCryptoPositions(
+      [withFee(buy('bitcoin', 1, 50_000), 100, 'USD')],
+      coins,
+      {},
+    )
+    expect(btc.quantity).toBe(1)
+    expect(btc.investedUsd).toBe(50_100)
+    expect(btc.averageCostUsd).toBe(50_100)
+  })
+
+  it('compra con comisión en la moneda: acredita menos unidades al mismo costo', () => {
+    const [btc] = computeCryptoPositions(
+      [withFee(buy('bitcoin', 1, 50_000), 0.01, 'COIN')],
+      coins,
+      {},
+    )
+    expect(btc.quantity).toBeCloseTo(0.99, 12)
+    expect(btc.investedUsd).toBe(50_000)
+    expect(btc.averageCostUsd).toBeCloseTo(50_000 / 0.99, 6)
+  })
+
+  it('venta con comisión en USD: reduce el PnL realizado', () => {
+    const [btc] = computeCryptoPositions(
+      [buy('bitcoin', 1, 50_000), withFee(sell('bitcoin', 1, 60_000, '2026-02-01'), 50, 'USD')],
+      coins,
+      {},
+    )
+    expect(btc.quantity).toBe(0)
+    expect(btc.realizedPnlUsd).toBe(9_950)
+  })
+
+  it('venta con comisión en la moneda: debita la cantidad más la comisión', () => {
+    const [btc] = computeCryptoPositions(
+      [buy('bitcoin', 1, 50_000), withFee(sell('bitcoin', 0.5, 60_000, '2026-02-01'), 0.01, 'COIN')],
+      coins,
+      {},
+    )
+    expect(btc.quantity).toBeCloseTo(0.49, 12)
+    // cobra 30.000 por 0,51 BTC con costo 50.000 c/u
+    expect(btc.realizedPnlUsd).toBeCloseTo(30_000 - 0.51 * 50_000, 6)
+  })
+})
+
+describe('toPositionLot', () => {
+  it('sin comisión: cantidad y total bruto', () => {
+    expect(toPositionLot(buy('bitcoin', 2, 10))).toEqual({
+      type: TransactionType.BUY,
+      quantity: 2,
+      quoteAmount: 20,
+    })
   })
 })

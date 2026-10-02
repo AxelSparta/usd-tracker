@@ -25,6 +25,13 @@ import {
 } from '@/components/ui/popover'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select'
+import {
   formatAmountArInput,
   formatPrice,
   formatQuantity,
@@ -67,16 +74,29 @@ export default function CryptoTransactionForm({
       type: TransactionType.BUY,
       quantity: '',
       priceUsd: '',
+      fee: '',
+      feeCurrency: 'USD',
       date: new Date(),
       ...defaultValues,
     },
   })
 
-  const [quantity, priceUsd] = useWatch({
+  const [type, quantity, priceUsd, fee, feeCurrency] = useWatch({
     control: form.control,
-    name: ['quantity', 'priceUsd'],
+    name: ['type', 'quantity', 'priceUsd', 'fee', 'feeCurrency'],
   })
   const total = parseLocaleAmount(quantity) * parseLocaleAmount(priceUsd)
+  const feeAmount = fee.trim() ? parseLocaleAmount(fee) : 0
+  const isBuy = type === TransactionType.BUY
+  // Lo que efectivamente sale o entra, ya con la comisión
+  const feeSummary =
+    !Number.isFinite(feeAmount) || feeAmount <= 0
+      ? null
+      : feeCurrency === 'USD'
+        ? `${isBuy ? 'Pagás' : 'Cobrás'} US$${formatPrice(isBuy ? total + feeAmount : total - feeAmount)} con la comisión`
+        : `${isBuy ? 'Recibís' : 'Entregás'} ${formatQuantity(
+            parseLocaleAmount(quantity) + (isBuy ? -feeAmount : feeAmount),
+          )} ${coin?.symbol ?? ''} con la comisión`
 
   const fillCurrentPrice = async (target: Coin) => {
     setLoadingPrice(true)
@@ -228,6 +248,62 @@ export default function CryptoTransactionForm({
             </FormItem>
           )}
         />
+        <div className='grid grid-cols-[1fr_auto] items-start gap-2'>
+          <FormField
+            control={form.control}
+            name='fee'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Comisión (opcional)</FormLabel>
+                <FormControl>
+                  <Input
+                    type='text'
+                    inputMode='decimal'
+                    autoComplete='off'
+                    placeholder='0'
+                    name={field.name}
+                    ref={field.ref}
+                    onBlur={field.onBlur}
+                    value={field.value}
+                    onChange={(e) =>
+                      field.onChange(formatAmountArInput(e.target.value))
+                    }
+                  />
+                </FormControl>
+                {feeSummary && Number.isFinite(total) && total > 0 && (
+                  <FormDescription className='tabular-nums'>{feeSummary}</FormDescription>
+                )}
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name='feeCurrency'
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>En</FormLabel>
+                <Select
+                  onValueChange={(value) => {
+                    field.onChange(value)
+                    form.trigger('fee')
+                  }}
+                  value={field.value}
+                >
+                  <FormControl>
+                    <SelectTrigger className='w-24'>
+                      <SelectValue />
+                    </SelectTrigger>
+                  </FormControl>
+                  <SelectContent>
+                    <SelectItem value='USD'>USD</SelectItem>
+                    <SelectItem value='COIN'>{coin?.symbol ?? 'Moneda'}</SelectItem>
+                  </SelectContent>
+                </Select>
+              </FormItem>
+            )}
+          />
+        </div>
         <FormField
           control={form.control}
           name='date'
