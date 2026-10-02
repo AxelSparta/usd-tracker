@@ -1,15 +1,9 @@
-import { clerkMiddleware, createRouteMatcher } from '@clerk/nextjs/server'
+import { clerkMiddleware } from '@clerk/nextjs/server'
 
-// Datos de cada usuario (Fase 2). Los precios (`/api/crypto/{prices,search}`) siguen
-// públicos y las páginas no se protegen: el modo local funciona sin login.
-const isProtectedRoute = createRouteMatcher([
-  '/api/dolar/(.*)',
-  '/api/crypto/transactions(.*)',
-])
-
-export default clerkMiddleware(async (auth, req) => {
-  if (isProtectedRoute(req)) await auth.protect()
-})
+// Solo deja disponible la sesión (`auth()`) para el resto de la app. No protege nada
+// por ruta: las futuras rutas de datos (Fase 2) chequean `auth()` en cada route handler,
+// como recomienda Clerk (el matching por path puede divergir del routing de Next).
+export default clerkMiddleware()
 
 export const config = {
   matcher: [

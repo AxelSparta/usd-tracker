@@ -6,8 +6,8 @@ import {
   SidebarMenu,
   SidebarMenuButton,
   SidebarMenuItem,
-  SidebarMenuSkeleton,
 } from '@/components/ui/sidebar'
+import { Skeleton } from '@/components/ui/skeleton'
 
 /** Sesión en el pie del sidebar: botón de ingreso o el menú de la cuenta. */
 export default function UserMenu() {
@@ -15,7 +15,11 @@ export default function UserMenu() {
     <SidebarMenu>
       <SidebarMenuItem>
         <ClerkLoading>
-          <SidebarMenuSkeleton showIcon />
+          {/* Ancho fijo: `SidebarMenuSkeleton` lo sortea con Math.random() y no hidrata igual */}
+          <div className='flex h-8 items-center gap-2 px-2'>
+            <Skeleton className='size-4 rounded-md' />
+            <Skeleton className='h-4 w-24 group-data-[collapsible=icon]:hidden' />
+          </div>
         </ClerkLoading>
         <Show when='signed-out'>
           <SignInButton mode='modal'>

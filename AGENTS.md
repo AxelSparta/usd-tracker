@@ -40,7 +40,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - línea temporal validada por moneda al agregar, editar y borrar (`findNegativeBalance`)
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
 - Aviso "Modo local" en la barra superior (`LocalModeBadge`, con tooltip; con sesión aclara que todavía no hay sync).
-- **Login con Clerk** (Fase 1): `<ClerkProvider>` en el layout (localización `esUY`, colores vía variables CSS de shadcn), `src/proxy.ts` con `clerkMiddleware` (protege solo las futuras rutas `/api/dolar/*` y `/api/crypto/transactions*`), `UserMenu` en el pie del sidebar. Clerk v7 (Core 3): usar `<Show when='signed-in'>`, no `SignedIn`/`SignedOut`. La sesión **no** cambia la persistencia: todo sigue en `localStorage`.
+- **Login con Clerk** (Fase 1): `<ClerkProvider>` en el layout (localización `esUY`, colores vía variables CSS de shadcn), `src/proxy.ts` con `clerkMiddleware()` sin protección por ruta (las futuras rutas de datos chequean `auth()` en cada handler; `createRouteMatcher` está deprecado), `UserMenu` en el pie del sidebar. Clerk v7 (Core 3): usar `<Show when='signed-in'>`, no `SignedIn`/`SignedOut`. La sesión **no** cambia la persistencia: todo sigue en `localStorage`.
 
 ## Stack (versiones según `package.json`)
 

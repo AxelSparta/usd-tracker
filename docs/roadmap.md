@@ -168,7 +168,7 @@ comporta idéntico para el usuario y el dominio no importa ningún store.
   commiteadas; nombres documentados en `.env.example`; `.clerk/` ignorado por el keyless mode).
 - [x] Instalar `@clerk/nextjs` (v7, Core 3) + `@clerk/localizations`; `<ClerkProvider>` en el layout raíz
   con `esUY` (voseo) y `appearance.variables` apuntando a las variables CSS de shadcn (claro/oscuro).
-- [x] `src/proxy.ts` con `clerkMiddleware()` + `createRouteMatcher`: protege las futuras rutas de datos
+- [x] `src/proxy.ts` con `clerkMiddleware()` (sin `createRouteMatcher`, deprecado): las futuras rutas de datos chequean `auth()` en cada route handler
   (`/api/dolar/*`, `/api/crypto/transactions*`); páginas y precios siguen públicos (modo local sin login).
 - [x] `<UserButton />` / `<SignInButton mode='modal' />` en el footer del sidebar (`UserMenu.tsx`), con
   `<Show when='signed-in' | 'signed-out'>` (Core 3 eliminó `SignedIn`/`SignedOut`) y skeleton mientras carga.
