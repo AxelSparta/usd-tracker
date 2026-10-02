@@ -136,13 +136,16 @@ export default function CryptoPortfolio() {
                 {openPositions.map((p) => (
                   <tr key={p.coin.id} className='transition-colors hover:bg-muted/40'>
                     <td className='px-4 py-3'>
-                      <div className='flex items-center gap-2'>
+                      <Link
+                        href={`/cripto/${encodeURIComponent(p.coin.id)}`}
+                        className='flex items-center gap-2 hover:underline'
+                      >
                         <CoinIcon coin={p.coin} />
                         <span className='font-medium'>{p.coin.symbol}</span>
                         <span className='hidden text-muted-foreground sm:inline'>
                           {p.coin.name}
                         </span>
-                      </div>
+                      </Link>
                     </td>
                     <td className='whitespace-nowrap px-4 py-3 text-right'>
                       {p.priceUsd === null ? '—' : `US$${formatPrice(p.priceUsd)}`}

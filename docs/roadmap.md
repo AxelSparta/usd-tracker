@@ -33,13 +33,13 @@ Este roadmap define la evolución del producto en cuatro ejes:
   más un total agregado (`summarizeTransactionsData`) cuando hay más de un tipo de dólar.
 - Cotizaciones DolarAPI (`src/services/dolarApi.ts`) con refresh cada 5 min en `providers.tsx`.
 - Persistencia local: Zustand `persist` → `transactions-storage`, `dolar-storage`,
-  `crypto-storage` y `crypto-prices-storage`, todas con `version: 1` + `migrate`.
+  `crypto-storage` (`version: 2`) y `crypto-prices-storage`, todas versionadas con `migrate`.
 - Aviso "Modo local" en la barra superior (`LocalModeBadge`).
 - Tema claro/oscuro/sistema, toasts (Sonner), UI en español.
 - Shell multi-sección: home (`/`), sidebar con Dólar (`/dolar`) y Cripto (`/cripto`); secciones en `src/lib/sections.ts`.
-- Módulo cripto (Fase 4, en curso): operaciones BUY/SELL en USD de cualquier moneda de
-  CoinGecko, posiciones con costo promedio y PnL, valor en pesos vía dólar cripto
-  (`src/features/crypto/`, proxy `src/app/api/crypto/*`).
+- Módulo cripto (Fase 4 ✅): operaciones BUY/SELL en USD de cualquier moneda de
+  CoinGecko con comisiones, intercambios cripto ↔ cripto, detalle por moneda, posiciones con
+  costo promedio y PnL, valor en pesos vía dólar cripto (`src/features/crypto/`, proxy `src/app/api/crypto/*`).
 
 ### Hallazgos técnicos relevantes para la escala
 
@@ -91,7 +91,7 @@ src/
 │   │   └── components/ (DolarPrice, TransactionList, NewTransactionForm)
 │   ├── crypto/                  # hecho (Fase 4)
 │   │   ├── types.ts, metrics.ts, validations.ts, api.ts, hooks.ts
-│   │   ├── crypto.store.ts      # operaciones + metadatos de monedas (persist v1)
+│   │   ├── crypto.store.ts      # operaciones + metadatos de monedas (persist v2)
 │   │   ├── prices.store.ts      # último precio por moneda (persist v1, fallback offline)
 │   │   └── components/
 │   └── auth/                    # estado de sesión, sync local → cloud
@@ -264,7 +264,7 @@ refresco y a otro dispositivo; sin sesión, todo sigue funcionando en local.
 
 ---
 
-## Fase 4 — Módulo Cripto (independiente del dólar)
+## Fase 4 — Módulo Cripto (independiente del dólar) ✅
 
 **Objetivo:** un tracker de cripto propio: operaciones en USD de cualquier moneda,
 posiciones y PnL con precios de CoinGecko. Solo depende de la Fase 0.
@@ -287,12 +287,16 @@ y no realizado); valor en pesos = valor USD × dólar cripto (compra).
   compra/venta, cantidad, precio unitario USD (autocompletado con el precio actual), fecha.
 - [x] **Vista** `/cripto`: resumen (valor USD y ARS, invertido, PnL), cotización del dólar
   cripto, tabla de posiciones abiertas e historial con borrado confirmado.
-- [ ] Probar el flujo completo en el navegador (alta, venta, edición, borrado, API caída).
-- [ ] **Comisiones** (fee en USD o en la moneda) que ajusten el costo promedio.
+- [x] Probar el flujo completo en el navegador (alta, venta, edición, borrado, intercambio, API caída, migración v1 → v2).
+- [x] **Comisiones** (`fee` opcional en USD o en la moneda, `toPositionLot`): en USD encarecen la compra /
+  reducen lo cobrado; en la moneda la compra acredita menos unidades / la venta debita más (también en
+  la línea temporal). `crypto-storage` pasa a `version: 2` con `migrate` (los datos v1 ya son válidos).
 - [x] **Edición de operaciones** (diálogo en el historial): revalida la moneda destino y, si
   cambió la moneda, también la de origen.
-- [ ] Detalle por moneda (`/cripto/[coinId]`): operaciones filtradas y métricas de la moneda.
-- [ ] Operaciones cripto ↔ cripto (swap BTC → ETH) como venta + compra enlazadas.
+- [x] Detalle por moneda (`/cripto/[coinId]`): operaciones filtradas y métricas de la moneda; se llega desde
+  posiciones e historial.
+- [x] Operaciones cripto ↔ cripto (swap BTC → ETH) como venta + compra enlazadas por `swapId`; el valor en
+  USD define el precio de ambas patas. Se borran juntas (revalidando las dos monedas) y no se editan.
 - [x] Manejo del rate limit en el cliente: tras un fallo de `/api/crypto/prices` (429 u otro), el refresco
   pasa de 60 s a backoff exponencial 2 → 4 → 8 min con tope en 10 min (`priceRefreshDelay`), con toast
   específico para el 429 y el último precio conocido como fallback.

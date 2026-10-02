@@ -20,6 +20,14 @@ export type CoinPrice = {
 
 export type CoinPriceMap = Record<string, CoinPrice>
 
+/** Comisión en USD o en unidades de la propia moneda */
+export type FeeCurrency = 'USD' | 'COIN'
+
+export type CryptoFee = {
+  amount: number
+  currency: FeeCurrency
+}
+
 /** Operación cripto: todo expresado en USD. */
 export type CryptoTransaction = {
   id: string
@@ -31,6 +39,10 @@ export type CryptoTransaction = {
   priceUsd: number
   /** `Date` al crearla; string ISO tras rehidratar desde `localStorage` */
   date: Date | string
+  /** Opcional: operaciones sin comisión (y todas las anteriores a la v2) no la tienen */
+  fee?: CryptoFee
+  /** Comparte el id con la otra pata de un intercambio cripto ↔ cripto */
+  swapId?: string
 }
 
 export type CryptoPosition = {

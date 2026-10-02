@@ -1,5 +1,6 @@
-import { computePosition } from '@/domain/position'
+import { computePosition, type PositionLot } from '@/domain/position'
 import { sortTxs } from '@/domain/timeline'
+import { TransactionType } from '@/types/transaction.types'
 import type {
   Coin,
   CoinPriceMap,
@@ -7,6 +8,22 @@ import type {
   CryptoPosition,
   CryptoTransaction,
 } from './types'
+
+/**
+ * Operación → lote del motor, con la comisión aplicada:
+ * - en USD: encarece la compra / reduce lo cobrado en la venta;
+ * - en la moneda: la compra acredita menos unidades / la venta debita más.
+ * `quantity` es además el movimiento real de saldo (lo usa la línea temporal).
+ */
+export const toPositionLot = (tx: CryptoTransaction): PositionLot => {
+  const gross = tx.quantity * tx.priceUsd
+  const feeUsd = tx.fee?.currency === 'USD' ? tx.fee.amount : 0
+  const feeCoin = tx.fee?.currency === 'COIN' ? tx.fee.amount : 0
+
+  return tx.type === TransactionType.BUY
+    ? { type: tx.type, quantity: tx.quantity - feeCoin, quoteAmount: gross + feeUsd }
+    : { type: tx.type, quantity: tx.quantity + feeCoin, quoteAmount: gross - feeUsd }
+}
 
 /** Agrupa por moneda y ordena cada grupo cronológicamente. */
 export const groupByCoin = (
@@ -39,11 +56,7 @@ export const computeCryptoPositions = (
     if (!coin) continue
 
     const { quantity, invested, averageCost, realizedProfit } = computePosition(
-      group.map((tx) => ({
-        type: tx.type,
-        quantity: tx.quantity,
-        quoteAmount: tx.quantity * tx.priceUsd,
-      })),
+      group.map(toPositionLot),
     )
 
     const price = prices[coinId]

@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest'
-import { useCryptoStore } from '@/features/crypto/crypto.store'
+import { migrateCryptoStorage, useCryptoStore } from '@/features/crypto/crypto.store'
 import type { Coin } from '@/features/crypto/types'
 import { TransactionType } from '@/types/transaction.types'
 
@@ -90,5 +90,120 @@ describe('updateTransaction', () => {
     const [buy] = useCryptoStore.getState().transactions
     useCryptoStore.getState().updateTransaction(buy.id, { ...buy, coinId: 'ethereum' }, eth)
     expect(useCryptoStore.getState().coins.ethereum).toEqual(eth)
+  })
+})
+
+describe('comisiones en la línea temporal', () => {
+  beforeEach(() => useCryptoStore.setState({ transactions: [], coins: {} }))
+
+  it('la comisión en la moneda de la compra reduce el saldo disponible', () => {
+    useCryptoStore.getState().addTransaction(
+      {
+        coinId: 'bitcoin',
+        type: TransactionType.BUY,
+        quantity: 1,
+        priceUsd: 50_000,
+        date: day('2026-01-01'),
+        fee: { amount: 0.01, currency: 'COIN' },
+      },
+      btc,
+    )
+    expect(() => add(TransactionType.SELL, 1, '2026-02-01')).toThrow(/No tenés suficiente BTC/)
+    expect(() => add(TransactionType.SELL, 0.99, '2026-02-01')).not.toThrow()
+  })
+})
+
+describe('intercambios', () => {
+  beforeEach(() => useCryptoStore.setState({ transactions: [], coins: {} }))
+
+  const eth: Coin = { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', image: null }
+  const swap = (fromQuantity: number, iso: string) =>
+    useCryptoStore.getState().addSwap({
+      from: btc,
+      fromQuantity,
+      to: eth,
+      toQuantity: 10,
+      valueUsd: 30_000,
+      date: day(iso),
+    })
+
+  it('guarda una venta y una compra enlazadas con precios derivados del valor', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    swap(0.5, '2026-02-01')
+    const [, sellLeg, buyLeg] = useCryptoStore.getState().transactions
+    expect(sellLeg).toMatchObject({ coinId: 'bitcoin', type: TransactionType.SELL, priceUsd: 60_000 })
+    expect(buyLeg).toMatchObject({ coinId: 'ethereum', type: TransactionType.BUY, priceUsd: 3_000 })
+    expect(sellLeg.swapId).toBeDefined()
+    expect(sellLeg.swapId).toBe(buyLeg.swapId)
+    expect(useCryptoStore.getState().coins.ethereum).toEqual(eth)
+  })
+
+  it('rechaza entregar más de lo que se tiene', () => {
+    add(TransactionType.BUY, 0.1, '2026-01-01')
+    expect(() => swap(0.5, '2026-02-01')).toThrow(
+      'No tenés suficiente BTC para intercambiar el 01/02/2026.',
+    )
+    expect(useCryptoStore.getState().transactions).toHaveLength(1)
+  })
+
+  it('rechaza intercambiar una moneda por sí misma', () => {
+    expect(() =>
+      useCryptoStore.getState().addSwap({
+        from: btc,
+        fromQuantity: 1,
+        to: btc,
+        toQuantity: 1,
+        valueUsd: 1,
+        date: day('2026-01-01'),
+      }),
+    ).toThrow(/dos monedas distintas/)
+  })
+
+  it('borrar una pata borra el intercambio completo', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    swap(0.5, '2026-02-01')
+    const buyLeg = useCryptoStore.getState().transactions[2]
+    useCryptoStore.getState().removeTransaction(buyLeg.id)
+    expect(useCryptoStore.getState().transactions).toHaveLength(1)
+  })
+
+  it('no deja borrar un intercambio si la moneda recibida ya se vendió', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    swap(0.5, '2026-02-01')
+    useCryptoStore.getState().addTransaction(
+      { coinId: 'ethereum', type: TransactionType.SELL, quantity: 10, priceUsd: 3_000, date: day('2026-03-01') },
+      eth,
+    )
+    const sellLeg = useCryptoStore.getState().transactions[1]
+    expect(() => useCryptoStore.getState().removeTransaction(sellLeg.id)).toThrow(
+      /la venta de ETH del 01\/03\/2026/,
+    )
+    expect(useCryptoStore.getState().transactions).toHaveLength(4)
+  })
+
+  it('las patas de un intercambio no se editan', () => {
+    add(TransactionType.BUY, 1, '2026-01-01')
+    swap(0.5, '2026-02-01')
+    const sellLeg = useCryptoStore.getState().transactions[1]
+    expect(() =>
+      useCryptoStore.getState().updateTransaction(sellLeg.id, { ...sellLeg, quantity: 0.1 }, btc),
+    ).toThrow(/no se editan/)
+  })
+})
+
+describe('migrateCryptoStorage', () => {
+  it('v1 → v2 conserva operaciones y monedas', () => {
+    // Snapshot con la forma real de `crypto-storage` v1 (fechas ya serializadas)
+    const v1 = {
+      transactions: [
+        { id: 'a', coinId: 'bitcoin', type: 'BUY', quantity: 0.5, priceUsd: 60_000, date: '2026-09-01T03:00:00.000Z' },
+      ],
+      coins: { bitcoin: btc },
+    }
+    expect(migrateCryptoStorage(v1)).toEqual(v1)
+  })
+
+  it('estado vacío o ausente', () => {
+    expect(migrateCryptoStorage(undefined)).toEqual({ transactions: [], coins: {} })
   })
 })

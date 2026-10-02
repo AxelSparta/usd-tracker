@@ -57,6 +57,8 @@ export default function EditCryptoTransactionDialog({
             type: tx.type,
             quantity: numberToArInput(tx.quantity),
             priceUsd: numberToArInput(tx.priceUsd),
+            fee: tx.fee ? numberToArInput(tx.fee.amount) : '',
+            feeCurrency: tx.fee?.currency ?? 'USD',
             date: new Date(tx.date),
           }}
           onSubmit={(values, selectedCoin) => {
