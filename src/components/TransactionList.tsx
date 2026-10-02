@@ -29,9 +29,9 @@ export default function TransactionList() {
   const transactionsData = useTransactionsData()
   const allDolarData = useDolarStore((state) => state.allDolarData)
 
-  const handleDeleteTransaction = async (transactionId: string) => {
+  const handleDeleteTransaction = (transactionId: string) => {
     try {
-      await removeTransaction({ isSignedIn: false, transactionId })
+      removeTransaction(transactionId)
       toast.success('Transacción eliminada con éxito.')
     } catch (error: unknown) {
       toast.error(

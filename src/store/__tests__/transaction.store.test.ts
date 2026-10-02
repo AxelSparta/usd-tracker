@@ -58,10 +58,9 @@ describe('updateTransaction', () => {
   beforeEach(() => useTransactionStore.setState({ transactions: {} }))
 
   const add = (type: TransactionType, iso: string, extra = {}) =>
-    useTransactionStore.getState().addTransaction({
-      isSignedIn: false,
-      tx: { ...base, type, date: day(iso), ...extra },
-    })
+    useTransactionStore
+      .getState()
+      .addTransaction({ ...base, type, date: day(iso), ...extra })
   const txsOf = (option: DolarOption) =>
     useTransactionStore.getState().transactions[option] ?? []
 

@@ -1,5 +1,6 @@
 'use client'
 
+import { useAuth } from '@clerk/nextjs'
 import { HardDrive } from 'lucide-react'
 import {
   Tooltip,
@@ -7,8 +8,10 @@ import {
   TooltipTrigger,
 } from '@/components/ui/tooltip'
 
-/** Aviso de que los datos viven solo en este navegador (se oculta al sumar login en la Fase 3). */
+/** Aviso de que los datos viven solo en este navegador (se oculta con la sincronización, Fase 3). */
 export default function LocalModeBadge() {
+  const { isSignedIn } = useAuth()
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
@@ -23,6 +26,7 @@ export default function LocalModeBadge() {
       <TooltipContent side='bottom' className='max-w-60 text-center'>
         Tus datos se guardan solo en este navegador. Si borrás los datos del sitio
         o cambiás de dispositivo, no vas a verlos.
+        {isSignedIn && ' Aunque iniciaste sesión, la sincronización en la nube todavía no está disponible.'}
       </TooltipContent>
     </Tooltip>
   )
