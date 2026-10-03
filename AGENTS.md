@@ -41,6 +41,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - línea temporal validada por moneda al agregar, editar y borrar (`findNegativeBalance`)
 - **API de datos** (Fase 2): CRUD protegido por módulo en `/api/dolar/transactions[/:id]`, `/api/crypto/transactions[/:id]` y `/api/crypto/swaps`. Cada handler: `requireUserId()` (401 sin sesión) → body validado con Zod (400) → servicio en `src/server/` que filtra por `userId` (operación ajena = 404), valida la línea temporal con las **mismas funciones puras que los stores** (422 con el mismo mensaje) y escribe en una transacción `Serializable` (conflicto = 409). Los ids los genera el cliente (`crypto.randomUUID()`); id repetido = 409.
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
+- **Logs del server** (`src/server/log.ts`): una línea JSON por evento (`logEvent`, `logError`), sin servicio externo. Los route handlers registran las escrituras OK (`dolar.*`, `crypto.*`, `sync.imported`); `errorResponse` registra los 500 (`api.unexpected`) y `src/instrumentation.ts` (`onRequestError`) el resto (`request.error`). Nunca loguear montos, headers ni cookies. Operación en producción: `docs/operacion.md`.
 - **Sincronización** (Fase 3, `src/features/auth/`): `SyncBadge` en la barra superior (Modo local / Cargando… / Guardando… / Sincronizado / Sin conexión, con popover para reintentar o subir lo local); `LocalImportDialog` ofrece subir las operaciones locales que no están en la cuenta al iniciar sesión (`POST /api/sync/import`, idempotente por id, **la nube manda**: un id existente se saltea). "Ahora no" guarda esos ids por usuario en `sync-storage` para no volver a preguntar; igual se pueden subir desde el badge.
 - **Login con Clerk** (Fase 1): `<ClerkProvider>` en el layout (localización `esUY`, colores vía variables CSS de shadcn), `src/proxy.ts` con `clerkMiddleware()` sin protección por ruta (las futuras rutas de datos chequean `auth()` en cada handler; `createRouteMatcher` está deprecado), `UserMenu` en el pie del sidebar. Clerk v7 (Core 3): usar `<Show when='signed-in'>`, no `SignedIn`/`SignedOut`. La sesión elige el origen de datos de los stores (`src/app/cloud-sync.tsx`).
 
@@ -127,12 +128,14 @@ src/
 │   └── components/             # CryptoPortfolio, CryptoCoinDetail, CryptoTransactionList,
 │                               #   CryptoTransactionForm, CryptoSwapForm, NewCryptoTransaction,
 │                               #   EditCryptoTransactionDialog, CoinCombobox, CoinIcon
+├── instrumentation.ts          # onRequestError → logError (errores del server fuera de /api/*)
 ├── proxy.ts                    # clerkMiddleware (Next 16: ex middleware.ts)
 ├── server/                     # solo server (route handlers) + __tests__/ (API con base en memoria)
 │   ├── coingecko.ts            # cliente CoinGecko + schemas Zod de respuesta (incluye getCoinHistory)
 │   ├── argentinadatos.ts       # cotizaciones históricas del dólar (sin API key)
 │   ├── db.ts                   # getDb (PrismaClient + PrismaNeon, lazy), withUserTransaction
 │   ├── auth.ts, errors.ts      # requireUserId; ApiError, parseBody, parseIdParam, errorResponse
+│   ├── log.ts                  # logEvent / logError (JSON a stdout, lo guarda Vercel)
 │   ├── import.ts               # importSchema + importLocalData (la nube manda, skipDuplicates)
 │   ├── mappers.ts              # única conversión fila Prisma (Decimal) ↔ modelo de dominio (number)
 │   └── {dolar,crypto}-transactions.ts  # servicios con ownership + validación de línea temporal
@@ -213,6 +216,7 @@ Deploy: Vercel despliega `main` solo y usa `pnpm vercel-build` (`scripts/vercel-
 ## Documentación y skills adicionales
 
 - Roadmap y fases (fundación, Clerk, Neon/Prisma, cripto, portfolio): `docs/roadmap.md`.
+- Operación en producción (variables, Clerk prod, backups de Neon, logs, migraciones): `docs/operacion.md`.
 - Buenas prácticas Next.js: `.agents/skills/next-best-practices/SKILL.md` (instalado desde `vercel-labs/next-skills`, ver `skills-lock.json`).
 
 ---

@@ -79,9 +79,11 @@ Vercel despliega `main` automáticamente y usa `pnpm vercel-build` (`scripts/ver
   y sigue publicada la versión anterior (nunca código nuevo con una base sin migrar).
 - **Previews:** solo `next build` (comparten la base: una rama sin fusionar no cambia el schema).
 
-Las variables de la tabla se cargan en *Project → Settings → Environment Variables*.
+Las variables de la tabla se cargan en *Project → Settings → Environment Variables*. Pasos de
+producción (Clerk, backups, logs): [`docs/operacion.md`](docs/operacion.md).
 
 ## 📚 Más documentación
 
 - [`AGENTS.md`](AGENTS.md): arquitectura, convenciones y comportamiento del estado.
 - [`docs/roadmap.md`](docs/roadmap.md): fases del proyecto y decisiones.
+- [`docs/operacion.md`](docs/operacion.md): producción (variables, Clerk, backups de Neon, logs, migraciones).

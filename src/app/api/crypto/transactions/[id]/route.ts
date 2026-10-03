@@ -4,6 +4,7 @@ import {
   updateCryptoTransaction,
 } from '@/server/crypto-transactions'
 import { errorResponse, parseBody, parseIdParam } from '@/server/errors'
+import { logEvent } from '@/server/log'
 import { cryptoTransactionApiSchema } from '@/features/crypto/validations'
 
 type Context = { params: Promise<{ id: string }> }
@@ -14,7 +15,9 @@ export async function PATCH(request: Request, { params }: Context) {
     const userId = await requireUserId()
     const id = await parseIdParam(params)
     const { transaction, coin } = await parseBody(request, cryptoTransactionApiSchema)
-    return Response.json(await updateCryptoTransaction(userId, id, transaction, coin))
+    const updated = await updateCryptoTransaction(userId, id, transaction, coin)
+    logEvent('crypto.updated', { userId, id, type: transaction.type, coinId: transaction.coinId })
+    return Response.json(updated)
   } catch (error) {
     return errorResponse(error)
   }
@@ -25,7 +28,9 @@ export async function DELETE(_request: Request, { params }: Context) {
   try {
     const userId = await requireUserId()
     const id = await parseIdParam(params)
-    return Response.json({ removedIds: await removeCryptoTransaction(userId, id) })
+    const removedIds = await removeCryptoTransaction(userId, id)
+    logEvent('crypto.removed', { userId, id, count: removedIds.length })
+    return Response.json({ removedIds })
   } catch (error) {
     return errorResponse(error)
   }

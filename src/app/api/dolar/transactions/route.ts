@@ -4,6 +4,7 @@ import {
   listDolarTransactions,
 } from '@/server/dolar-transactions'
 import { errorResponse, parseBody } from '@/server/errors'
+import { logEvent } from '@/server/log'
 import { createTransactionApiSchema } from '@/validations/transaction'
 
 /** GET /api/dolar/transactions → `Transaction[]` del usuario */
@@ -21,7 +22,9 @@ export async function POST(request: Request) {
   try {
     const userId = await requireUserId()
     const tx = await parseBody(request, createTransactionApiSchema)
-    return Response.json(await createDolarTransaction(userId, tx), { status: 201 })
+    const created = await createDolarTransaction(userId, tx)
+    logEvent('dolar.created', { userId, type: tx.type, dolarOption: tx.dolarOption })
+    return Response.json(created, { status: 201 })
   } catch (error) {
     return errorResponse(error)
   }

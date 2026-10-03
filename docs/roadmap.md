@@ -160,7 +160,7 @@ comporta idéntico para el usuario y el dominio no importa ningún store.
 
 ---
 
-## Fase 1 — Autenticación (Clerk)
+## Fase 1 — Autenticación (Clerk) ✅
 
 **Objetivo:** identificar al usuario. *Solo login; los datos siguen en local.*
 
@@ -340,21 +340,31 @@ ganó y cómo evolucionó.
 - [x] Tests E2E (Playwright, `e2e/`, job `e2e` en CI) en modo local con las APIs externas simuladas:
   home vacía, alta de dólar + venta sin saldo, compra cripto con buscador, dashboard (composición,
   evolución, drill-down) y DolarAPI caída.
-- [ ] E2E de login y sync (necesita `@clerk/testing` y un usuario de prueba en Clerk).
 - [x] Manejo robusto de errores de red: DolarAPI con timeout de 10 s, backoff 30 s → 4 min tras fallos,
   reintento al volver la conexión, toasts distintos para "sin conexión" / "DolarAPI no responde" y
   fallback a las últimas cotizaciones guardadas. Cripto ya tenía backoff (Fase 4); las escrituras a la
   nube se revierten con toast (Fase 2).
-- [ ] Rate limits en `/api/*` (la validación con Zod y el ownership ya están, Fase 2). Un límite en memoria
-  no sirve en serverless: hace falta un store compartido (p. ej. Upstash Redis).
-- [ ] Observabilidad: logging de errores (Sentry u opcional), eventos clave
-  (alta, venta, login, sync).
+- [x] Observabilidad sin servicio externo: logs JSON en el server (`src/server/log.ts`, los guarda
+  Vercel) con eventos de escritura OK (`dolar.*`, `crypto.*`, `sync.imported`), errores inesperados de
+  la API (`api.unexpected`) y del resto del server (`request.error`, `src/instrumentation.ts`). Sin
+  montos, headers ni cookies. Los logins se ven en el dashboard de Clerk. Sentry queda para cuando
+  haya usuarios reales (se engancha en `log.ts` e `instrumentation.ts`).
 - [x] `prisma migrate deploy` en el deploy: `pnpm vercel-build` migra solo en producción (las previews
   comparten la base); si la migración falla, el deploy falla y queda la versión anterior.
-- [ ] Variables de entorno de producción en Vercel: verificar `DATABASE_URL` (la base nueva) y pasar Clerk
-  a una instancia de producción (hoy usa claves `pk_test_`).
-- [ ] Backups de Neon (point-in-time restore) y política de migraciones.
+- [x] Política de migraciones y guía de operación (`docs/operacion.md`).
+- [ ] **(manual)** Variables de entorno de producción en Vercel: verificar `DATABASE_URL` y pasar Clerk a
+  una instancia de producción (hoy usa claves `pk_test_`, requiere dominio propio). Pasos en
+  `docs/operacion.md` §1–2.
+- [ ] **(manual)** Neon: subir la retención del historial (restore a un punto en el tiempo) y separar
+  una rama para previews (hoy comparten la base de producción). Pasos en `docs/operacion.md` §3.
 - [x] Actualizar `README.md` y `AGENTS.md` con la arquitectura final.
+
+**Siguiente iteración** (no bloquean el cierre de la fase; cada una suma un servicio externo):
+
+- [ ] E2E de login y sync (necesita `@clerk/testing` y un usuario de prueba en Clerk).
+- [ ] Rate limits en `/api/*` (la validación con Zod y el ownership ya están, Fase 2). Un límite en memoria
+  no sirve en serverless: hace falta un store compartido (p. ej. Upstash Redis). Hoy el riesgo es
+  bajo: toda escritura exige sesión y solo toca datos propios; los proxies de precios cachean.
 
 ---
 

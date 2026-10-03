@@ -5,6 +5,7 @@ import { createFakeDb, type FakeDb } from './fake-db'
 // (validación, ownership, línea temporal, mappers) sin Postgres.
 const session = vi.hoisted(() => ({ userId: 'user_a' as string | null }))
 const fake = vi.hoisted(() => ({ db: null as unknown }))
+const log = vi.hoisted(() => ({ logEvent: vi.fn(), logError: vi.fn() }))
 
 vi.mock('@clerk/nextjs/server', () => ({
   auth: async () => ({ userId: session.userId }),
@@ -16,6 +17,8 @@ vi.mock('@/server/db', () => ({
     return run(fake.db)
   },
 }))
+
+vi.mock('@/server/log', () => log)
 
 const dolar = await import('@/app/api/dolar/transactions/route')
 const dolarById = await import('@/app/api/dolar/transactions/[id]/route')
@@ -54,6 +57,8 @@ beforeEach(() => {
   db = createFakeDb()
   fake.db = db
   session.userId = 'user_a'
+  log.logEvent.mockClear()
+  log.logError.mockClear()
 })
 
 describe('/api/dolar/transactions', () => {
@@ -140,6 +145,28 @@ describe('/api/dolar/transactions', () => {
 
   it('404 si el id de la URL no es un UUID', async () => {
     expect((await dolarById.DELETE(json({}), ctx('no-es-uuid'))).status).toBe(404)
+  })
+})
+
+describe('logs', () => {
+  it('registra el alta exitosa sin montos y no registra los rechazos', async () => {
+    await dolar.POST(json(dolarTx(ID.buy, 'BUY', 100, '2026-01-01T03:00:00.000Z')))
+    await dolar.POST(json(dolarTx(ID.sell, 'SELL', 500, '2026-01-02T03:00:00.000Z')))
+    expect(log.logEvent).toHaveBeenCalledTimes(1)
+    expect(log.logEvent).toHaveBeenCalledWith('dolar.created', {
+      userId: 'user_a',
+      type: 'BUY',
+      dolarOption: 'blue',
+    })
+    expect(log.logError).not.toHaveBeenCalled()
+  })
+
+  it('un error inesperado es 500 genérico y queda registrado', async () => {
+    db.dolarTransaction.findMany = () => Promise.reject(new Error('conexión caída'))
+    const response = await dolar.GET()
+    expect(response.status).toBe(500)
+    expect(await response.json()).toEqual({ error: 'Error inesperado del servidor.' })
+    expect(log.logError).toHaveBeenCalledWith('api.unexpected', expect.any(Error))
   })
 })
 
