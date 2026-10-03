@@ -20,6 +20,8 @@ export const toDolarTransaction = (row: DolarTransactionRow): Transaction => ({
   date: row.date,
   dolarOption: row.dolarOption as DolarOption,
   ...(row.usdtSwapId !== null && { usdtSwapId: row.usdtSwapId }),
+  ...(row.kind !== null && { kind: row.kind }),
+  ...(row.note !== null && { note: row.note }),
 })
 
 export const toDolarTransactionData = (tx: Omit<Transaction, 'id'>) => ({
@@ -29,6 +31,8 @@ export const toDolarTransactionData = (tx: Omit<Transaction, 'id'>) => ({
   date: new Date(tx.date),
   dolarOption: tx.dolarOption,
   usdtSwapId: tx.usdtSwapId ?? null,
+  kind: tx.kind ?? null,
+  note: tx.note ?? null,
 })
 
 export const toCryptoTransaction = (row: CryptoTransactionRow): CryptoTransaction => ({
@@ -44,6 +48,8 @@ export const toCryptoTransaction = (row: CryptoTransactionRow): CryptoTransactio
     }),
   ...(row.swapId !== null && { swapId: row.swapId }),
   ...(row.usdtSwapId !== null && { usdtSwapId: row.usdtSwapId }),
+  ...(row.kind !== null && { kind: row.kind }),
+  ...(row.note !== null && { note: row.note }),
 })
 
 export const toCoin = (row: CryptoTransactionRow): Coin => ({
@@ -70,4 +76,6 @@ export const toCryptoTransactionData = (
   feeCurrency: tx.fee?.currency ?? null,
   swapId: tx.swapId ?? null,
   usdtSwapId: tx.usdtSwapId ?? null,
+  kind: tx.kind ?? null,
+  note: tx.note ?? null,
 })

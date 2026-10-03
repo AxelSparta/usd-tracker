@@ -14,7 +14,7 @@ import { cn } from '@/lib/utils'
 import { useCryptoStore } from '../crypto.store'
 import CryptoTransactionForm from './CryptoTransactionForm'
 
-export type NewCryptoMode = 'trade' | 'swap'
+export type NewCryptoMode = 'trade' | 'swap' | 'result'
 
 type NewCryptoTransactionProps = {
   /**
@@ -22,16 +22,20 @@ type NewCryptoTransactionProps = {
    * `features/usdt-swaps`, que este módulo no importa)
    */
   swapForm: ReactNode
+  /** Resultado de trade: puede caer en USDT (módulo Dólar), así que también lo arma `app/` */
+  tradeResultForm: ReactNode
   initialMode?: NewCryptoMode
 }
 
 const modes: { value: NewCryptoMode; label: string }[] = [
   { value: 'trade', label: 'Compra / venta' },
   { value: 'swap', label: 'Intercambio' },
+  { value: 'result', label: 'Resultado de trade' },
 ]
 
 export default function NewCryptoTransaction({
   swapForm,
+  tradeResultForm,
   initialMode = 'trade',
 }: NewCryptoTransactionProps) {
   const router = useRouter()
@@ -48,12 +52,14 @@ export default function NewCryptoTransaction({
           <CardDescription>
             {mode === 'trade'
               ? 'Registrá una compra o venta de cripto en dólares.'
-              : 'Registrá el cambio de una cripto por otra (BTC → ETH) o por tus USDT del dólar cripto.'}
+              : mode === 'swap'
+                ? 'Registrá el cambio de una cripto por otra (BTC → ETH) o por tus USDT del dólar cripto.'
+                : 'Registrá una ganancia o pérdida de un trade (futuros, margin, bots) en USDT o en cualquier moneda.'}
           </CardDescription>
           <div
             role='group'
             aria-label='Tipo de operación'
-            className='mt-2 grid grid-cols-2 gap-1 rounded-md border p-1'
+            className='mt-2 grid grid-cols-3 gap-1 rounded-md border p-1'
           >
             {modes.map((m) => (
               <button
@@ -83,8 +89,10 @@ export default function NewCryptoTransaction({
                 router.push('/cripto')
               }}
             />
-          ) : (
+          ) : mode === 'swap' ? (
             swapForm
+          ) : (
+            tradeResultForm
           )}
         </CardContent>
       </Card>

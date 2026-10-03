@@ -37,6 +37,8 @@ interface State extends SyncFields<DolarData> {
    * con una sola llamada a la API (`remote`, que se llama solo con sesión).
    */
   applyExternal: (next: DolarData, remote: () => Promise<unknown>) => Promise<void>
+  /** Resuelve cuando ya se sabe el origen de datos y están cargados (ver `createSync`) */
+  whenReady: () => Promise<void>
 
   connectCloud: () => Promise<void>
   disconnectCloud: () => void
@@ -49,8 +51,9 @@ export type DolarData = { transactions: GroupedTransactions }
 
 const EMPTY: DolarData = { transactions: {} }
 
-const storeApi: StateCreator<State> = (set, get) => {
+const storeApi: StateCreator<State> = (set, get, api) => {
   const sync = createSync<DolarData, State>(set, get, {
+    subscribe: api.subscribe,
     pick: ({ transactions }) => ({ transactions }),
     empty: EMPTY,
     fetchCloud: async () => ({
@@ -63,6 +66,9 @@ const storeApi: StateCreator<State> = (set, get) => {
     ...initialSyncFields<DolarData>(),
 
     addTransaction: async (tx) => {
+      // `await` solo si hace falta: `await null` también cedería el turno
+      const waiting = sync.untilReady()
+      if (waiting) await waiting
       const newTransaction: Transaction = { id: crypto.randomUUID(), ...tx }
       const transactions = applyAddTransaction(get().transactions, newTransaction)
       await sync.commit({ transactions }, () =>
@@ -71,6 +77,8 @@ const storeApi: StateCreator<State> = (set, get) => {
     },
 
     updateTransaction: async (transactionId, tx) => {
+      const waiting = sync.untilReady()
+      if (waiting) await waiting
       const transactions = applyUpdateTransaction(get().transactions, transactionId, tx)
       if (!transactions) return
       await sync.commit({ transactions }, () =>
@@ -79,6 +87,8 @@ const storeApi: StateCreator<State> = (set, get) => {
     },
 
     removeTransaction: async (transactionId) => {
+      const waiting = sync.untilReady()
+      if (waiting) await waiting
       const transactions = applyRemoveTransaction(get().transactions, transactionId)
       if (!transactions) return
       await sync.commit({ transactions }, () =>
@@ -87,6 +97,7 @@ const storeApi: StateCreator<State> = (set, get) => {
     },
 
     applyExternal: sync.commit,
+    whenReady: sync.whenReady,
 
     connectCloud: sync.connectCloud,
     disconnectCloud: sync.disconnectCloud,
@@ -98,7 +109,8 @@ const storeApi: StateCreator<State> = (set, get) => {
 /**
  * v0 → v1: se deja de persistir `transactionsData` (ahora se deriva con
  * `useTransactionsData`). `transactions` no cambia de forma.
- * v1 → v2: se agregó `usdtSwapId` (opcional), así que los datos v1 ya son válidos.
+ * v1 → v2: se agregó `usdtSwapId`; v2 → v3: `kind` y `note`. Todos opcionales, así que los
+ * datos viejos ya son válidos.
  */
 export const migrateTransactionsStorage = (
   persistedState: unknown,
@@ -118,7 +130,7 @@ export const persistedTransactions = (state: State): DolarData =>
 export const useTransactionStore = create<State>()(
   persist(storeApi, {
     name: 'transactions-storage',
-    version: 2,
+    version: 3,
     partialize: persistedTransactions,
     migrate: migrateTransactionsStorage,
   }),

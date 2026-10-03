@@ -2,6 +2,13 @@ import { expect, type Page } from '@playwright/test'
 
 // Pasos de los intercambios USDT ↔ cripto, compartidos entre los E2E local y con sesión
 
+/**
+ * Con sesión, las escrituras son optimistas: esperar a que el indicador deje "Guardando…" antes
+ * de un `page.goto` (una recarga completa corta el request en curso).
+ */
+export const settled = (page: Page) =>
+  expect(page.getByRole('button', { name: /^(Sincronizado|Modo local)$/ })).toBeVisible()
+
 /** 1.000 USDT comprados como dólar cripto */
 export const buyUsdt = async (page: Page) => {
   await page.goto('/dolar/nueva')
@@ -11,6 +18,7 @@ export const buyUsdt = async (page: Page) => {
   await page.getByRole('option', { name: 'Dolar cripto' }).click()
   await page.getByRole('button', { name: 'Guardar transacción' }).click()
   await expect(page.getByText('Transacción creada con éxito.')).toBeVisible()
+  await settled(page)
 }
 
 export const pickCoin = async (page: Page, field: 'Entregás' | 'Recibís', option: RegExp) => {
@@ -36,4 +44,5 @@ export const swapUsdtToBtc = async (page: Page) => {
 
   await expect(page).toHaveURL(/\/cripto$/)
   await expect(page.getByText('Intercambio registrado.')).toBeVisible()
+  await settled(page)
 }

@@ -35,6 +35,7 @@ describe('computeGroupMetrics', () => {
       averageCost: 1000,
       marketValuePesos: 120_000,
       realizedProfit: 0,
+      tradeProfit: 0,
       unrealizedProfit: 20_000,
     })
   })
@@ -75,6 +76,7 @@ describe('computeGroupMetrics', () => {
       averageCost: 1000,
       marketValuePesos: 0,
       realizedProfit: 10_000,
+      tradeProfit: 0,
       unrealizedProfit: 0,
     })
   })
@@ -147,6 +149,7 @@ describe('summarizeTransactionsData', () => {
         marketValuePesos: 120_000,
         averageCost: 1000,
         realizedProfit: 500,
+        tradeProfit: 0,
         unrealizedProfit: 19_999.9,
       },
       [DolarOption.Oficial]: {
@@ -155,6 +158,7 @@ describe('summarizeTransactionsData', () => {
         marketValuePesos: 50_000,
         averageCost: 900,
         realizedProfit: -200,
+        tradeProfit: 0,
         unrealizedProfit: 4_999.8,
       },
     })
@@ -163,11 +167,52 @@ describe('summarizeTransactionsData', () => {
       investedPesos: 145_000.3,
       marketValuePesos: 170_000,
       realizedProfit: 300,
+      tradeProfit: 0,
       unrealizedProfit: 24_999.7,
     })
   })
 
   it('sin grupos: todo en cero', () => {
     expect(summarizeTransactionsData({}).totalUsd).toBe(0)
+  })
+})
+
+describe('resultados de trades en USDT (dólar cripto)', () => {
+  const trade = (type: TransactionType, usd: number, ars: number, date: string): Transaction => ({
+    ...tx(type, usd, ars, date),
+    dolarOption: DolarOption.Cripto,
+    kind: 'TRADE_RESULT',
+  })
+
+  it('ganancia: suma USDT con costo = valor de mercado y realiza ese valor', () => {
+    const m = computeGroupMetrics(
+      [buy(100, 140_000, '2026-01-01'), trade(TransactionType.BUY, 50, 75_000, '2026-01-02')],
+      { buy: 1500, sell: 1500 },
+    )
+    expect(m).toMatchObject({
+      totalUsd: 150,
+      investedPesos: 215_000,
+      realizedProfit: 75_000,
+      tradeProfit: 75_000,
+      unrealizedProfit: 10_000,
+    })
+  })
+
+  it('pérdida: salen USDT sin cobrar nada y se realiza su costo', () => {
+    const m = computeGroupMetrics(
+      [buy(100, 140_000, '2026-01-01'), trade(TransactionType.SELL, 10, 15_000, '2026-01-02')],
+      { buy: 1500, sell: 1500 },
+    )
+    expect(m).toMatchObject({ totalUsd: 90, realizedProfit: -14_000, tradeProfit: -14_000 })
+  })
+
+  it('el total suma los resultados de trades', () => {
+    const totals = summarizeTransactionsData(
+      computeTransactionsData(
+        { [DolarOption.Cripto]: [buy(100, 140_000), trade(TransactionType.BUY, 1, 1500, '2026-01-02')] },
+        {},
+      ),
+    )
+    expect(totals.tradeProfit).toBe(1500)
   })
 })

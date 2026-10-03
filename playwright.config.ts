@@ -1,6 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
 
-const PORT = 3100
+// `E2E_PORT=3000` reusa un `pnpm dev` abierto (Next 16 no deja levantar dos en la misma carpeta)
+const PORT = Number(process.env.E2E_PORT ?? 3100)
 
 // Next lee `.env` solo; los tests con sesión también necesitan las claves (Clerk, Neon)
 try {

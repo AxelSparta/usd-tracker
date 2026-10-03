@@ -1,5 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import {
+  applyAddCryptoTransaction,
   applyAddSwap,
   applyRemoveCryptoTransaction,
   applyUpdateCryptoTransaction,
@@ -56,6 +57,36 @@ describe('operaciones cripto', () => {
     const { id, ...leg } = state.transactions[1]
     expect(() => applyUpdateCryptoTransaction(state, 'sell', leg, btc)).toThrow(
       'Los intercambios no se editan',
+    )
+  })
+})
+
+describe('resultados de trades', () => {
+  const gain = {
+    id: 'g',
+    coinId: 'bitcoin',
+    type: TransactionType.BUY,
+    quantity: 0.01,
+    priceUsd: 60_000,
+    date: new Date('2026-01-05T00:00:00'),
+    kind: 'TRADE_RESULT' as const,
+    note: 'grid bot',
+  }
+
+  it('una ganancia se agrega sin saldo previo; una pérdida necesita saldo', () => {
+    const empty = { transactions: [], coins: {} }
+    expect(applyAddCryptoTransaction(empty, gain, btc).transactions).toEqual([gain])
+    expect(() =>
+      applyAddCryptoTransaction(empty, { ...gain, type: TransactionType.SELL }, btc),
+    ).toThrow('No tenés suficiente BTC')
+  })
+
+  it('no lleva comisión ni enlace de intercambio', () => {
+    expect(() =>
+      applyAddCryptoTransaction(funded, { ...gain, fee: { amount: 1, currency: 'USD' } }, btc),
+    ).toThrow('no lleva comisión')
+    expect(() => applyAddCryptoTransaction(funded, { ...gain, swapId: 's' }, btc)).toThrow(
+      'intercambio',
     )
   })
 })

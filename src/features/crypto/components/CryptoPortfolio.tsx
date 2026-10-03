@@ -97,7 +97,7 @@ export default function CryptoPortfolio() {
                 }
               />
               <Stat
-                label='Invertido'
+                label='Costo'
                 value={usd(summary.investedUsd)}
                 secondaryLabel='Posiciones abiertas'
                 secondaryValue={String(openPositions.length)}
@@ -111,6 +111,11 @@ export default function CryptoPortfolio() {
                 secondaryClassName={pnlClass(summary.realizedPnlUsd)}
               />
             </div>
+            {summary.tradePnlUsd !== 0 && (
+              <p className='text-xs text-muted-foreground tabular-nums'>
+                El realizado incluye {signedUsd(summary.tradePnlUsd)} de resultados de trades.
+              </p>
+            )}
             {summary.hasMissingPrices && (
               <p className='text-xs text-muted-foreground'>
                 Hay monedas sin precio todavía: no se incluyen en el valor actual.

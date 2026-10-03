@@ -14,6 +14,10 @@ import {
  * si falla, cada store revierte lo suyo y el error se relanza para el toast.
  */
 
+/** Los dos stores con su origen resuelto y sus datos cargados */
+const bothReady = () =>
+  Promise.all([useTransactionStore.getState().whenReady(), useCryptoStore.getState().whenReady()])
+
 const currentState = (): LinkedState => {
   const { transactions, coins } = useCryptoStore.getState()
   return { dolar: useTransactionStore.getState().transactions, crypto: { transactions, coins } }
@@ -34,6 +38,7 @@ const commitBoth = async (next: LinkedState, remote: () => Promise<unknown>) => 
 }
 
 export const addUsdtSwap = async (swap: UsdtSwapInput) => {
+  await bothReady()
   const ids = {
     usdtSwapId: crypto.randomUUID(),
     dolarId: crypto.randomUUID(),
@@ -44,6 +49,7 @@ export const addUsdtSwap = async (swap: UsdtSwapInput) => {
 }
 
 export const removeUsdtSwap = async (usdtSwapId: string) => {
+  await bothReady()
   const result = applyRemoveUsdtSwap(currentState(), usdtSwapId)
   if (!result) return
   await commitBoth(result.state, () => usdtSwapsApi.remove(usdtSwapId))

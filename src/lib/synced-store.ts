@@ -41,9 +41,11 @@ export const createSync = <D extends object, S extends SyncFields<D> & D>(
     pick: (state: S) => D
     empty: D
     fetchCloud: () => Promise<D>
+    /** `api.subscribe` de Zustand (para `whenReady`) */
+    subscribe: (listener: (state: S) => void) => () => void
   },
 ) => {
-  const { pick, empty, fetchCloud } = options
+  const { pick, empty, fetchCloud, subscribe } = options
   // Invalida respuestas viejas (logout o cambio de usuario a mitad de un fetch)
   let generation = 0
 
@@ -58,7 +60,33 @@ export const createSync = <D extends object, S extends SyncFields<D> & D>(
     }
   }
 
+  // `pending`: todavía no se sabe si hay sesión; `loading`: los datos de la nube no llegaron
+  const settling = () => ['pending', 'loading'].includes(get().status)
+
   return {
+    /**
+     * Espera a que se sepa el origen y estén sus datos. Las acciones lo llaman antes de validar:
+     * si no, una escritura recién recargada la página iría a lo local aunque haya sesión, o se
+     * validaría contra un estado vacío.
+     */
+    whenReady: () =>
+      new Promise<void>((resolve) => {
+        if (!settling()) return resolve()
+        const unsubscribe = subscribe(() => {
+          if (settling()) return
+          unsubscribe()
+          resolve()
+        })
+      }),
+
+    /**
+     * Para el comienzo de una acción: `null` si ya está listo (la acción sigue sin ceder el turno,
+     * así el cambio optimista se ve en el acto); si no, la promesa de `whenReady`.
+     */
+    untilReady(): Promise<void> | null {
+      return settling() ? this.whenReady() : null
+    },
+
     /** Con sesión: guarda la copia local y carga los datos de la nube */
     connectCloud: () => {
       if (get().source !== 'cloud') {

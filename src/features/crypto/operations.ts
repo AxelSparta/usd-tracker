@@ -1,7 +1,7 @@
 import { format } from 'date-fns'
 import { findNegativeBalance, sortTxs } from '@/domain/timeline'
 import { USDT_SWAP_LEG_REMOVE, USDT_SWAP_LEG_UPDATE } from '@/domain/transactions'
-import { TransactionType } from '@/types/transaction.types'
+import { TRADE_RESULT, TransactionType } from '@/types/transaction.types'
 import { toPositionLot } from './metrics'
 import type { Coin, CryptoTransaction } from './types'
 
@@ -50,11 +50,21 @@ export const assertCoinTimeline = (
   }
 }
 
+/** Un resultado de trade es el neto acreditado: sin comisión ni enlace de intercambio */
+export const assertCryptoShape = (tx: Omit<CryptoTransaction, 'id'>) => {
+  if (tx.kind !== TRADE_RESULT) return
+  if (tx.fee) throw new Error('Un resultado de trade no lleva comisión: cargá el neto.')
+  if (tx.swapId || tx.usdtSwapId) {
+    throw new Error('Un resultado de trade no puede ser parte de un intercambio.')
+  }
+}
+
 export const applyAddCryptoTransaction = (
   { transactions, coins }: CryptoPortfolioState,
   tx: CryptoTransaction,
   coin: Coin,
 ): CryptoPortfolioState => {
+  assertCryptoShape(tx)
   assertCoinTimeline(
     [...transactions.filter((t) => t.coinId === tx.coinId), tx],
     coin,
@@ -79,6 +89,7 @@ export const applyUpdateCryptoTransaction = (
     throw new Error('Los intercambios no se editan: borralo y cargalo de nuevo.')
   }
   if (previous.usdtSwapId) throw new Error(USDT_SWAP_LEG_UPDATE)
+  assertCryptoShape(tx)
 
   const updated = transactions.map((t) =>
     t.id === transactionId ? { id: transactionId, ...tx } : t,

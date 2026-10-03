@@ -155,9 +155,14 @@ export default function CryptoCoinDetail({ coinId }: CryptoCoinDetailProps) {
             secondaryClassName={pnlClass(position.realizedPnlUsd)}
           />
         </div>
+        {position.tradePnlUsd !== 0 && (
+          <p className='text-xs text-muted-foreground tabular-nums'>
+            El realizado incluye {signedUsd(position.tradePnlUsd)} de resultados de trades.
+          </p>
+        )}
         {isOpen && (
           <p className='text-xs text-muted-foreground tabular-nums'>
-            Invertido {usd(position.investedUsd)}
+            Costo {usd(position.investedUsd)}
             {position.unrealizedPnlPct !== null &&
               ` · rendimiento ${formatPercent(position.unrealizedPnlPct)}`}
           </p>

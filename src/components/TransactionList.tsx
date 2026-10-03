@@ -16,6 +16,7 @@ import { Button } from './ui/button'
 import Link from 'next/link'
 import { DolarOption } from '@/types/dolar.types'
 import { formatCurrency } from '@/lib/locale-amount'
+import { operationLabel } from '@/lib/operation-label'
 import { cn } from '@/lib/utils'
 import { Stat, pnlClass } from './Stat'
 import EditTransactionDialog from './EditTransactionDialog'
@@ -113,7 +114,7 @@ export default function TransactionList() {
             <Stat
               label='Valor actual'
               value={`$${formatCurrency(totals.marketValuePesos)}`}
-              secondaryLabel='Invertido'
+              secondaryLabel='Costo'
               secondaryValue={`$${formatCurrency(totals.investedPesos)}`}
             />
             <Stat
@@ -125,6 +126,11 @@ export default function TransactionList() {
               secondaryClassName={pnlClass(totals.realizedProfit)}
             />
           </div>
+          {totals.tradeProfit !== 0 && (
+            <p className='text-xs text-muted-foreground tabular-nums'>
+              El realizado incluye ${formatCurrency(totals.tradeProfit)} de resultados de trades.
+            </p>
+          )}
         </div>
       )}
 
@@ -180,7 +186,7 @@ export default function TransactionList() {
                 <Stat
                   label='Valor actual'
                   value={`$${formatCurrency(data.marketValuePesos)}`}
-                  secondaryLabel='Invertido'
+                  secondaryLabel='Costo'
                   secondaryValue={`$${formatCurrency(data.investedPesos)}`}
                 />
                 <Stat
@@ -192,6 +198,11 @@ export default function TransactionList() {
                   secondaryClassName={pnlClass(data.realizedProfit)}
                 />
               </div>
+            )}
+            {data && data.tradeProfit !== 0 && (
+              <p className='text-xs text-muted-foreground tabular-nums'>
+                El realizado incluye ${formatCurrency(data.tradeProfit)} de resultados de trades.
+              </p>
             )}
 
             {/* Tabla de transacciones */}
@@ -210,74 +221,80 @@ export default function TransactionList() {
                   </tr>
                 </thead>
                 <tbody className='divide-y tabular-nums'>
-                  {sortedTxs.map((tx) => (
-                    <tr key={tx.id} className='transition-colors hover:bg-muted/40'>
-                      <td className='whitespace-nowrap px-4 py-3 text-muted-foreground'>
-                        {new Date(tx.date).toLocaleDateString('es-AR')}
-                      </td>
-                      <td className='px-4 py-3'>
-                        <span
-                          className={cn(
-                            'text-xs font-medium',
-                            tx.type === 'BUY'
-                              ? 'text-emerald-600 dark:text-emerald-400'
-                              : 'text-amber-600 dark:text-amber-400',
-                          )}
-                        >
-                          {tx.type === 'BUY' ? 'Compra' : 'Venta'}
-                        </span>
-                        {tx.usdtSwapId && (
-                          <span className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground'>
-                            <ArrowLeftRight className='size-3' aria-hidden />
-                            {tx.type === 'BUY' ? 'desde' : 'por'}{' '}
-                            {usdtSwaps.cryptoSide(tx.usdtSwapId) ?? 'cripto'}
+                  {sortedTxs.map((tx) => {
+                    const operation = operationLabel(tx)
+                    return (
+                      <tr key={tx.id} className='transition-colors hover:bg-muted/40'>
+                        <td className='whitespace-nowrap px-4 py-3 text-muted-foreground'>
+                          {new Date(tx.date).toLocaleDateString('es-AR')}
+                        </td>
+                        <td className='px-4 py-3'>
+                          <span
+                            className={cn(
+                              'text-xs font-medium',
+                              operation.positive
+                                ? 'text-emerald-600 dark:text-emerald-400'
+                                : 'text-amber-600 dark:text-amber-400',
+                            )}
+                          >
+                            {operation.label}
                           </span>
-                        )}
-                      </td>
-                      <td className='px-4 py-3 text-right'>
-                        ${formatCurrency(tx.pesosAmount)}
-                      </td>
-                      <td className='px-4 py-3 text-right font-medium'>
-                        {formatCurrency(tx.dollarsAmount)}
-                      </td>
-                      <td className='px-4 py-3 text-right text-muted-foreground'>
-                        ${formatCurrency(tx.pesosAmount / tx.dollarsAmount)}
-                      </td>
-                      <td className='px-2 py-1'>
-                        <div className='flex justify-end'>
-                          {/* Un intercambio USDT se edita como unidad: se borra y se vuelve a cargar */}
-                          {!tx.usdtSwapId && <EditTransactionDialog tx={tx} />}
-                          <Popover>
-                            <PopoverTrigger asChild>
-                              <Button
-                                variant='ghost'
-                                size='icon'
-                                className='size-8 text-muted-foreground hover:text-destructive'
-                                aria-label='Eliminar transacción'
-                              >
-                                <Trash2 />
-                              </Button>
-                            </PopoverTrigger>
-                            <PopoverContent align='end' className='w-56 p-3'>
-                              <p className='mb-3 text-sm'>
-                                {tx.usdtSwapId
-                                  ? '¿Eliminar el intercambio completo (USDT y cripto)?'
-                                  : '¿Eliminar esta transacción?'}
-                              </p>
-                              <Button
-                                className='w-full'
-                                variant='destructive'
-                                size='sm'
-                                onClick={() => handleDeleteTransaction(tx)}
-                              >
-                                Confirmar
-                              </Button>
-                            </PopoverContent>
-                          </Popover>
-                        </div>
-                      </td>
-                    </tr>
-                  ))}
+                          {tx.note && (
+                            <span className='block text-xs text-muted-foreground'>{tx.note}</span>
+                          )}
+                          {tx.usdtSwapId && (
+                            <span className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground'>
+                              <ArrowLeftRight className='size-3' aria-hidden />
+                              {tx.type === 'BUY' ? 'desde' : 'por'}{' '}
+                              {usdtSwaps.cryptoSide(tx.usdtSwapId) ?? 'cripto'}
+                            </span>
+                          )}
+                        </td>
+                        <td className='px-4 py-3 text-right'>
+                          ${formatCurrency(tx.pesosAmount)}
+                        </td>
+                        <td className='px-4 py-3 text-right font-medium'>
+                          {formatCurrency(tx.dollarsAmount)}
+                        </td>
+                        <td className='px-4 py-3 text-right text-muted-foreground'>
+                          ${formatCurrency(tx.pesosAmount / tx.dollarsAmount)}
+                        </td>
+                        <td className='px-2 py-1'>
+                          <div className='flex justify-end'>
+                            {/* Un intercambio USDT se edita como unidad: se borra y se vuelve a cargar */}
+                            {!tx.usdtSwapId && <EditTransactionDialog tx={tx} />}
+                            <Popover>
+                              <PopoverTrigger asChild>
+                                <Button
+                                  variant='ghost'
+                                  size='icon'
+                                  className='size-8 text-muted-foreground hover:text-destructive'
+                                  aria-label='Eliminar transacción'
+                                >
+                                  <Trash2 />
+                                </Button>
+                              </PopoverTrigger>
+                              <PopoverContent align='end' className='w-56 p-3'>
+                                <p className='mb-3 text-sm'>
+                                  {tx.usdtSwapId
+                                    ? '¿Eliminar el intercambio completo (USDT y cripto)?'
+                                    : '¿Eliminar esta transacción?'}
+                                </p>
+                                <Button
+                                  className='w-full'
+                                  variant='destructive'
+                                  size='sm'
+                                  onClick={() => handleDeleteTransaction(tx)}
+                                >
+                                  Confirmar
+                                </Button>
+                              </PopoverContent>
+                            </Popover>
+                          </div>
+                        </td>
+                      </tr>
+                    )
+                  })}
                 </tbody>
               </table>
             </div>

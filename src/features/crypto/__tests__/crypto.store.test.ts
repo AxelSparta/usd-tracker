@@ -12,7 +12,8 @@ const add = (type: TransactionType, quantity: number, iso: string) =>
     .addTransaction({ coinId: 'bitcoin', type, quantity, priceUsd: 50_000, date: day(iso) }, btc)
 
 describe('useCryptoStore', () => {
-  beforeEach(() => useCryptoStore.setState({ transactions: [], coins: {} }))
+  // `ready`: sin esto las acciones esperan a que se resuelva la sesión (`whenReady`)
+  beforeEach(() => useCryptoStore.setState({ transactions: [], coins: {}, status: 'ready' }))
 
   it('guarda la operación y los metadatos de la moneda', () => {
     add(TransactionType.BUY, 1, '2026-01-01')
@@ -212,6 +213,16 @@ describe('migrateCryptoStorage', () => {
       coins: { bitcoin: btc, ethereum: { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', image: null } },
     }
     expect(migrateCryptoStorage(v2)).toEqual(v2)
+  })
+
+  it('v3 → v4 conserva las patas de intercambios USDT', () => {
+    const v3 = {
+      transactions: [
+        { id: 'c', coinId: 'bitcoin', type: 'BUY', quantity: 0.01, priceUsd: 60_000, date: '2026-09-20T03:00:00.000Z', usdtSwapId: 'u' },
+      ],
+      coins: { bitcoin: btc },
+    }
+    expect(migrateCryptoStorage(v3)).toEqual(v3)
   })
 
   it('estado vacío o ausente', () => {

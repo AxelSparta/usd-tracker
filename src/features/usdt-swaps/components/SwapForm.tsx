@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from 'react'
 import { useRouter } from 'next/navigation'
 import { useForm, useWatch } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { format, isToday } from 'date-fns'
+import { format } from 'date-fns'
 import { CalendarIcon, Loader2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
@@ -31,6 +31,7 @@ import { fetchCoinPrices } from '@/features/crypto/api'
 import CoinCombobox from '@/features/crypto/components/CoinCombobox'
 import { useCryptoStore } from '@/features/crypto/crypto.store'
 import { useCryptoPricesStore } from '@/features/crypto/prices.store'
+import { useDolarCriptoRate } from '@/hooks/use-dolar-cripto-rate'
 import type { Coin } from '@/features/crypto/types'
 import {
   formatAmountArInput,
@@ -39,16 +40,11 @@ import {
   numberToArInput,
   parseLocaleAmount,
 } from '@/lib/locale-amount'
-import { useDolarStore } from '@/store/dolar.store'
-import { useTransactionsData } from '@/store/transaction.store'
-import { DolarOption } from '@/types/dolar.types'
 import { addUsdtSwap } from '../actions'
 import { TETHER_COIN_ID, usdtMoved, type UsdtSwapDirection, type UsdtSwapInput } from '../operations'
-import { fetchCriptoHistory, rateOn, type DolarHistoryPoint } from '../rates'
+import { USDT_COIN, useUsdtPinned } from '../usdt-option'
 import { swapFormSchema, USDT_OPTION_ID, type SwapFormInput } from '../validations'
 
-/** Los USDT del dólar cripto, como opción del selector de monedas */
-const USDT_COIN: Coin = { id: USDT_OPTION_ID, symbol: 'USDT', name: 'Dólar cripto', image: null }
 
 type SwapFormProps = {
   /** `usdt`: abre con los USDT del dólar cripto como lo que se entrega (atajo desde `/dolar`) */
@@ -65,14 +61,11 @@ export default function SwapForm({ defaultFrom }: SwapFormProps) {
   const router = useRouter()
   const addSwap = useCryptoStore((s) => s.addSwap)
   const hasTether = useCryptoStore((s) => Boolean(s.coins[TETHER_COIN_ID]))
-  const usdtBalance = useTransactionsData()[DolarOption.Cripto]?.totalUsd ?? 0
-  const criptoQuote = useDolarStore((s) => s.allDolarData?.[DolarOption.Cripto])
+  const pinned = useUsdtPinned()
 
   const [fromCoin, setFromCoin] = useState<Coin | null>(defaultFrom === 'usdt' ? USDT_COIN : null)
   const [toCoin, setToCoin] = useState<Coin | null>(null)
   const [loadingValue, setLoadingValue] = useState(false)
-  const [history, setHistory] = useState<DolarHistoryPoint[] | null>(null)
-  const [rateNote, setRateNote] = useState<string | null>(null)
   // Último valor autocompletado: si el usuario lo cambia a mano, no se pisa
   const autoRate = useRef<string>('')
 
@@ -101,39 +94,18 @@ export default function SwapForm({ defaultFrom }: SwapFormProps) {
   const coin = direction === 'USDT_TO_COIN' ? toCoin : direction === 'COIN_TO_USDT' ? fromCoin : null
 
   // Cotización del dólar cripto del día: compra si se entregan USDT, venta si se reciben
+  const { rate, note: rateNote } = useDolarCriptoRate(
+    direction ? (direction === 'USDT_TO_COIN' ? 'buy' : 'sell') : null,
+    date,
+  )
   useEffect(() => {
-    if (!direction || !date) return
+    if (!direction) return
     const current = form.getValues('arsRate')
     if (current && current !== autoRate.current) return
-
-    const apply = (rate: number | null, note: string | null) => {
-      const text = rate ? numberToArInput(rate) : ''
-      autoRate.current = text
-      form.setValue('arsRate', text, { shouldValidate: Boolean(text) })
-      setRateNote(note)
-    }
-    const side = direction === 'USDT_TO_COIN' ? 'compra' : 'venta'
-    if (isToday(date) && criptoQuote) {
-      apply(criptoQuote[side], `Dólar cripto ${side} de hoy.`)
-      return
-    }
-    if (!history) {
-      let cancelled = false
-      fetchCriptoHistory()
-        .then((points) => !cancelled && setHistory(points))
-        .catch(() => !cancelled && setRateNote('No se pudo obtener el histórico: ingresala a mano.'))
-      return () => {
-        cancelled = true
-      }
-    }
-    const found = rateOn(history, date, direction)
-    if (!found) {
-      apply(null, 'No hay cotización para esa fecha: ingresala a mano.')
-      return
-    }
-    const day = format(new Date(`${found.date}T12:00:00`), 'dd/MM/yyyy')
-    apply(found.rate, `Dólar cripto ${side} del ${day}.`)
-  }, [direction, date, history, criptoQuote, form])
+    const text = rate ? numberToArInput(rate) : ''
+    autoRate.current = text
+    form.setValue('arsRate', text, { shouldValidate: Boolean(text) })
+  }, [direction, rate, form])
 
   /** Cripto ↔ cripto: valor = cantidad entregada × precio actual de la moneda entregada */
   const fillCurrentValue = async (target: Coin) => {
@@ -216,10 +188,6 @@ export default function SwapForm({ defaultFrom }: SwapFormProps) {
     if (!(value > 0)) return null
     return `Venta de ${fromCoin.symbol} a US$${formatPrice(value / from)} · compra de ${toCoin.symbol} a US$${formatPrice(value / to)}`
   })()
-
-  const pinned = [
-    { coin: USDT_COIN, heading: 'Tus USDT', hint: `Saldo ${formatCurrency(usdtBalance)}` },
-  ]
 
   const amountInput = (name: AmountFieldName, label: string, description?: React.ReactNode) => (
     <FormField

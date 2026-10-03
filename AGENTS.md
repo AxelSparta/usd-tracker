@@ -35,6 +35,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - comisiones: `toPositionLot` (`metrics.ts`) las aplica al lote del motor y al saldo de la línea temporal (en USD ajustan el monto; en la moneda, las unidades)
   - intercambios cripto ↔ cripto (`addSwap`): venta + compra enlazadas por `swapId`, precio de cada pata = valor USD / cantidad; se borran juntas y no se editan
 - **Intercambios USDT ↔ cripto** (Fase 7a, `src/features/usdt-swaps/`): el grupo `cripto` del módulo Dólar **es** el saldo de USDT (no se usa `tether` del módulo Cripto, que se rechaza). Un intercambio son dos operaciones enlazadas por `usdtSwapId`: una del dólar (grupo `cripto`, pesos = USDT × cotización del dólar cripto: compra si se entregan, venta si se reciben, autocompletada con DolarAPI o `/api/history/dolar`) y una del módulo cripto (precio = USDT / cantidad). Comisión en USDT (se integra al monto de la pata dólar) o en la moneda. Se borran juntas (`applyRemoveUsdtSwap` revalida las dos líneas) y ninguna pata se edita ni se borra sola (las funciones de cada módulo lo rechazan). Formulario único `SwapForm` (cripto ↔ cripto o con "USDT · Dólar cripto", opción fija del `CoinCombobox`) en la pestaña Intercambio de `/cripto/nueva`; atajo "Intercambiar USDT" en `/dolar` (`?modo=intercambio&desde=usdt`).
+- **Resultados de trades** (Fase 7b): operación con `kind: 'TRADE_RESULT'` y `note?` (futuros, margin, bots) que reusa `type` (`BUY` = ganancia, `SELL` = pérdida). En USDT va al grupo `cripto` del dólar (`TradeResultForm`, pesos = USDT × dólar cripto del día); en otra moneda, al módulo cripto (`CryptoTradeResultForm`, precio del día). Se guarda el valor de mercado; el lote del motor (`toDolarLot`, `toPositionLot`) hace que la ganancia entre a ese costo y lo **realice** (`PositionLot.realizedProfit`) y que la pérdida salga por 0 (realiza `−costo promedio × cantidad`). `tradeProfit` / `tradePnlUsd` informan esa parte del realizado. Sin comisión ni enlaces de intercambio (`assertDolarShape`, `assertCryptoShape`); se editan con su propio form. Alta en la pestaña "Resultado de trade" de `/cripto/nueva` (`?modo=resultado`, `NewTradeResult`). El texto de cada fila sale de `operationLabel` (`src/lib/operation-label.ts`). En la UI, el `invested` del motor se rotula **"Costo"** (es el costo base de la posición, no lo aportado).
   - detalle por moneda en `/cripto/[coinId]` (`CryptoCoinDetail`); `CryptoTransactionList` acepta `coinId` para filtrar
   - buscador de monedas (`CoinCombobox`, shadcn `command` con `shouldFilter={false}`) contra `/api/crypto/search`
   - posiciones y resumen **derivados** con `useCryptoPortfolio` (no se persisten): costo promedio, PnL realizado/no realizado en USD; valor ARS = valor USD × dólar cripto **compra**
@@ -80,7 +81,8 @@ prisma.config.ts                # Prisma 7: schema, migraciones y URL (DIRECT_UR
 scripts/vercel-build.mjs        # build de Vercel: `prisma migrate deploy` solo en producción + `next build`
 e2e/                            # Playwright: fixtures.ts (APIs externas simuladas, datos sembrados), cloud.ts
                                 #   (usuario de prueba de Clerk, limpieza en Neon) + specs (`*.cloud.spec.ts` = con sesión)
-playwright.config.ts            # puerto 3100, `next dev` directo; proyectos `local` y `cloud`; carga `.env`
+playwright.config.ts            # puerto 3100 (`E2E_PORT` para reusar un server abierto), `next dev` directo;
+                                #   proyectos `local` y `cloud`; carga `.env`
 src/
 ├── app/
 │   ├── layout.tsx              # server: metadata, fuente, ClerkProvider, SidebarProvider + AppSidebar, <Toaster>
@@ -100,11 +102,12 @@ src/
 │   ├── not-found.tsx           # 404
 │   └── globals.css
 ├── components/                 # piezas de la app (AppSidebar, UserMenu, ThemeSwitch, Stat, SyncGate,
-│   │                           #   DolarPrice, TransactionList, TransactionForm,
+│   │                           #   DolarPrice, TransactionList, TransactionForm, TradeResultForm (USDT),
 │   │                           #   NewTransactionForm, EditTransactionDialog)
 │   └── ui/                     # primitivos shadcn — no meter lógica de negocio aquí
 ├── hooks/                      # use-mobile (lo usa ui/sidebar), use-mounted (contenido de localStorage),
-│                               #   use-usdt-swap-links (contexto: las listas borran/describen intercambios USDT)
+│                               #   use-usdt-swap-links (contexto: las listas borran/describen intercambios USDT),
+│                               #   use-dolar-cripto-rate (cotización del dólar cripto de un día)
 ├── domain/                     # motor financiero puro (sin React ni stores) + __tests__/
 │   ├── position.ts             # computePosition: costo promedio genérico (quantity/quoteAmount)
 │   ├── metrics.ts              # dólar: computeGroupMetrics, computeTransactionsData, MarketPriceMap
@@ -122,12 +125,12 @@ src/
 │   ├── history.store.ts        # cache de sesión de los precios históricos (sin persist)
 │   ├── hooks.ts                # usePortfolioOverview, useValueHistory
 │   └── components/             # PortfolioDashboard, ValueChart, AllocationBar, AssetTable, colors
-├── features/usdt-swaps/        # intercambios USDT (dólar cripto) ↔ cripto (Fase 7a) + __tests__/
+├── features/usdt-swaps/        # USDT del dólar cripto ↔ cripto: intercambios (7a) y alta de resultados de trades (7b)
 │   ├── operations.ts           # puro (store + server): buildUsdtSwapLegs, applyAdd/RemoveUsdtSwap, assertUsdtSwapsComplete
 │   ├── validations.ts          # usdtSwapApiSchema (API) y swapFormSchema (form)
-│   ├── rates.ts                # rateOn (cotización del día o la anterior), fetchCriptoHistory
+│   ├── usdt-option.ts          # USDT_COIN y useUsdtPinned (opción fija "Dólar cripto · USDT" del CoinCombobox)
 │   ├── actions.ts, api.ts      # addUsdtSwap/removeUsdtSwap: los dos stores (`applyExternal`) con un solo request
-│   └── components/             # SwapForm (cripto ↔ cripto y USDT ↔ cripto), UsdtSwapLinksProvider
+│   └── components/             # SwapForm (cripto ↔ cripto y USDT ↔ cripto), NewTradeResult, UsdtSwapLinksProvider
 ├── features/crypto/            # módulo cripto completo + __tests__/
 │   ├── types.ts, metrics.ts, validations.ts, refresh.ts (backoff de precios)
 │   ├── api.ts                  # fetch del navegador a /api/crypto/* (precios, búsqueda, cryptoApi CRUD)
@@ -136,7 +139,8 @@ src/
 │   ├── prices.store.ts         # último precio por moneda (persist `crypto-prices-storage`, v1)
 │   ├── hooks.ts                # useCryptoPriceSync, useCryptoPortfolio
 │   └── components/             # CryptoPortfolio, CryptoCoinDetail, CryptoTransactionList,
-│                               #   CryptoTransactionForm, NewCryptoTransaction (recibe `swapForm`),
+│                               #   CryptoTransactionForm, CryptoTradeResultForm,
+│                               #   NewCryptoTransaction (recibe `swapForm` y `tradeResultForm`),
 │                               #   EditCryptoTransactionDialog, CoinCombobox, CoinIcon
 ├── instrumentation.ts          # onRequestError → logError (errores del server fuera de /api/*)
 ├── proxy.ts                    # clerkMiddleware (Next 16: ex middleware.ts)
@@ -155,8 +159,10 @@ src/
 │   ├── http.ts                 # requestJson + ApiRequestError (fetch a /api/* con el mensaje del server)
 │   ├── synced-store.ts         # origen local/nube de un store: createSync (commit optimista), localData
 │   ├── backoff.ts              # exponentialBackoff (lo usan dólar y cripto)
+│   ├── operation-label.ts      # texto de cada fila: Compra / Venta / Ganancia o Pérdida de trade
 │   └── utils.ts                # cn()
-├── services/                   # dolarApi.ts (DolarAPI), transactionsApi.ts (/api/dolar/transactions)
+├── services/                   # dolarApi.ts (DolarAPI), transactionsApi.ts (/api/dolar/transactions),
+│                               #   dolarHistory.ts (rateOn: cotización del día o la anterior, fetchCriptoHistory)
 ├── store/
 │   ├── transaction.store.ts    # transacciones + persist v1 + useTransactionsData; cálculos en domain/
 │   ├── dolar.store.ts          # allDolarData + persist; selectMarketPrices → MarketPriceMap
@@ -173,11 +179,11 @@ src/
 
 ## Comportamiento importante del estado
 
-- **Persistencia:** Zustand `persist` con claves `dolar-storage`, `transactions-storage` (v2: `usdtSwapId` opcional), `crypto-storage` (v3: `fee`/`swapId`/`usdtSwapId` opcionales, `migrateCryptoStorage`), `crypto-prices-storage` y `sync-storage`, el resto en `version: 1`, todas con `partialize` (solo datos, nunca métricas derivadas). Ojo: si se sube `version` sin `migrate`, Zustand **descarta** lo guardado. `migrateTransactionsStorage` (v0 → v1, v1 → v2) y `migrateCryptoStorage` tienen tests con snapshots reales. Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
+- **Persistencia:** Zustand `persist` con claves `dolar-storage`, `transactions-storage` (v3: `usdtSwapId`, `kind`, `note` opcionales), `crypto-storage` (v4: `fee`/`swapId`/`usdtSwapId`/`kind`/`note` opcionales, `migrateCryptoStorage`), `crypto-prices-storage` y `sync-storage`, el resto en `version: 1`, todas con `partialize` (solo datos, nunca métricas derivadas). Ojo: si se sube `version` sin `migrate`, Zustand **descarta** lo guardado. `migrateTransactionsStorage` y `migrateCryptoStorage` tienen tests con snapshots reales de cada versión. Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
 - **Forma de los datos:** `transactions: Partial<Record<DolarOption, Transaction[]>>`, cada grupo ordenado con `sortTxs`. Los montos se guardan como `number`; la fecha, como `Date` serializada a string por `persist` (usar `new Date(tx.date)` al leer).
 - **Métricas derivadas:** no hay suscripción entre stores. `useTransactionsData` (dólar) y `useCryptoPortfolio` (cripto) recalculan con `useMemo` cuando cambian las transacciones o los precios. No volver a guardar métricas en el estado.
 - **Cálculos:** el algoritmo vive en `src/domain/position.ts` (`computePosition`, con `dust` según la unidad: 0,0001 para USD, 1e-9 por defecto para cripto) y cada módulo lo adapta. Dólar (`src/domain/metrics.ts`): costo promedio ponderado con compras; cada venta suma `(precio venta − costo promedio) × USD` a la ganancia realizada y reduce la posición; la no realizada usa `MarketPrice.sell` **del mismo tipo de dólar del grupo**. Los precios se inyectan: `useTransactionsData` arma el `MarketPriceMap` con `selectMarketPrices({ allDolarData })`. Cualquier cambio en la matemática va acompañado de tests en `src/domain/__tests__/`.
-- **Modo remoto** (`src/lib/synced-store.ts`): cada store tiene `source` (`local` | `cloud`), `status`, `pendingWrites` (escrituras en curso, para "Guardando…") (`pending` hasta que se resuelve la sesión, `loading`, `ready`, `error`). `CloudSync` llama a `connectCloud()` con sesión (guarda lo local en `localSnapshot` y carga `GET /api/...`) y a `disconnectCloud()` sin sesión (vuelve lo local); si Clerk no carga en 4 s, pasa a local. `partialize` (`persistedTransactions`, `persistedCrypto`) **siempre** persiste lo local: la nube nunca se escribe en `localStorage`. Las acciones son `async`: validan con las funciones puras, aplican el estado al instante y, en la nube, confirman con la API; si falla, revierten (o recargan si hubo otra escritura en el medio) y relanzan el error para el toast. Los componentes **deben** hacer `await` de las acciones. Las vistas de datos se muestran con `SyncGate` (skeleton mientras `pending`/`loading`, reintentar si `error`), que además evita el mismatch de hidratación. `refreshCloud()` recarga sin pasar por `loading` (lo usa la importación). Las reglas de negocio (alta/edición/borrado) viven en funciones puras (`domain/transactions.ts`, `features/crypto/operations.ts`, `features/usdt-swaps/operations.ts`) que comparten store y server: cambiarlas en un solo lugar. Para escribir en los dos stores a la vez, cada uno expone `applyExternal(next, remote)` (un `commit` con el estado ya validado); `features/usdt-swaps/actions.ts` comparte un único request entre los dos.
+- **Modo remoto** (`src/lib/synced-store.ts`): cada store tiene `source` (`local` | `cloud`), `status`, `pendingWrites` (escrituras en curso, para "Guardando…") (`pending` hasta que se resuelve la sesión, `loading`, `ready`, `error`). `CloudSync` llama a `connectCloud()` con sesión (guarda lo local en `localSnapshot` y carga `GET /api/...`) y a `disconnectCloud()` sin sesión (vuelve lo local); si Clerk no carga en 4 s, pasa a local. `partialize` (`persistedTransactions`, `persistedCrypto`) **siempre** persiste lo local: la nube nunca se escribe en `localStorage`. Las acciones son `async`: validan con las funciones puras, aplican el estado al instante y, en la nube, confirman con la API; si falla, revierten (o recargan si hubo otra escritura en el medio) y relanzan el error para el toast. Los componentes **deben** hacer `await` de las acciones. Antes de validar, cada acción espera `whenReady` (`untilReady`): mientras el store está `pending` (sin saber si hay sesión) o `loading` (sin los datos de la nube) no se escribe, para que una operación cargada apenas recargada la página no vaya a lo local ni se valide contra un estado vacío. Las vistas de datos se muestran con `SyncGate` (skeleton mientras `pending`/`loading`, reintentar si `error`), que además evita el mismatch de hidratación. `refreshCloud()` recarga sin pasar por `loading` (lo usa la importación). Las reglas de negocio (alta/edición/borrado) viven en funciones puras (`domain/transactions.ts`, `features/crypto/operations.ts`, `features/usdt-swaps/operations.ts`) que comparten store y server: cambiarlas en un solo lugar. Para escribir en los dos stores a la vez, cada uno expone `applyExternal(next, remote)` (un `commit` con el estado ya validado); `features/usdt-swaps/actions.ts` comparte un único request entre los dos.
 - **Base de datos:** cambios de forma en `prisma/schema.prisma` van con una migración nueva (`pnpm db:migrate`) en el mismo PR; nunca editar migraciones ya aplicadas.
 
 ## Convenciones de desarrollo

@@ -2,7 +2,7 @@ import { clerk, clerkSetup } from '@clerk/testing/playwright'
 import type { Page } from '@playwright/test'
 import { E2E_EMAIL, ensureTestUser, hasCloudEnv, resetCloudData } from './cloud'
 import { expect, seedLocalData, test } from './fixtures'
-import { buyUsdt, swapUsdtToBtc } from './usdt'
+import { buyUsdt, settled, swapUsdtToBtc } from './usdt'
 
 // Flujos con sesión: los datos viven en Neon. Comparten un usuario de prueba, así que van en serie.
 
@@ -34,6 +34,7 @@ const addDolarBuy = async (page: Page) => {
   await page.getByRole('button', { name: 'Guardar transacción' }).click()
   await expect(page).toHaveURL(/\/dolar$/)
   await expect(page.getByText('Transacción creada con éxito.')).toBeVisible()
+  await settled(page)
 }
 
 const buyRow = (page: Page) => page.getByRole('row').filter({ hasText: 'Compra' })
@@ -108,7 +109,25 @@ test('con sesión, un intercambio USDT → BTC se guarda en la nube y se borra c
   await usdtLeg.getByRole('button', { name: 'Eliminar transacción' }).click()
   await page.getByRole('button', { name: 'Confirmar' }).click()
   await expect(page.getByText('Intercambio eliminado.')).toBeVisible()
+  await settled(page)
   await page.reload()
   await expect(page.getByRole('row').filter({ hasText: 'Compra' })).toContainText('1.000,00')
   await expect(usdtLeg).toHaveCount(0)
+})
+
+test('con sesión, un resultado de trade en USDT se guarda en la nube con su nota', async ({ page }) => {
+  await signIn(page)
+  await expect(page.getByRole('button', { name: 'Sincronizado' })).toBeVisible()
+  await page.goto('/cripto/nueva?modo=resultado')
+  await page.getByRole('combobox', { name: 'Moneda en la que se acreditó' }).click()
+  await page.getByRole('option', { name: /Dólar cripto/ }).click()
+  await page.getByLabel('Cantidad de USDT').fill('25')
+  await expect(page.getByLabel('Cotización del dólar cripto (ARS)')).toHaveValue('1.520')
+  await page.getByLabel('Nota (opcional)').fill('grid bot')
+  await page.getByRole('button', { name: 'Guardar resultado' }).click()
+  await expect(page.getByText('Resultado registrado.')).toBeVisible()
+  await settled(page)
+
+  await page.reload()
+  await expect(page.getByRole('row').filter({ hasText: 'Ganancia de trade' })).toContainText('grid bot')
 })

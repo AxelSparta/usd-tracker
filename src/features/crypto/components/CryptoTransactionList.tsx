@@ -11,6 +11,7 @@ import {
 } from '@/components/ui/popover'
 import { useUsdtSwapLinks } from '@/hooks/use-usdt-swap-links'
 import { formatCurrency, formatPrice, formatQuantity } from '@/lib/locale-amount'
+import { operationLabel } from '@/lib/operation-label'
 import { cn } from '@/lib/utils'
 import { TransactionType } from '@/types/transaction.types'
 import { useCryptoStore } from '../crypto.store'
@@ -83,6 +84,7 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
             {sorted.map((tx) => {
               const coin = coins[tx.coinId]
               const isBuy = tx.type === TransactionType.BUY
+              const operation = operationLabel(tx)
               const symbol = coin?.symbol ?? tx.coinId
               return (
                 <tr key={tx.id} className='transition-colors hover:bg-muted/40'>
@@ -102,13 +104,16 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
                     <span
                       className={cn(
                         'text-xs font-medium',
-                        isBuy
+                        operation.positive
                           ? 'text-emerald-600 dark:text-emerald-400'
                           : 'text-amber-600 dark:text-amber-400',
                       )}
                     >
-                      {isBuy ? 'Compra' : 'Venta'}
+                      {operation.label}
                     </span>
+                    {tx.note && (
+                      <span className='block text-xs text-muted-foreground'>{tx.note}</span>
+                    )}
                     {tx.swapId && (
                       <span className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground'>
                         <ArrowLeftRight className='size-3' aria-hidden />

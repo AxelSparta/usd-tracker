@@ -23,6 +23,7 @@ cuenta y los ves en cualquier dispositivo).
 - **Cripto** (`/cripto`)
   - Buscador de monedas, precio autocompletado, comisiones en USD o en la moneda
   - Intercambios cripto ↔ cripto (venta + compra enlazadas) y de los USDT del dólar cripto por cualquier cripto (y al revés)
+  - Resultados de trades (futuros, margin, bots) en USDT o en cualquier moneda, dentro del PnL realizado
   - Posiciones con costo promedio y PnL en USD y su valor en pesos con el dólar cripto
   - Detalle por moneda (`/cripto/[coinId]`)
 - **Cuenta** (Clerk)

@@ -64,6 +64,18 @@ describe('migrateTransactionsStorage', () => {
     }
     expect(migrateTransactionsStorage(v1, 1)).toEqual(v1)
   })
+
+  it('v2 → v3 conserva los intercambios USDT (kind y note son opcionales)', () => {
+    const v2 = {
+      transactions: {
+        cripto: [
+          { id: 'a', type: 'BUY', pesosAmount: 1_450_000, dollarsAmount: 1000, date: '2026-09-15T03:00:00.000Z', dolarOption: 'cripto' },
+          { id: 'b', type: 'SELL', pesosAmount: 900_000, dollarsAmount: 600, date: '2026-09-20T03:00:00.000Z', dolarOption: 'cripto', usdtSwapId: 'u' },
+        ],
+      },
+    }
+    expect(migrateTransactionsStorage(v2, 2)).toEqual(v2)
+  })
 })
 
 const day = (iso: string) => new Date(`${iso}T00:00:00`)
@@ -74,7 +86,8 @@ const base = {
 }
 
 describe('updateTransaction', () => {
-  beforeEach(() => useTransactionStore.setState({ transactions: {} }))
+  // `ready`: sin esto las acciones esperan a que se resuelva la sesión (`whenReady`)
+  beforeEach(() => useTransactionStore.setState({ transactions: {}, status: 'ready' }))
 
   const add = (type: TransactionType, iso: string, extra = {}) =>
     useTransactionStore

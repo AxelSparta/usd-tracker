@@ -1,6 +1,6 @@
 import { z } from 'zod'
-import { groupTransactions, validateAllGroups } from '@/domain/transactions'
-import { validateCryptoTimelines } from '@/features/crypto/operations'
+import { assertDolarShape, groupTransactions, validateAllGroups } from '@/domain/transactions'
+import { assertCryptoShape, validateCryptoTimelines } from '@/features/crypto/operations'
 import type { Coin } from '@/features/crypto/types'
 import {
   coinApiSchema,
@@ -73,6 +73,11 @@ export const importLocalData = (userId: string, input: ImportInput) =>
     const coins: Record<string, Coin> = { ...input.crypto.coins, ...existingCrypto.coins }
 
     // Juntar dos líneas temporales válidas da otra válida, pero el server no confía en el cliente
+    // Resultados de trades: en el dólar cripto, sin comisión ni enlaces de intercambio
+    applyOrReject(() => {
+      newDolar.forEach(assertDolarShape)
+      newCrypto.forEach(assertCryptoShape)
+    })
     // Cada intercambio USDT necesita sus dos patas (una sola dejaría un saldo sin contraparte)
     applyOrReject(() =>
       assertUsdtSwapsComplete(

@@ -23,6 +23,12 @@ enum FeeCurrency {
   COIN
 }
 
+/// Variante de operación; null = compra/venta normal
+enum OperationKind {
+  /// Resultado de un trade acreditado en la moneda (BUY = ganancia, SELL = pérdida)
+  TRADE_RESULT
+}
+
 model User {
   /// userId de Clerk (`user_…`); la fila se crea en la primera escritura
   id                 String              @id
@@ -43,6 +49,8 @@ model DolarTransaction {
   date          DateTime
   /// Enlaza esta pata (grupo `cripto` = USDT) con la del módulo cripto de un intercambio USDT ↔ cripto
   usdtSwapId    String?         @db.Uuid
+  kind          OperationKind?
+  note          String?
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
@@ -71,6 +79,8 @@ model CryptoTransaction {
   swapId      String?         @db.Uuid
   /// Enlaza esta pata con la del módulo dólar (USDT) de un intercambio USDT ↔ cripto
   usdtSwapId  String?         @db.Uuid
+  kind        OperationKind?
+  note        String?
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 

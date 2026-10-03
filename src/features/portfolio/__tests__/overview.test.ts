@@ -13,6 +13,7 @@ const dolarGroup = (overrides: Partial<TransactionsData>): TransactionsData => (
   marketValuePesos: 0,
   averageCost: 0,
   realizedProfit: 0,
+  tradeProfit: 0,
   unrealizedProfit: 0,
   ...overrides,
 })
@@ -28,6 +29,7 @@ const position = (
   investedUsd: 0,
   averageCostUsd: 0,
   realizedPnlUsd: 0,
+  tradePnlUsd: 0,
   priceUsd: marketValueUsd === null ? null : 1,
   change24h: null,
   marketValueUsd,

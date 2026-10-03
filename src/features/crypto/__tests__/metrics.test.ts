@@ -126,6 +126,7 @@ describe('summarizePortfolio', () => {
       marketValueUsd: 60_000,
       unrealizedPnlUsd: 10_000,
       realizedPnlUsd: 1_000,
+      tradePnlUsd: 0,
       hasMissingPrices: false,
     })
   })
@@ -193,5 +194,44 @@ describe('toPositionLot', () => {
       quantity: 2,
       quoteAmount: 20,
     })
+  })
+})
+
+describe('resultados de trades', () => {
+  const trade = (type: TransactionType, qty: number, price: number, date: string): CryptoTransaction => ({
+    ...tx('bitcoin', type, qty, price, date),
+    kind: 'TRADE_RESULT',
+  })
+
+  it('el lote de una ganancia la realiza; el de una pérdida sale por 0', () => {
+    expect(toPositionLot(trade(TransactionType.BUY, 0.01, 60_000, '2026-01-02'))).toEqual({
+      type: 'BUY',
+      quantity: 0.01,
+      quoteAmount: 600,
+      realizedProfit: 600,
+      trade: true,
+    })
+    expect(toPositionLot(trade(TransactionType.SELL, 0.01, 60_000, '2026-01-02'))).toMatchObject({
+      quoteAmount: 0,
+      trade: true,
+    })
+  })
+
+  it('posición y resumen informan el PnL de trades dentro del realizado', () => {
+    const positions = computeCryptoPositions(
+      [
+        buy('bitcoin', 1, 50_000, '2026-01-01'),
+        trade(TransactionType.BUY, 0.1, 60_000, '2026-01-02'),
+        trade(TransactionType.SELL, 0.1, 55_000, '2026-01-03'),
+      ],
+      coins,
+      {},
+    )
+    const [btc] = positions
+    // +6.000 de la ganancia; la pérdida sale al costo promedio (56.000 / 1,1)
+    expect(btc.quantity).toBeCloseTo(1)
+    expect(btc.tradePnlUsd).toBeCloseTo(6000 - 56_000 / 11)
+    expect(btc.realizedPnlUsd).toBeCloseTo(btc.tradePnlUsd)
+    expect(summarizePortfolio(positions).tradePnlUsd).toBeCloseTo(btc.tradePnlUsd)
   })
 })

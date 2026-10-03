@@ -28,6 +28,8 @@ const cryptoRow = {
   feeCurrency: null,
   swapId: null,
   usdtSwapId: null,
+  kind: null,
+  note: null,
 }
 
 describe('mappers', () => {
@@ -41,6 +43,8 @@ describe('mappers', () => {
       pesosAmount: new Prisma.Decimal('130325.5'),
       date,
       usdtSwapId: null,
+      kind: null,
+      note: null,
     })
     expect(tx).toEqual({
       id: 'd1',
@@ -105,5 +109,21 @@ describe('mappers', () => {
     })
     expect(dolar.usdtSwapId).toBe('u1')
     expect(toCryptoTransaction({ ...cryptoRow, usdtSwapId: 'u1' }).usdtSwapId).toBe('u1')
+  })
+
+  it('ida y vuelta de un resultado de trade (kind y note); null se omite', () => {
+    const data = toDolarTransactionData({
+      type: TransactionType.BUY,
+      dollarsAmount: 50,
+      pesosAmount: 75_000,
+      date,
+      dolarOption: DolarOption.Cripto,
+      kind: 'TRADE_RESULT',
+      note: 'BTCUSDT long',
+    })
+    expect(data).toMatchObject({ kind: 'TRADE_RESULT', note: 'BTCUSDT long', usdtSwapId: null })
+    const crypto = toCryptoTransaction({ ...cryptoRow, kind: 'TRADE_RESULT', note: 'bot' })
+    expect(crypto).toMatchObject({ kind: 'TRADE_RESULT', note: 'bot' })
+    expect(toCryptoTransaction(cryptoRow)).not.toHaveProperty('kind')
   })
 })

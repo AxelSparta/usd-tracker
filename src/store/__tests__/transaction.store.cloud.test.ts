@@ -143,6 +143,31 @@ describe('escrituras en la nube', () => {
   })
 })
 
+describe('escrituras antes de que se resuelva la sesión', () => {
+  it('esperan a la nube: no van a lo local ni se validan contra un estado vacío', async () => {
+    useTransactionStore.setState({ status: 'pending' })
+    api.create.mockResolvedValue(undefined)
+    // Una venta que solo alcanza con la compra de la nube
+    const selling = store().addTransaction(input(TransactionType.SELL, 50))
+    expect(api.create).not.toHaveBeenCalled()
+
+    await store().connectCloud()
+    await selling
+    expect(api.create).toHaveBeenCalledTimes(1)
+    expect(ids()).toEqual(['cloud', expect.any(String)])
+    expect(persisted().transactions.blue?.map((t) => t.id)).toEqual(['local'])
+  })
+
+  it('sin sesión, la escritura sigue en lo local', async () => {
+    useTransactionStore.setState({ status: 'pending' })
+    const adding = store().addTransaction(input(TransactionType.BUY, 1))
+    store().disconnectCloud()
+    await adding
+    expect(api.create).not.toHaveBeenCalled()
+    expect(ids()).toEqual(['local', expect.any(String)])
+  })
+})
+
 describe('modo local', () => {
   it('no llama a la API', async () => {
     store().disconnectCloud()
