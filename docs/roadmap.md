@@ -306,19 +306,21 @@ costo promedio, PnL y su valor en pesos, con precios que se actualizan solos.
 
 **Objetivo:** pasar de "listas de transacciones" a **vista de portfolio**.
 
-- [ ] **Dashboard unificado** (en la home): valor total (ARS y USD) sumando los dos módulos,
-  cada uno con sus propias métricas; la conversión USD ↔ ARS usa el dólar cripto para cripto
-  y la cotización de cada tipo de dólar para el módulo dólar. Desglose por módulo y por activo,
-  % de allocation.
-- [ ] **Gráficos** (sugerencia: `recharts`):
-  - composición del portfolio (donut / barras de allocation),
-  - evolución temporal del valor (snapshot diario: tabla `PortfolioSnapshot`
-    en Prisma o cálculo desde transacciones + histórico de precios).
-- [ ] **Detalle por activo**: drill-down desde el dashboard a `/dolar` o `/cripto/[coinId]`.
-- [ ] **Precios en vivo**: variación 24 h de los activos en cartera (cripto ya la trae de
-  CoinGecko); estados de carga y fallback si la API cae.
-- [ ] Cotizaciones dólar destacadas (hoy `DolarPrice`) como una tarjeta más dentro
-  del dashboard, no como la pantalla principal.
+- [x] **Dashboard unificado** (en la home, `src/features/portfolio/`): valor total (ARS y USD) sumando los
+  dos módulos, cada uno con sus propias métricas (dólar en ARS, cripto en USD, con su ganancia); la
+  conversión usa el dólar cripto compra para cripto y la cotización de cada tipo de dólar para el módulo
+  dólar. Desglose por activo con % de allocation **en USD** (no depende de cotizaciones en pesos).
+- [x] **Composición**: barra apilada al 100 % (la skill dataviz desaconseja la dona para parte-de-un-todo)
+  con tooltip por segmento, máximo 6 segmentos (el resto en "Otros"), más una tabla que hace de leyenda
+  y vista accesible. Paleta categórica validada en claro y oscuro (`--chart-1…6`, `--chart-other`).
+- [ ] **Evolución temporal del valor** (sugerencia: `recharts`): snapshot diario (tabla
+  `PortfolioSnapshot` en Prisma) o cálculo desde transacciones + histórico de precios.
+- [x] **Detalle por activo**: cada fila de la tabla lleva a `/dolar` o `/cripto/[coinId]`.
+- [x] **Precios en vivo**: variación 24 h de las cripto en cartera (CoinGecko), refresco con backoff
+  también en la home (`useCryptoPriceSync`), skeleton mientras carga y aviso de monedas sin precio
+  (no suman al total).
+- [x] Cotizaciones dólar (`DolarPrice`) como una tarjeta más dentro del dashboard; sin operaciones, la
+  home sigue mostrando la presentación.
 - [ ] Extras (prioridad baja): export CSV/JSON, watchlist, refresh manual.
 
 **Criterio de salida:** el usuario ve de un vistazo cuánto tiene, dónde, cuánto

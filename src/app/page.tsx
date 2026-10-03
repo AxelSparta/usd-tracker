@@ -1,5 +1,6 @@
 import Link from 'next/link'
-import { ArrowRight, HardDrive, ListPlus, RefreshCw } from 'lucide-react'
+import { ArrowRight, Cloud, ListPlus, RefreshCw } from 'lucide-react'
+import PortfolioDashboard from '@/features/portfolio/components/PortfolioDashboard'
 import { sections } from '@/lib/sections'
 import { cn } from '@/lib/utils'
 
@@ -15,13 +16,13 @@ const steps = [
     text: 'Los precios se actualizan solos y tus métricas se recalculan al instante.',
   },
   {
-    icon: HardDrive,
-    title: 'Tus datos, en tu navegador',
-    text: 'Sin cuentas ni servidores: todo se guarda localmente en este dispositivo.',
+    icon: Cloud,
+    title: 'En tu navegador o en tu cuenta',
+    text: 'Sin sesión, todo queda en este dispositivo. Con sesión, se guarda en tu cuenta y lo ves en cualquier lado.',
   },
 ]
 
-export default function Home() {
+function Onboarding() {
   return (
     <div className='space-y-16'>
       <section className='max-w-2xl space-y-4'>
@@ -36,6 +37,29 @@ export default function Home() {
         </p>
       </section>
 
+      <section className='space-y-6'>
+        <h2 className='text-sm font-medium text-muted-foreground'>
+          Cómo funciona
+        </h2>
+        <ol className='grid gap-8 sm:grid-cols-3'>
+          {steps.map(({ icon: Icon, title, text }) => (
+            <li key={title} className='space-y-2'>
+              <Icon className='size-5 text-muted-foreground' />
+              <h3 className='font-medium'>{title}</h3>
+              <p className='text-sm text-muted-foreground'>{text}</p>
+            </li>
+          ))}
+        </ol>
+      </section>
+    </div>
+  )
+}
+
+/** Con operaciones: dashboard del portfolio; sin operaciones: presentación. Siempre, los trackers. */
+export default function Home() {
+  return (
+    <div className='space-y-16'>
+      <PortfolioDashboard onboarding={<Onboarding />} />
       <section className='space-y-4'>
         <h2 className='text-sm font-medium text-muted-foreground'>Trackers</h2>
         <ul className='grid gap-4 sm:grid-cols-2'>
@@ -83,21 +107,6 @@ export default function Home() {
             )
           })}
         </ul>
-      </section>
-
-      <section className='space-y-6'>
-        <h2 className='text-sm font-medium text-muted-foreground'>
-          Cómo funciona
-        </h2>
-        <ol className='grid gap-8 sm:grid-cols-3'>
-          {steps.map(({ icon: Icon, title, text }) => (
-            <li key={title} className='space-y-2'>
-              <Icon className='size-5 text-muted-foreground' />
-              <h3 className='font-medium'>{title}</h3>
-              <p className='text-sm text-muted-foreground'>{text}</p>
-            </li>
-          ))}
-        </ol>
       </section>
     </div>
   )
