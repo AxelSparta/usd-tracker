@@ -28,7 +28,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   `totalUsd`, `investedPesos`, `averageCost`, `marketValuePesos`, `realizedProfit`, `unrealizedProfit`; más un total (`summarizeTransactionsData`) cuando hay más de un tipo de dólar.
 - Cotizaciones DolarAPI: carga inicial y refresco cada 5 min en `providers.tsx`; recálculo automático de métricas al llegar nuevas cotizaciones.
 - Tarjetas de cotizaciones destacadas (`DolarPrice`): oficial, blue, bolsa, cripto.
-- **Dashboard del portfolio** (Fase 5, `src/features/portfolio/`): la home (`/`) muestra, si hay operaciones, valor total (ARS y USD), resumen por módulo (dólar en ARS, cripto en USD, cada uno con su ganancia), composición por activo (barra apilada al 100 % + tabla con 24 h y drill-down a `/dolar` o `/cripto/[coinId]`) y las cotizaciones; sin operaciones, la presentación. La composición se mide en **USD** (no depende de cotizaciones en pesos); los valores en ARS usan la cotización de cada tipo de dólar y el dólar cripto compra. Cálculo puro en `overview.ts` (`computePortfolioOverview`, `toAllocationSegments`).
+- **Dashboard del portfolio** (Fase 5, `src/features/portfolio/`): la home (`/`) muestra, si hay operaciones, valor total (ARS y USD), resumen por módulo (dólar en ARS, cripto en USD, cada uno con su ganancia), composición por activo (barra apilada al 100 % + tabla con 24 h y drill-down a `/dolar` o `/cripto/[coinId]`) y las cotizaciones; sin operaciones, la presentación. La composición se mide en **USD** (no depende de cotizaciones en pesos); los valores en ARS usan la cotización de cada tipo de dólar y el dólar cripto compra. Cálculo puro en `overview.ts` (`computePortfolioOverview`, `toAllocationSegments`). **Evolución del valor** (`ValueChart`, recharts): reconstruida, no guardada — por día, lo que se tenía según las transacciones × el precio de ese día (`history.ts`, `computeValueHistory`; sin precio → `null`, nunca inventado); hoy se valúa con los precios en vivo para que la serie cierre con el total. Rangos 1M/3M/6M/1A (CoinGecko público no da más de 365 días), ARS o USD (un solo eje).
 - Navegación con sidebar (shadcn `ui/sidebar`, colapsable a íconos, drawer en mobile): Inicio, Dólar (`/dolar`, `/dolar/nueva`) y Cripto (`/cripto`, `/cripto/nueva`). `/new-transaction` redirige a `/dolar/nueva` (`next.config.ts`).
 - **Módulo cripto** (`src/features/crypto/`):
   - operación = `coinId` (id de CoinGecko), `type`, `quantity`, `priceUsd`, `date`, `fee?` (`{ amount, currency: 'USD' | 'COIN' }`) y `swapId?`; metadatos de cada moneda (`Coin`) guardados aparte en el store
@@ -59,8 +59,9 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 | Feedback         | Sonner (toasts)                                                             |
 | Iconos           | `lucide-react`, `react-icons` si hace falta marca                           |
 | Fechas           | `date-fns`, `dayjs`, `react-day-picker`                                     |
-| Datos externos   | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key; [CoinGecko](https://www.coingecko.com/en/api) vía `src/server/coingecko.ts` — key opcional |
+| Datos externos   | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key; [CoinGecko](https://www.coingecko.com/en/api) vía `src/server/coingecko.ts` — key opcional; [ArgentinaDatos](https://argentinadatos.com) (histórico del dólar) vía `src/server/argentinadatos.ts` — sin key |
 | Combobox         | `cmdk` (shadcn `ui/command`)                                                |
+| Gráficos         | `recharts` 3 (+ `react-is` 19, que pide con React 19)                        |
 | Auth             | Clerk (`@clerk/nextjs` 7, `@clerk/localizations`)                           |
 | Base de datos    | Neon (Postgres) + Prisma 7 (`prisma-client`, `@prisma/adapter-neon`, `prisma.config.ts`) |
 
@@ -87,6 +88,7 @@ src/
 │   ├── api/dolar/transactions/[id]/         # CRUD del dólar (GET/POST, PATCH/DELETE)
 │   ├── api/crypto/{transactions/[id],swaps}/ # CRUD cripto + alta de intercambios
 │   ├── api/sync/import/route.ts # subida de datos locales (dólar + cripto) a la cuenta
+│   ├── api/history/{dolar,crypto}/route.ts # precios diarios del último año (ArgentinaDatos / CoinGecko, cache 6 h)
 │   ├── not-found.tsx           # 404
 │   └── globals.css
 ├── components/                 # piezas de la app (AppSidebar, UserMenu, ThemeSwitch, LocalModeBadge, Stat,
@@ -107,8 +109,10 @@ src/
 │   └── components/             # SyncBadge, LocalImportDialog, describe (textos)
 ├── features/portfolio/         # dashboard unificado (Fase 5) + __tests__/
 │   ├── overview.ts             # puro: computePortfolioOverview, toAllocationSegments
-│   ├── hooks.ts                # usePortfolioOverview (lee ambos módulos)
-│   └── components/             # PortfolioDashboard, AllocationBar, AssetTable, colors
+│   ├── history.ts              # puro: computeValueHistory, priceAt (relleno), trimLeadingGaps
+│   ├── history.store.ts        # cache de sesión de los precios históricos (sin persist)
+│   ├── hooks.ts                # usePortfolioOverview, useValueHistory
+│   └── components/             # PortfolioDashboard, ValueChart, AllocationBar, AssetTable, colors
 ├── features/crypto/            # módulo cripto completo + __tests__/
 │   ├── types.ts, metrics.ts, validations.ts, refresh.ts (backoff de precios)
 │   ├── api.ts                  # fetch del navegador a /api/crypto/* (precios, búsqueda, cryptoApi CRUD)
@@ -121,7 +125,8 @@ src/
 │                               #   EditCryptoTransactionDialog, CoinCombobox, CoinIcon
 ├── proxy.ts                    # clerkMiddleware (Next 16: ex middleware.ts)
 ├── server/                     # solo server (route handlers) + __tests__/ (API con base en memoria)
-│   ├── coingecko.ts            # cliente CoinGecko + schemas Zod de respuesta
+│   ├── coingecko.ts            # cliente CoinGecko + schemas Zod de respuesta (incluye getCoinHistory)
+│   ├── argentinadatos.ts       # cotizaciones históricas del dólar (sin API key)
 │   ├── db.ts                   # getDb (PrismaClient + PrismaNeon, lazy), withUserTransaction
 │   ├── auth.ts, errors.ts      # requireUserId; ApiError, parseBody, parseIdParam, errorResponse
 │   ├── import.ts               # importSchema + importLocalData (la nube manda, skipDuplicates)

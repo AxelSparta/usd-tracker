@@ -302,7 +302,7 @@ costo promedio, PnL y su valor en pesos, con precios que se actualizan solos.
 
 ---
 
-## Fase 5 — Portfolio Tracker
+## Fase 5 — Portfolio Tracker ✅
 
 **Objetivo:** pasar de "listas de transacciones" a **vista de portfolio**.
 
@@ -313,8 +313,13 @@ costo promedio, PnL y su valor en pesos, con precios que se actualizan solos.
 - [x] **Composición**: barra apilada al 100 % (la skill dataviz desaconseja la dona para parte-de-un-todo)
   con tooltip por segmento, máximo 6 segmentos (el resto en "Otros"), más una tabla que hace de leyenda
   y vista accesible. Paleta categórica validada en claro y oscuro (`--chart-1…6`, `--chart-other`).
-- [ ] **Evolución temporal del valor** (sugerencia: `recharts`): snapshot diario (tabla
-  `PortfolioSnapshot` en Prisma) o cálculo desde transacciones + histórico de precios.
+- [x] **Evolución temporal del valor** (`recharts`): **reconstruida** desde transacciones + histórico de
+  precios, sin snapshots. Se descartó la tabla `PortfolioSnapshot`: la historia empezaría hoy, quedaría mal
+  al editar operaciones viejas, necesitaría un cron y no serviría en modo local. Precios diarios del último
+  año: ArgentinaDatos (dólar, todos los tipos) y CoinGecko `market_chart` (el plan público no da más de 365
+  días → rangos 1M/3M/6M/1A). Hoy usa los precios en vivo (la serie cierra con el total del resumen).
+  Días sin cotización usan la anterior; un activo sin precio deja el día en `null` y el gráfico arranca
+  después, con aviso. Aclara que el valor incluye compras y ventas (no es solo rendimiento).
 - [x] **Detalle por activo**: cada fila de la tabla lleva a `/dolar` o `/cripto/[coinId]`.
 - [x] **Precios en vivo**: variación 24 h de las cripto en cartera (CoinGecko), refresco con backoff
   también en la home (`useCryptoPriceSync`), skeleton mientras carga y aviso de monedas sin precio

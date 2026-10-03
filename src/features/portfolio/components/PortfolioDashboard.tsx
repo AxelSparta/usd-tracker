@@ -10,6 +10,7 @@ import { usePortfolioOverview } from '../hooks'
 import { toAllocationSegments } from '../overview'
 import AllocationBar from './AllocationBar'
 import AssetTable from './AssetTable'
+import ValueChart from './ValueChart'
 
 const signed = (prefix: string, n: number) =>
   `${n < 0 ? '-' : n > 0 ? '+' : ''}${prefix}${formatCurrency(Math.abs(n))}`
@@ -83,6 +84,8 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
           secondaryClassName={pnlClass(crypto.pnl)}
         />
       </section>
+
+      <ValueChart />
 
       <section aria-labelledby='composicion' className='space-y-4'>
         <div className='flex flex-wrap items-baseline justify-between gap-2'>
