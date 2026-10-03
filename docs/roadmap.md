@@ -326,7 +326,8 @@ costo promedio, PnL y su valor en pesos, con precios que se actualizan solos.
   (no suman al total).
 - [x] Cotizaciones dólar (`DolarPrice`) como una tarjeta más dentro del dashboard; sin operaciones, la
   home sigue mostrando la presentación.
-- [ ] Extras (prioridad baja): export CSV/JSON, watchlist, refresh manual.
+- [ ] Extras (prioridad baja): watchlist, refresh manual.
+- [x] ~~Export CSV/JSON~~ — **descartado** (decisión del usuario, oct 2026).
 
 **Criterio de salida:** el usuario ve de un vistazo cuánto tiene, dónde, cuánto
 ganó y cómo evolucionó.
