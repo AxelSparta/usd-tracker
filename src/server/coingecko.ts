@@ -76,6 +76,35 @@ export const getPrices = async (ids: string[]): Promise<CoinPriceMap> => {
   return prices
 }
 
+const marketChartSchema = z.object({
+  prices: z.array(z.tuple([z.number(), z.number()])),
+})
+
+export type CoinHistoryPoint = { date: string; usd: number }
+
+/** Días de historia: el plan público de CoinGecko no permite más de 365 */
+export const COIN_HISTORY_DAYS = 365
+
+/**
+ * Precio USD diario del último año (`date` = `yyyy-MM-dd` en UTC). Siempre la misma
+ * consulta (365 días) para que todos los rangos compartan el cache. CoinGecko agrega un
+ * punto con el precio actual: si cae el mismo día que el de las 00:00, gana el último.
+ */
+export const getCoinHistory = async (id: string): Promise<CoinHistoryPoint[]> => {
+  const data = marketChartSchema.parse(
+    await coinGeckoFetch(
+      `/coins/${encodeURIComponent(id)}/market_chart`,
+      { vs_currency: 'usd', days: String(COIN_HISTORY_DAYS), interval: 'daily' },
+      6 * 60 * 60,
+    ),
+  )
+  const byDate = new Map<string, number>()
+  for (const [timestamp, usd] of data.prices) {
+    byDate.set(new Date(timestamp).toISOString().slice(0, 10), usd)
+  }
+  return [...byDate].map(([date, usd]) => ({ date, usd }))
+}
+
 const searchSchema = z.object({
   coins: z.array(
     z.object({
