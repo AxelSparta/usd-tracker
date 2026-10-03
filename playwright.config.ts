@@ -2,9 +2,17 @@ import { defineConfig, devices } from '@playwright/test'
 
 const PORT = 3100
 
+// Next lee `.env` solo; los tests con sesión también necesitan las claves (Clerk, Neon)
+try {
+  process.loadEnvFile('.env')
+} catch {
+  // Sin `.env` (CI): los specs `*.cloud.spec.ts` se saltean salvo que el entorno traiga las claves
+}
+
 /**
- * E2E (Playwright) en modo local: sin sesión, con las APIs externas simuladas
- * (`e2e/fixtures.ts`) para que los tests no dependan de DolarAPI ni de CoinGecko.
+ * E2E (Playwright) con las APIs externas simuladas (`e2e/fixtures.ts`) para que los tests
+ * no dependan de DolarAPI ni de CoinGecko. Proyecto `local`: sin sesión. Proyecto `cloud`:
+ * con sesión de Clerk contra una base de Neon de desarrollo (ver `e2e/cloud.ts`).
  * Puerto propio para no chocar con un `pnpm dev` abierto.
  */
 export default defineConfig({
@@ -23,7 +31,10 @@ export default defineConfig({
     timezoneId: 'America/Argentina/Buenos_Aires',
     trace: 'retain-on-failure',
   },
-  projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
+  projects: [
+    { name: 'local', testIgnore: /\.cloud\.spec\.ts$/, use: { ...devices['Desktop Chrome'] } },
+    { name: 'cloud', testMatch: /\.cloud\.spec\.ts$/, use: { ...devices['Desktop Chrome'] } },
+  ],
   webServer: {
     // `next` directo (no `pnpm exec`): así Playwright cierra el servidor al terminar
     command: `next dev --turbopack --port ${PORT}`,

@@ -32,6 +32,11 @@ interface State extends SyncFields<DolarData> {
   addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>
   updateTransaction: (transactionId: string, tx: Omit<Transaction, 'id'>) => Promise<void>
   removeTransaction: (transactionId: string) => Promise<void>
+  /**
+   * Estado ya validado por otro módulo (`features/usdt-swaps`) que escribe en los dos stores
+   * con una sola llamada a la API (`remote`, que se llama solo con sesión).
+   */
+  applyExternal: (next: DolarData, remote: () => Promise<unknown>) => Promise<void>
 
   connectCloud: () => Promise<void>
   disconnectCloud: () => void
@@ -40,7 +45,7 @@ interface State extends SyncFields<DolarData> {
   refreshCloud: () => Promise<void>
 }
 
-type DolarData = { transactions: GroupedTransactions }
+export type DolarData = { transactions: GroupedTransactions }
 
 const EMPTY: DolarData = { transactions: {} }
 
@@ -81,6 +86,8 @@ const storeApi: StateCreator<State> = (set, get) => {
       )
     },
 
+    applyExternal: sync.commit,
+
     connectCloud: sync.connectCloud,
     disconnectCloud: sync.disconnectCloud,
     retryCloud: sync.retry,
@@ -91,6 +98,7 @@ const storeApi: StateCreator<State> = (set, get) => {
 /**
  * v0 → v1: se deja de persistir `transactionsData` (ahora se deriva con
  * `useTransactionsData`). `transactions` no cambia de forma.
+ * v1 → v2: se agregó `usdtSwapId` (opcional), así que los datos v1 ya son válidos.
  */
 export const migrateTransactionsStorage = (
   persistedState: unknown,
@@ -110,7 +118,7 @@ export const persistedTransactions = (state: State): DolarData =>
 export const useTransactionStore = create<State>()(
   persist(storeApi, {
     name: 'transactions-storage',
-    version: 1,
+    version: 2,
     partialize: persistedTransactions,
     migrate: migrateTransactionsStorage,
   }),

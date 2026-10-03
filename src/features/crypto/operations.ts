@@ -1,5 +1,6 @@
 import { format } from 'date-fns'
 import { findNegativeBalance, sortTxs } from '@/domain/timeline'
+import { USDT_SWAP_LEG_REMOVE, USDT_SWAP_LEG_UPDATE } from '@/domain/transactions'
 import { TransactionType } from '@/types/transaction.types'
 import { toPositionLot } from './metrics'
 import type { Coin, CryptoTransaction } from './types'
@@ -34,7 +35,7 @@ export type SwapIds = { swapId: string; sellId: string; buyId: string }
 const formatDate = (date: Date | string) => format(new Date(date), 'dd/MM/yyyy')
 
 /** Lanza si alguna venta de la moneda supera el saldo disponible a esa fecha */
-const assertCoinTimeline = (
+export const assertCoinTimeline = (
   txs: CryptoTransaction[],
   coin: Coin | undefined,
   message: (symbol: string, date: string) => string,
@@ -77,6 +78,7 @@ export const applyUpdateCryptoTransaction = (
   if (previous.swapId) {
     throw new Error('Los intercambios no se editan: borralo y cargalo de nuevo.')
   }
+  if (previous.usdtSwapId) throw new Error(USDT_SWAP_LEG_UPDATE)
 
   const updated = transactions.map((t) =>
     t.id === transactionId ? { id: transactionId, ...tx } : t,
@@ -158,6 +160,7 @@ export const applyRemoveCryptoTransaction = (
 ): { state: CryptoPortfolioState; removedIds: string[] } | null => {
   const target = transactions.find((t) => t.id === transactionId)
   if (!target) return null
+  if (target.usdtSwapId) throw new Error(USDT_SWAP_LEG_REMOVE)
 
   const removed = transactions.filter((t) =>
     target.swapId ? t.swapId === target.swapId : t.id === transactionId,

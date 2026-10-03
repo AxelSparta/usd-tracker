@@ -41,10 +41,13 @@ model DolarTransaction {
   dollarsAmount Decimal
   pesosAmount   Decimal
   date          DateTime
+  /// Enlaza esta pata (grupo `cripto` = USDT) con la del módulo cripto de un intercambio USDT ↔ cripto
+  usdtSwapId    String?         @db.Uuid
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
   @@index([userId, dolarOption, date])
+  @@index([usdtSwapId])
 }
 
 model CryptoTransaction {
@@ -66,9 +69,12 @@ model CryptoTransaction {
   feeCurrency FeeCurrency?
   /// Enlaza la venta y la compra de un intercambio cripto ↔ cripto
   swapId      String?         @db.Uuid
+  /// Enlaza esta pata con la del módulo dólar (USDT) de un intercambio USDT ↔ cripto
+  usdtSwapId  String?         @db.Uuid
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
   @@index([userId, coinId, date])
   @@index([swapId])
+  @@index([usdtSwapId])
 }

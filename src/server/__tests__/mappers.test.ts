@@ -5,7 +5,9 @@ import {
   toCryptoTransaction,
   toCryptoTransactionData,
   toDolarTransaction,
+  toDolarTransactionData,
 } from '@/server/mappers'
+import { DolarOption } from '@/types/dolar.types'
 import { TransactionType } from '@/types/transaction.types'
 
 const date = new Date('2026-01-01T03:00:00Z')
@@ -25,6 +27,7 @@ const cryptoRow = {
   feeAmount: null,
   feeCurrency: null,
   swapId: null,
+  usdtSwapId: null,
 }
 
 describe('mappers', () => {
@@ -37,6 +40,7 @@ describe('mappers', () => {
       dollarsAmount: new Prisma.Decimal('100.25'),
       pesosAmount: new Prisma.Decimal('130325.5'),
       date,
+      usdtSwapId: null,
     })
     expect(tx).toEqual({
       id: 'd1',
@@ -48,10 +52,11 @@ describe('mappers', () => {
     })
   })
 
-  it('omite fee y swapId cuando son null (como en local)', () => {
+  it('omite fee y los enlaces de intercambio cuando son null (como en local)', () => {
     const tx = toCryptoTransaction(cryptoRow)
     expect(tx).not.toHaveProperty('fee')
     expect(tx).not.toHaveProperty('swapId')
+    expect(tx).not.toHaveProperty('usdtSwapId')
     expect(tx.quantity).toBeCloseTo(0.123456789012345678, 15)
     expect(toCoin(cryptoRow)).toEqual({ id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', image: null })
   })
@@ -79,5 +84,26 @@ describe('mappers', () => {
     })
     expect(tx.fee).toEqual({ amount: 0.001, currency: 'COIN' })
     expect(tx.swapId).toBe('s1')
+  })
+
+  it('ida y vuelta del enlace de un intercambio USDT', () => {
+    const dolarData = toDolarTransactionData({
+      type: TransactionType.SELL,
+      dollarsAmount: 600,
+      pesosAmount: 900_000,
+      date,
+      dolarOption: DolarOption.Cripto,
+      usdtSwapId: 'u1',
+    })
+    expect(dolarData.usdtSwapId).toBe('u1')
+    const dolar = toDolarTransaction({
+      ...meta,
+      ...dolarData,
+      id: 'd2',
+      dollarsAmount: new Prisma.Decimal(600),
+      pesosAmount: new Prisma.Decimal(900_000),
+    })
+    expect(dolar.usdtSwapId).toBe('u1')
+    expect(toCryptoTransaction({ ...cryptoRow, usdtSwapId: 'u1' }).usdtSwapId).toBe('u1')
   })
 })

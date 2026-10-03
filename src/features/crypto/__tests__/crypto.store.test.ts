@@ -203,6 +203,17 @@ describe('migrateCryptoStorage', () => {
     expect(migrateCryptoStorage(v1)).toEqual(v1)
   })
 
+  it('v2 → v3 conserva comisiones e intercambios (usdtSwapId es opcional)', () => {
+    const v2 = {
+      transactions: [
+        { id: 's', coinId: 'bitcoin', type: 'SELL', quantity: 0.1, priceUsd: 60_000, date: '2026-09-02T03:00:00.000Z', swapId: 'x' },
+        { id: 'b', coinId: 'ethereum', type: 'BUY', quantity: 2, priceUsd: 3000, date: '2026-09-02T03:00:00.000Z', swapId: 'x', fee: { amount: 0.01, currency: 'COIN' } },
+      ],
+      coins: { bitcoin: btc, ethereum: { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', image: null } },
+    }
+    expect(migrateCryptoStorage(v2)).toEqual(v2)
+  })
+
   it('estado vacío o ausente', () => {
     expect(migrateCryptoStorage(undefined)).toEqual({ transactions: [], coins: {} })
   })

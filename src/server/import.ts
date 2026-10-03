@@ -6,6 +6,7 @@ import {
   coinApiSchema,
   cryptoTransactionFields,
 } from '@/features/crypto/validations'
+import { assertUsdtSwapsComplete } from '@/features/usdt-swaps/operations'
 import { createTransactionApiSchema } from '@/validations/transaction'
 import { loadCryptoState } from './crypto-transactions'
 import { withUserTransaction } from './db'
@@ -27,13 +28,16 @@ const MAX_ITEMS = 5000
 
 export const importSchema = z
   .object({
-    dolar: z.array(createTransactionApiSchema).max(MAX_ITEMS),
+    dolar: z
+      .array(createTransactionApiSchema.extend({ usdtSwapId: z.uuid('Id inválido').optional() }))
+      .max(MAX_ITEMS),
     crypto: z.object({
       transactions: z
         .array(
           cryptoTransactionFields.extend({
             id: z.uuid('Id inválido'),
             swapId: z.uuid('Id inválido').optional(),
+            usdtSwapId: z.uuid('Id inválido').optional(),
           }),
         )
         .max(MAX_ITEMS),
@@ -69,6 +73,13 @@ export const importLocalData = (userId: string, input: ImportInput) =>
     const coins: Record<string, Coin> = { ...input.crypto.coins, ...existingCrypto.coins }
 
     // Juntar dos líneas temporales válidas da otra válida, pero el server no confía en el cliente
+    // Cada intercambio USDT necesita sus dos patas (una sola dejaría un saldo sin contraparte)
+    applyOrReject(() =>
+      assertUsdtSwapsComplete(
+        [...existingDolar, ...newDolar],
+        [...existingCrypto.transactions, ...newCrypto],
+      ),
+    )
     applyOrReject(() => validateAllGroups(groupTransactions([...existingDolar, ...newDolar])))
     applyOrReject(() =>
       validateCryptoTimelines({

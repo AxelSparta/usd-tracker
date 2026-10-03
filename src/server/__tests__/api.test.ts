@@ -25,6 +25,8 @@ const dolarById = await import('@/app/api/dolar/transactions/[id]/route')
 const crypto = await import('@/app/api/crypto/transactions/route')
 const cryptoById = await import('@/app/api/crypto/transactions/[id]/route')
 const swaps = await import('@/app/api/crypto/swaps/route')
+const usdtSwaps = await import('@/app/api/usdt-swaps/route')
+const usdtSwapById = await import('@/app/api/usdt-swaps/[id]/route')
 
 const json = (body: unknown) =>
   new Request('http://localhost/api', {
@@ -40,6 +42,9 @@ const ID = {
   other: '00000000-0000-4000-8000-000000000003',
   swap: '00000000-0000-4000-8000-000000000004',
   swapBuy: '00000000-0000-4000-8000-000000000005',
+  usdtSwap: '00000000-0000-4000-8000-000000000006',
+  usdtLeg: '00000000-0000-4000-8000-000000000007',
+  coinLeg: '00000000-0000-4000-8000-000000000008',
 }
 
 const dolarTx = (id: string, type: 'BUY' | 'SELL', dollarsAmount: number, date: string) => ({
@@ -247,5 +252,87 @@ describe('/api/crypto/*', () => {
     session.userId = 'user_b'
     expect((await (await crypto.GET()).json()).transactions).toEqual([])
     expect((await cryptoById.DELETE(json({}), ctx(ID.buy))).status).toBe(404)
+  })
+})
+
+describe('/api/usdt-swaps', () => {
+  const btc = { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', image: null }
+  const usdtBuy = { ...dolarTx(ID.buy, 'BUY', 1000, '2026-01-01T03:00:00.000Z'), dolarOption: 'cripto' }
+  const body = {
+    swap: {
+      direction: 'USDT_TO_COIN',
+      coin: btc,
+      quantity: 0.01,
+      usdt: 600,
+      fee: { amount: 0.6, currency: 'USDT' },
+      arsRate: 1500,
+      date: '2026-02-01T03:00:00.000Z',
+    },
+    ids: { usdtSwapId: ID.usdtSwap, dolarId: ID.usdtLeg, cryptoId: ID.coinLeg },
+  }
+
+  it('crea las dos patas en una sola escritura y las lista cada módulo', async () => {
+    await dolar.POST(json(usdtBuy))
+    const response = await usdtSwaps.POST(json(body))
+    expect(response.status).toBe(201)
+
+    const dolarList = await (await dolar.GET()).json()
+    expect(dolarList.find((t: { id: string }) => t.id === ID.usdtLeg)).toMatchObject({
+      type: 'SELL',
+      dollarsAmount: 600.6,
+      pesosAmount: 900_900,
+      dolarOption: 'cripto',
+      usdtSwapId: ID.usdtSwap,
+    })
+    const { transactions, coins } = await (await crypto.GET()).json()
+    expect(transactions).toEqual([
+      expect.objectContaining({ id: ID.coinLeg, type: 'BUY', quantity: 0.01, usdtSwapId: ID.usdtSwap }),
+    ])
+    expect(coins).toEqual({ bitcoin: btc })
+    expect(log.logEvent).toHaveBeenCalledWith('usdtSwap.created', expect.not.objectContaining({ usdt: 600 }))
+  })
+
+  it('422 sin USDT suficientes, y no escribe ninguna pata', async () => {
+    const response = await usdtSwaps.POST(json(body))
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('No tenés suficientes USDT el 01/02/2026.')
+    expect(db.dolarRows).toHaveLength(0)
+    expect(db.cryptoRows).toHaveLength(0)
+  })
+
+  it('400 con datos inválidos', async () => {
+    const response = await usdtSwaps.POST(json({ ...body, swap: { ...body.swap, usdt: -1 } }))
+    expect(response.status).toBe(400)
+  })
+
+  it('una pata no se edita ni se borra sola; el intercambio se borra completo', async () => {
+    await dolar.POST(json(usdtBuy))
+    await usdtSwaps.POST(json(body))
+
+    const legEdit = await dolarById.PATCH(json({ ...usdtBuy, id: undefined }), ctx(ID.usdtLeg))
+    expect(legEdit.status).toBe(422)
+    expect((await legEdit.json()).error).toBe('Los intercambios con USDT no se editan: borralo y cargalo de nuevo.')
+    expect((await dolarById.DELETE(json({}), ctx(ID.usdtLeg))).status).toBe(422)
+    expect((await cryptoById.DELETE(json({}), ctx(ID.coinLeg))).status).toBe(422)
+
+    const removed = await usdtSwapById.DELETE(json({}), ctx(ID.usdtSwap))
+    expect(removed.status).toBe(200)
+    expect((await removed.json()).removedIds.sort()).toEqual([ID.usdtLeg, ID.coinLeg].sort())
+    expect(db.dolarRows.map((r) => r.id)).toEqual([ID.buy])
+    expect(db.cryptoRows).toHaveLength(0)
+  })
+
+  it('una operación normal no se puede convertir en pata por la API del módulo', async () => {
+    await dolar.POST(json({ ...usdtBuy, usdtSwapId: ID.usdtSwap }))
+    expect(db.dolarRows[0].usdtSwapId).toBeNull()
+  })
+
+  it('ownership: otro usuario no lo ve ni lo borra (404)', async () => {
+    await dolar.POST(json(usdtBuy))
+    await usdtSwaps.POST(json(body))
+    session.userId = 'user_b'
+    expect((await usdtSwapById.DELETE(json({}), ctx(ID.usdtSwap))).status).toBe(404)
+    session.userId = 'user_a'
+    expect(db.cryptoRows).toHaveLength(1)
   })
 })

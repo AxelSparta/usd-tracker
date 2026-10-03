@@ -74,21 +74,6 @@ export const parseCryptoTransactionFormInput = (
   }
 }
 
-export const cryptoSwapFormSchema = z
-  .object({
-    fromCoinId: z.string().min(1, 'Elegí la moneda que entregás'),
-    fromQuantity: positiveAmountField('La cantidad'),
-    toCoinId: z.string().min(1, 'Elegí la moneda que recibís'),
-    toQuantity: positiveAmountField('La cantidad'),
-    valueUsd: positiveAmountField('El valor'),
-    date: dateField,
-  })
-  .refine((d) => !d.fromCoinId || d.fromCoinId !== d.toCoinId, {
-    path: ['toCoinId'],
-    message: 'Elegí una moneda distinta a la que entregás',
-  })
-
-export type CryptoSwapFormInput = z.infer<typeof cryptoSwapFormSchema>
 
 // --- Body de la API (`/api/crypto/*`): montos ya numéricos y fecha ISO ---
 

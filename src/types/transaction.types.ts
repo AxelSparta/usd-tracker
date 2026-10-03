@@ -14,6 +14,11 @@ export type Transaction = {
   /** `Date` al crearla; string ISO tras rehidratar desde `localStorage` */
   date: Date | string
   dolarOption: DolarOption
+  /**
+   * Enlaza esta operación (grupo `cripto` = saldo de USDT) con la pata del módulo cripto
+   * de un intercambio USDT ↔ cripto (Fase 7a). No se edita ni se borra sola.
+   */
+  usdtSwapId?: string
 }
 
 export type TransactionsData = {

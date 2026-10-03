@@ -32,6 +32,9 @@ jobs:
 
   e2e:
     runs-on: ubuntu-latest
+    env:
+      # E2E con sesión solo si el repo tiene los secretos (Clerk de desarrollo + rama de Neon para tests)
+      HAS_CLOUD_SECRETS: ${{ secrets.E2E_CLERK_SECRET_KEY != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -47,7 +50,14 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
       # Modo local con APIs externas simuladas; Clerk arranca en keyless mode (sin secretos)
-      - run: pnpm test:e2e
+      - run: pnpm test:e2e --project=local
+      - name: E2E con sesión
+        if: env.HAS_CLOUD_SECRETS == 'true'
+        run: pnpm test:e2e --project=cloud
+        env:
+          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
+          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
+          DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
 
       - uses: actions/upload-artifact@v4
         if: failure()

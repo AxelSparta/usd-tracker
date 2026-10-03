@@ -9,7 +9,8 @@ import {
   PopoverContent,
   PopoverTrigger,
 } from '@/components/ui/popover'
-import { formatPrice, formatQuantity } from '@/lib/locale-amount'
+import { useUsdtSwapLinks } from '@/hooks/use-usdt-swap-links'
+import { formatCurrency, formatPrice, formatQuantity } from '@/lib/locale-amount'
 import { cn } from '@/lib/utils'
 import { TransactionType } from '@/types/transaction.types'
 import { useCryptoStore } from '../crypto.store'
@@ -31,6 +32,7 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
   const transactions = useCryptoStore((s) => s.transactions)
   const coins = useCryptoStore((s) => s.coins)
   const removeTransaction = useCryptoStore((s) => s.removeTransaction)
+  const usdtSwaps = useUsdtSwapLinks()
 
   const sorted = transactions
     .filter((tx) => !coinId || tx.coinId === coinId)
@@ -42,9 +44,15 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
     return other ? (coins[other.coinId]?.symbol ?? other.coinId) : '—'
   }
 
-  const handleDelete = async (id: string) => {
+  const handleDelete = async (tx: CryptoTransaction) => {
     try {
-      await removeTransaction(id)
+      // Una pata de un intercambio USDT se borra junto con la del dólar cripto
+      if (tx.usdtSwapId) {
+        await usdtSwaps.remove(tx.usdtSwapId)
+        toast.success('Intercambio eliminado.')
+        return
+      }
+      await removeTransaction(tx.id)
       toast.success('Operación eliminada.')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al eliminar la operación')
@@ -107,6 +115,12 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
                         {isBuy ? 'desde' : 'por'} {counterpart(tx)}
                       </span>
                     )}
+                    {tx.usdtSwapId && (
+                      <span className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground'>
+                        <ArrowLeftRight className='size-3' aria-hidden />
+                        {isBuy ? 'desde' : 'por'} {formatCurrency(tx.quantity * tx.priceUsd)} USDT
+                      </span>
+                    )}
                   </td>
                   <td className='px-4 py-3 text-right'>{formatQuantity(tx.quantity)}</td>
                   <td className='px-4 py-3 text-right text-muted-foreground'>
@@ -123,7 +137,9 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
                   <td className='px-2 py-1'>
                     <div className='flex justify-end'>
                       {/* Un intercambio se edita como unidad: se borra y se vuelve a cargar */}
-                      {!tx.swapId && <EditCryptoTransactionDialog tx={tx} coin={coin} />}
+                      {!tx.swapId && !tx.usdtSwapId && (
+                        <EditCryptoTransactionDialog tx={tx} coin={coin} />
+                      )}
                       <Popover>
                         <PopoverTrigger asChild>
                           <Button
@@ -139,13 +155,15 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
                           <p className='mb-3 text-sm'>
                             {tx.swapId
                               ? '¿Eliminar el intercambio completo (venta y compra)?'
-                              : '¿Eliminar esta operación?'}
+                              : tx.usdtSwapId
+                                ? '¿Eliminar el intercambio completo (USDT y cripto)?'
+                                : '¿Eliminar esta operación?'}
                           </p>
                           <Button
                             className='w-full'
                             variant='destructive'
                             size='sm'
-                            onClick={() => handleDelete(tx.id)}
+                            onClick={() => handleDelete(tx)}
                           >
                             Confirmar
                           </Button>

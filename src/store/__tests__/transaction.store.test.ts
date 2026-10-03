@@ -45,6 +45,25 @@ describe('migrateTransactionsStorage', () => {
   it('tolera estado vacío', () => {
     expect(migrateTransactionsStorage(undefined, 0)).toEqual({ transactions: {} })
   })
+
+  it('v1 → v2 conserva las transacciones (usdtSwapId es opcional)', () => {
+    // Snapshot con la forma real de `transactions-storage` v1 (fechas ya serializadas)
+    const v1 = {
+      transactions: {
+        cripto: [
+          {
+            id: '6f1c3a52-6a0e-4a52-9a43-5d4b0f6f0d11',
+            type: 'BUY',
+            pesosAmount: 1_450_000,
+            dollarsAmount: 1000,
+            date: '2026-09-15T03:00:00.000Z',
+            dolarOption: 'cripto',
+          },
+        ],
+      },
+    }
+    expect(migrateTransactionsStorage(v1, 1)).toEqual(v1)
+  })
 })
 
 const day = (iso: string) => new Date(`${iso}T00:00:00`)
