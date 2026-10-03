@@ -1,6 +1,6 @@
 import { computePosition, type PositionLot } from '@/domain/position'
 import { sortTxs } from '@/domain/timeline'
-import { TransactionType } from '@/types/transaction.types'
+import { TRADE_RESULT, TransactionType } from '@/types/transaction.types'
 import type {
   Coin,
   CoinPriceMap,
@@ -13,10 +13,17 @@ import type {
  * Operación → lote del motor, con la comisión aplicada:
  * - en USD: encarece la compra / reduce lo cobrado en la venta;
  * - en la moneda: la compra acredita menos unidades / la venta debita más.
+ * Un resultado de trade (sin comisión) vale `quantity × priceUsd` del día: la ganancia entra con
+ * ese costo y lo realiza; la pérdida sale sin cobrar nada (realiza `−costo promedio × cantidad`).
  * `quantity` es además el movimiento real de saldo (lo usa la línea temporal).
  */
 export const toPositionLot = (tx: CryptoTransaction): PositionLot => {
   const gross = tx.quantity * tx.priceUsd
+  if (tx.kind === TRADE_RESULT) {
+    return tx.type === TransactionType.BUY
+      ? { type: tx.type, quantity: tx.quantity, quoteAmount: gross, realizedProfit: gross, trade: true }
+      : { type: tx.type, quantity: tx.quantity, quoteAmount: 0, trade: true }
+  }
   const feeUsd = tx.fee?.currency === 'USD' ? tx.fee.amount : 0
   const feeCoin = tx.fee?.currency === 'COIN' ? tx.fee.amount : 0
 
@@ -55,7 +62,7 @@ export const computeCryptoPositions = (
     const coin = coins[coinId]
     if (!coin) continue
 
-    const { quantity, invested, averageCost, realizedProfit } = computePosition(
+    const { quantity, invested, averageCost, realizedProfit, tradeProfit } = computePosition(
       group.map(toPositionLot),
     )
 
@@ -70,6 +77,7 @@ export const computeCryptoPositions = (
       investedUsd: invested,
       averageCostUsd: averageCost,
       realizedPnlUsd: realizedProfit,
+      tradePnlUsd: tradeProfit,
       priceUsd: price?.usd ?? null,
       change24h: price?.change24h ?? null,
       marketValueUsd,
@@ -95,12 +103,14 @@ export const summarizePortfolio = (
     marketValueUsd: 0,
     unrealizedPnlUsd: 0,
     realizedPnlUsd: 0,
+    tradePnlUsd: 0,
     hasMissingPrices: false,
   }
 
   for (const p of positions) {
     summary.investedUsd += p.investedUsd
     summary.realizedPnlUsd += p.realizedPnlUsd
+    summary.tradePnlUsd += p.tradePnlUsd
     if (p.marketValueUsd === null) {
       if (p.quantity > 0) summary.hasMissingPrices = true
       continue

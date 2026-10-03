@@ -33,6 +33,8 @@ interface CryptoState extends CryptoPortfolioState, SyncFields<CryptoPortfolioSt
    * con una sola llamada a la API (`remote`, que se llama solo con sesión).
    */
   applyExternal: (next: CryptoPortfolioState, remote: () => Promise<unknown>) => Promise<void>
+  /** Resuelve cuando ya se sabe el origen de datos y están cargados (ver `createSync`) */
+  whenReady: () => Promise<void>
 
   connectCloud: () => Promise<void>
   disconnectCloud: () => void
@@ -48,8 +50,9 @@ const pick = ({ transactions, coins }: CryptoPortfolioState): CryptoPortfolioSta
   coins,
 })
 
-const storeApi: StateCreator<CryptoState> = (set, get) => {
+const storeApi: StateCreator<CryptoState> = (set, get, api) => {
   const sync = createSync<CryptoPortfolioState, CryptoState>(set, get, {
+    subscribe: api.subscribe,
     pick,
     empty: EMPTY,
     fetchCloud: cryptoApi.list,
@@ -60,18 +63,25 @@ const storeApi: StateCreator<CryptoState> = (set, get) => {
     ...initialSyncFields<CryptoPortfolioState>(),
 
     addTransaction: async (tx, coin) => {
+      // `await` solo si hace falta: `await null` también cedería el turno
+      const waiting = sync.untilReady()
+      if (waiting) await waiting
       const newTransaction: CryptoTransaction = { id: crypto.randomUUID(), ...tx }
       const next = applyAddCryptoTransaction(get(), newTransaction, coin)
       await sync.commit(next, () => cryptoApi.create(newTransaction, coin))
     },
 
     updateTransaction: async (transactionId, tx, coin) => {
+      const waiting = sync.untilReady()
+      if (waiting) await waiting
       const next = applyUpdateCryptoTransaction(get(), transactionId, tx, coin)
       if (!next) return
       await sync.commit(next, () => cryptoApi.update(transactionId, tx, coin))
     },
 
     addSwap: async (swap) => {
+      const waiting = sync.untilReady()
+      if (waiting) await waiting
       const ids = {
         swapId: crypto.randomUUID(),
         sellId: crypto.randomUUID(),
@@ -82,12 +92,15 @@ const storeApi: StateCreator<CryptoState> = (set, get) => {
     },
 
     removeTransaction: async (transactionId) => {
+      const waiting = sync.untilReady()
+      if (waiting) await waiting
       const result = applyRemoveCryptoTransaction(get(), transactionId)
       if (!result) return
       await sync.commit(result.state, () => cryptoApi.remove(transactionId))
     },
 
     applyExternal: sync.commit,
+    whenReady: sync.whenReady,
 
     connectCloud: sync.connectCloud,
     disconnectCloud: sync.disconnectCloud,
@@ -99,7 +112,8 @@ const storeApi: StateCreator<CryptoState> = (set, get) => {
 type PersistedCryptoState = CryptoPortfolioState
 
 /**
- * v1 → v2: se agregaron `fee` y `swapId`; v2 → v3: `usdtSwapId`. Todos opcionales, así que
+ * v1 → v2: se agregaron `fee` y `swapId`; v2 → v3: `usdtSwapId`; v3 → v4: `kind` y `note`.
+ * Todos opcionales, así que
  * los datos viejos ya son válidos. Existe para que subir `version` no descarte lo guardado.
  */
 export const migrateCryptoStorage = (
@@ -116,7 +130,7 @@ export const persistedCrypto = (state: CryptoState): CryptoPortfolioState =>
 export const useCryptoStore = create<CryptoState>()(
   persist(storeApi, {
     name: 'crypto-storage',
-    version: 3,
+    version: 4,
     partialize: persistedCrypto,
     migrate: migrateCryptoStorage,
   }),

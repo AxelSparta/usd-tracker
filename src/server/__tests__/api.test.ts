@@ -336,3 +336,52 @@ describe('/api/usdt-swaps', () => {
     expect(db.cryptoRows).toHaveLength(1)
   })
 })
+
+describe('resultados de trades', () => {
+  const btc = { id: 'bitcoin', symbol: 'BTC', name: 'Bitcoin', image: null }
+  const usdtGain = {
+    ...dolarTx(ID.buy, 'BUY', 50, '2026-02-01T03:00:00.000Z'),
+    dolarOption: 'cripto',
+    kind: 'TRADE_RESULT',
+    note: 'BTCUSDT long x10',
+  }
+
+  it('en USDT: se guarda con kind y note y se lista igual', async () => {
+    expect((await dolar.POST(json(usdtGain))).status).toBe(201)
+    const [listed] = await (await dolar.GET()).json()
+    expect(listed).toMatchObject({ kind: 'TRADE_RESULT', note: 'BTCUSDT long x10', dolarOption: 'cripto' })
+  })
+
+  it('422 fuera del dólar cripto', async () => {
+    const response = await dolar.POST(json({ ...usdtGain, dolarOption: 'blue' }))
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('Los resultados de trades en USDT van en el dólar cripto.')
+  })
+
+  it('400 con un kind desconocido', async () => {
+    expect((await dolar.POST(json({ ...usdtGain, kind: 'AIRDROP' }))).status).toBe(400)
+  })
+
+  it('en otra moneda: sin comisión (422) y editable', async () => {
+    const gain = {
+      transaction: {
+        id: ID.other,
+        coinId: 'bitcoin',
+        type: 'BUY',
+        quantity: 0.01,
+        priceUsd: 60_000,
+        date: '2026-02-01T03:00:00.000Z',
+        kind: 'TRADE_RESULT',
+      },
+      coin: btc,
+    }
+    const withFee = { ...gain, transaction: { ...gain.transaction, fee: { amount: 1, currency: 'USD' } } }
+    expect((await crypto.POST(json(withFee))).status).toBe(422)
+    expect((await crypto.POST(json(gain))).status).toBe(201)
+
+    const { id, ...rest } = gain.transaction
+    const edited = await cryptoById.PATCH(json({ transaction: { ...rest, note: 'grid bot' }, coin: btc }), ctx(id))
+    expect(edited.status).toBe(200)
+    expect(await edited.json()).toMatchObject({ kind: 'TRADE_RESULT', note: 'grid bot' })
+  })
+})

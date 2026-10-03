@@ -158,3 +158,20 @@ describe('importación con intercambios USDT', () => {
     expect(db.dolarRows).toHaveLength(0)
   })
 })
+
+describe('importación con resultados de trades', () => {
+  const gain = { ...dolarTx(20, 'BUY', 50, '2026-02-01T03:00:00.000Z'), dolarOption: 'cripto', kind: 'TRADE_RESULT', note: 'futuros' }
+
+  it('sube kind y note', async () => {
+    const response = await POST(json({ dolar: [gain], crypto: { transactions: [], coins: {} } }))
+    expect(response.status).toBe(200)
+    expect(db.dolarRows[0]).toMatchObject({ kind: 'TRADE_RESULT', note: 'futuros' })
+  })
+
+  it('422 si un resultado de trade no está en el dólar cripto', async () => {
+    const response = await POST(
+      json({ dolar: [{ ...gain, dolarOption: 'blue' }], crypto: { transactions: [], coins: {} } }),
+    )
+    expect(response.status).toBe(422)
+  })
+})

@@ -68,3 +68,41 @@ describe('operaciones del dólar', () => {
     expect(applyRemoveTransaction(base, 'sell')?.blue).toHaveLength(1)
   })
 })
+
+describe('resultados de trades', () => {
+  const trade: Transaction = {
+    id: 't1',
+    type: TransactionType.BUY,
+    dollarsAmount: 50,
+    pesosAmount: 75_000,
+    date: '2026-01-02T12:00:00.000Z',
+    dolarOption: DolarOption.Cripto,
+    kind: 'TRADE_RESULT',
+    note: 'BTCUSDT long x10',
+  }
+
+  it('una ganancia en USDT se agrega al dólar cripto sin saldo previo', () => {
+    expect(applyAddTransaction({}, trade).cripto).toEqual([trade])
+  })
+
+  it('una pérdida no puede dejar el saldo de USDT negativo', () => {
+    expect(() =>
+      applyAddTransaction({}, { ...trade, type: TransactionType.SELL }),
+    ).toThrow('El saldo de USD quedaría negativo')
+  })
+
+  it('solo en el dólar cripto, también al editar', () => {
+    expect(() => applyAddTransaction({}, { ...trade, dolarOption: DolarOption.Blue })).toThrow(
+      'Los resultados de trades en USDT van en el dólar cripto.',
+    )
+    const state = applyAddTransaction({}, trade)
+    expect(() =>
+      applyUpdateTransaction(state, 't1', { ...trade, dolarOption: DolarOption.Blue }),
+    ).toThrow('dólar cripto')
+    expect(applyUpdateTransaction(state, 't1', { ...trade, dollarsAmount: 60 })?.cripto?.[0]).toMatchObject({
+      dollarsAmount: 60,
+      kind: 'TRADE_RESULT',
+      note: 'BTCUSDT long x10',
+    })
+  })
+})

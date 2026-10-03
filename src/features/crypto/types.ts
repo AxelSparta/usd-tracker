@@ -1,4 +1,4 @@
-import type { TransactionType } from '@/types/transaction.types'
+import type { OperationKind, TransactionType } from '@/types/transaction.types'
 
 /** Moneda de CoinGecko (lo que se guarda para mostrarla sin volver a pedirla). */
 export type Coin = {
@@ -45,6 +45,10 @@ export type CryptoTransaction = {
   swapId?: string
   /** Comparte el id con la pata del módulo dólar (USDT) de un intercambio USDT ↔ cripto */
   usdtSwapId?: string
+  /** Resultado de trade acreditado en la moneda (sin comisión ni intercambio) */
+  kind?: OperationKind
+  /** Detalle libre, ej. "BTCUSDT long x10" */
+  note?: string
 }
 
 export type CryptoPosition = {
@@ -53,6 +57,8 @@ export type CryptoPosition = {
   investedUsd: number
   averageCostUsd: number
   realizedPnlUsd: number
+  /** Parte del PnL realizado que viene de resultados de trades */
+  tradePnlUsd: number
   /** `null` mientras no haya precio de mercado */
   priceUsd: number | null
   change24h: number | null
@@ -68,6 +74,7 @@ export type CryptoPortfolioSummary = {
   marketValueUsd: number
   unrealizedPnlUsd: number
   realizedPnlUsd: number
+  tradePnlUsd: number
   /** true si alguna posición abierta todavía no tiene precio */
   hasMissingPrices: boolean
 }

@@ -1,5 +1,5 @@
-import type { DolarOption } from '@/types/dolar.types'
-import type { Transaction } from '@/types/transaction.types'
+import { DolarOption } from '@/types/dolar.types'
+import { TRADE_RESULT, type Transaction } from '@/types/transaction.types'
 import { sortTxs, validateTimeline } from './timeline'
 
 /**
@@ -15,6 +15,15 @@ export type GroupedTransactions = Partial<Record<DolarOption, Transaction[]>>
 export const USDT_SWAP_LEG_UPDATE =
   'Los intercambios con USDT no se editan: borralo y cargalo de nuevo.'
 export const USDT_SWAP_LEG_REMOVE = 'Es un intercambio con USDT: borralo completo.'
+
+/** Un resultado de trade en USDT vive en el dólar cripto y no es parte de un intercambio */
+export const assertDolarShape = (tx: Omit<Transaction, 'id'>) => {
+  if (tx.kind !== TRADE_RESULT) return
+  if (tx.dolarOption !== DolarOption.Cripto) {
+    throw new Error('Los resultados de trades en USDT van en el dólar cripto.')
+  }
+  if (tx.usdtSwapId) throw new Error('Un resultado de trade no puede ser parte de un intercambio.')
+}
 
 const findTransaction = (transactions: GroupedTransactions, transactionId: string) =>
   Object.values(transactions)
@@ -49,6 +58,7 @@ export const applyAddTransaction = (
   transactions: GroupedTransactions,
   tx: Transaction,
 ): GroupedTransactions => {
+  assertDolarShape(tx)
   const group = sortTxs([...(transactions[tx.dolarOption] || []), tx])
   validateTimeline(group)
   return { ...transactions, [tx.dolarOption]: group }
@@ -65,6 +75,7 @@ export const applyUpdateTransaction = (
   if (findTransaction(transactions, transactionId)?.usdtSwapId) {
     throw new Error(USDT_SWAP_LEG_UPDATE)
   }
+  assertDolarShape(tx)
 
   const updated: GroupedTransactions = {
     ...transactions,

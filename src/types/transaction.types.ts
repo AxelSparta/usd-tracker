@@ -5,6 +5,14 @@ export enum TransactionType {
   SELL = 'SELL',
 }
 
+/**
+ * Variante de operación (sin `kind` = compra/venta normal). `TRADE_RESULT`: resultado de un
+ * trade acreditado en la moneda (futuros, margin, bots), sin compra ni venta de por medio:
+ * `BUY` = ganancia (entran unidades), `SELL` = pérdida (salen unidades). Fase 7b.
+ */
+export const TRADE_RESULT = 'TRADE_RESULT' as const
+export type OperationKind = typeof TRADE_RESULT
+
 /** Modelo de dominio (independiente del formulario). */
 export type Transaction = {
   id: string
@@ -19,6 +27,10 @@ export type Transaction = {
    * de un intercambio USDT ↔ cripto (Fase 7a). No se edita ni se borra sola.
    */
   usdtSwapId?: string
+  /** Resultado de trade en USDT (solo en el grupo `cripto`) */
+  kind?: OperationKind
+  /** Detalle libre, ej. "BTCUSDT long x10" */
+  note?: string
 }
 
 export type TransactionsData = {
@@ -27,6 +39,8 @@ export type TransactionsData = {
   marketValuePesos: number   // El valor actual según el dólar hoy
   averageCost: number
   realizedProfit: number
+  /** Parte del PnL realizado que viene de resultados de trades (ARS) */
+  tradeProfit: number
   unrealizedProfit: number
 }
 

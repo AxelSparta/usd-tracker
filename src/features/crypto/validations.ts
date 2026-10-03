@@ -1,7 +1,8 @@
 import { endOfDay } from 'date-fns'
 import { z } from 'zod'
 import { parseLocaleAmount } from '@/lib/locale-amount'
-import { TransactionType } from '@/types/transaction.types'
+import { TRADE_RESULT, TransactionType } from '@/types/transaction.types'
+import { operationKindFields } from '@/validations/transaction'
 import type { CryptoFee } from './types'
 
 const positiveAmountField = (label: string) =>
@@ -106,6 +107,7 @@ export const cryptoTransactionFields = z.object({
       currency: z.enum(['USD', 'COIN']),
     })
     .optional(),
+  ...operationKindFields,
 })
 
 const coinMatches = {
@@ -142,3 +144,30 @@ export const cryptoSwapApiSchema = z.object({
     buyId: z.uuid('Id inválido'),
   }),
 })
+
+// --- Resultado de trade en una moneda (Fase 7b) ---
+
+export const cryptoTradeResultFormSchema = z.object({
+  /** BUY = ganancia, SELL = pérdida */
+  type: z.enum(TransactionType),
+  quantity: positiveAmountField('La cantidad'),
+  /** Precio de la moneda ese día: valúa el resultado (la ganancia entra a ese costo) */
+  priceUsd: positiveAmountField('El precio'),
+  note: z.string().max(200, 'La nota puede tener hasta 200 caracteres'),
+  date: dateField,
+})
+
+export type CryptoTradeResultFormInput = z.infer<typeof cryptoTradeResultFormSchema>
+
+export const parseCryptoTradeResultFormInput = (data: CryptoTradeResultFormInput, coinId: string) => {
+  const note = data.note.trim()
+  return {
+    coinId,
+    type: data.type,
+    quantity: parseLocaleAmount(data.quantity),
+    priceUsd: parseLocaleAmount(data.priceUsd),
+    date: data.date,
+    kind: TRADE_RESULT,
+    ...(note && { note }),
+  }
+}
