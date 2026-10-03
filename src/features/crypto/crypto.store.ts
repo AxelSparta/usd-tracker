@@ -28,6 +28,11 @@ interface CryptoState extends CryptoPortfolioState, SyncFields<CryptoPortfolioSt
   addSwap: (swap: CryptoSwapInput) => Promise<void>
   /** Si es una pata de un intercambio, borra también la otra */
   removeTransaction: (transactionId: string) => Promise<void>
+  /**
+   * Estado ya validado por otro módulo (`features/usdt-swaps`) que escribe en los dos stores
+   * con una sola llamada a la API (`remote`, que se llama solo con sesión).
+   */
+  applyExternal: (next: CryptoPortfolioState, remote: () => Promise<unknown>) => Promise<void>
 
   connectCloud: () => Promise<void>
   disconnectCloud: () => void
@@ -82,6 +87,8 @@ const storeApi: StateCreator<CryptoState> = (set, get) => {
       await sync.commit(result.state, () => cryptoApi.remove(transactionId))
     },
 
+    applyExternal: sync.commit,
+
     connectCloud: sync.connectCloud,
     disconnectCloud: sync.disconnectCloud,
     retryCloud: sync.retry,
@@ -92,8 +99,8 @@ const storeApi: StateCreator<CryptoState> = (set, get) => {
 type PersistedCryptoState = CryptoPortfolioState
 
 /**
- * v1 → v2: se agregaron `fee` y `swapId`, ambos opcionales, así que los datos v1
- * ya son válidos. Existe para que subir `version` no descarte lo guardado.
+ * v1 → v2: se agregaron `fee` y `swapId`; v2 → v3: `usdtSwapId`. Todos opcionales, así que
+ * los datos viejos ya son válidos. Existe para que subir `version` no descarte lo guardado.
  */
 export const migrateCryptoStorage = (
   persistedState: unknown,
@@ -109,7 +116,7 @@ export const persistedCrypto = (state: CryptoState): CryptoPortfolioState =>
 export const useCryptoStore = create<CryptoState>()(
   persist(storeApi, {
     name: 'crypto-storage',
-    version: 2,
+    version: 3,
     partialize: persistedCrypto,
     migrate: migrateCryptoStorage,
   }),

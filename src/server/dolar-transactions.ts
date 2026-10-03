@@ -17,7 +17,10 @@ import { toDolarTransaction, toDolarTransactionData } from './mappers'
 
 const NOT_FOUND = 'La operación no existe.'
 
-const loadGroups = async (db: DbTransaction, userId: string) =>
+export const loadGroups = async (
+  db: Pick<DbTransaction, 'dolarTransaction'>,
+  userId: string,
+) =>
   groupTransactions(
     (await db.dolarTransaction.findMany({ where: { userId } })).map(toDolarTransaction),
   )

@@ -1,6 +1,5 @@
 import { describe, expect, it } from 'vitest'
 import {
-  cryptoSwapFormSchema,
   cryptoTransactionFormSchema,
   parseCryptoTransactionFormInput,
 } from '@/features/crypto/validations'
@@ -45,26 +44,6 @@ describe('cryptoTransactionFormSchema: comisión', () => {
       priceUsd: '10',
       fee: '11',
     })
-    expect(result.success).toBe(false)
-  })
-})
-
-describe('cryptoSwapFormSchema', () => {
-  const swap = {
-    fromCoinId: 'bitcoin',
-    fromQuantity: '0,5',
-    toCoinId: 'ethereum',
-    toQuantity: '10',
-    valueUsd: '30.000',
-    date: new Date('2026-01-01T00:00:00'),
-  }
-
-  it('acepta un intercambio válido', () => {
-    expect(cryptoSwapFormSchema.safeParse(swap).success).toBe(true)
-  })
-
-  it('rechaza la misma moneda en ambos lados', () => {
-    const result = cryptoSwapFormSchema.safeParse({ ...swap, toCoinId: 'bitcoin' })
     expect(result.success).toBe(false)
   })
 })

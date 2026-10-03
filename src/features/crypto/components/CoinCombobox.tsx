@@ -28,10 +28,12 @@ type CoinComboboxProps = React.AriaAttributes & {
   value: Coin | null
   onChange: (coin: Coin) => void
   id?: string
+  /** Opciones fijas antes de los resultados (ej. los USDT del dólar cripto), con un detalle */
+  pinned?: { coin: Coin; heading: string; hint?: string }[]
 }
 
 /** Buscador de monedas contra CoinGecko; sin texto muestra las de mayor capitalización. */
-export default function CoinCombobox({ value, onChange, ...props }: CoinComboboxProps) {
+export default function CoinCombobox({ value, onChange, pinned = [], ...props }: CoinComboboxProps) {
   const [open, setOpen] = useState(false)
   const [query, setQuery] = useState('')
   const [results, setResults] = useState<Coin[]>([])
@@ -60,6 +62,15 @@ export default function CoinCombobox({ value, onChange, ...props }: CoinCombobox
       controller.abort()
     }
   }, [query, open])
+
+  // Las fijas aparecen sin texto o si coinciden con lo que se busca
+  const search = query.trim().toLowerCase()
+  const visiblePinned = pinned.filter(
+    ({ coin }) =>
+      !search ||
+      coin.symbol.toLowerCase().includes(search) ||
+      coin.name.toLowerCase().includes(search),
+  )
 
   return (
     <Popover open={open} onOpenChange={setOpen}>
@@ -105,6 +116,32 @@ export default function CoinCombobox({ value, onChange, ...props }: CoinCombobox
                 <CommandEmpty>
                   {error ?? 'No encontramos esa moneda.'}
                 </CommandEmpty>
+                {visiblePinned.map(({ coin, heading, hint }) => (
+                  <CommandGroup key={coin.id} heading={heading}>
+                    <CommandItem
+                      value={coin.id}
+                      onSelect={() => {
+                        onChange(coin)
+                        setOpen(false)
+                      }}
+                    >
+                      <CoinIcon coin={coin} size={18} />
+                      <span className='truncate'>{coin.name}</span>
+                      <span className='text-muted-foreground'>{coin.symbol}</span>
+                      {hint && (
+                        <span className='ml-auto text-xs tabular-nums text-muted-foreground'>
+                          {hint}
+                        </span>
+                      )}
+                      <Check
+                        className={cn(
+                          hint ? 'ml-1' : 'ml-auto',
+                          value?.id === coin.id ? 'opacity-100' : 'opacity-0',
+                        )}
+                      />
+                    </CommandItem>
+                  </CommandGroup>
+                ))}
                 <CommandGroup heading={query ? 'Resultados' : 'Populares'}>
                   {results.map((coin) => (
                     <CommandItem

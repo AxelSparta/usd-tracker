@@ -19,6 +19,7 @@ export const toDolarTransaction = (row: DolarTransactionRow): Transaction => ({
   dollarsAmount: row.dollarsAmount.toNumber(),
   date: row.date,
   dolarOption: row.dolarOption as DolarOption,
+  ...(row.usdtSwapId !== null && { usdtSwapId: row.usdtSwapId }),
 })
 
 export const toDolarTransactionData = (tx: Omit<Transaction, 'id'>) => ({
@@ -27,6 +28,7 @@ export const toDolarTransactionData = (tx: Omit<Transaction, 'id'>) => ({
   dollarsAmount: tx.dollarsAmount,
   date: new Date(tx.date),
   dolarOption: tx.dolarOption,
+  usdtSwapId: tx.usdtSwapId ?? null,
 })
 
 export const toCryptoTransaction = (row: CryptoTransactionRow): CryptoTransaction => ({
@@ -41,6 +43,7 @@ export const toCryptoTransaction = (row: CryptoTransactionRow): CryptoTransactio
       fee: { amount: row.feeAmount.toNumber(), currency: row.feeCurrency },
     }),
   ...(row.swapId !== null && { swapId: row.swapId }),
+  ...(row.usdtSwapId !== null && { usdtSwapId: row.usdtSwapId }),
 })
 
 export const toCoin = (row: CryptoTransactionRow): Coin => ({
@@ -66,4 +69,5 @@ export const toCryptoTransactionData = (
   feeAmount: tx.fee?.amount ?? null,
   feeCurrency: tx.fee?.currency ?? null,
   swapId: tx.swapId ?? null,
+  usdtSwapId: tx.usdtSwapId ?? null,
 })

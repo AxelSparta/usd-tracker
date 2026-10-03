@@ -22,7 +22,7 @@ cuenta y los ves en cualquier dispositivo).
   - Validación de la línea temporal: nunca se puede vender (ni borrar o editar) dejando saldo negativo
 - **Cripto** (`/cripto`)
   - Buscador de monedas, precio autocompletado, comisiones en USD o en la moneda
-  - Intercambios cripto ↔ cripto (venta + compra enlazadas)
+  - Intercambios cripto ↔ cripto (venta + compra enlazadas) y de los USDT del dólar cripto por cualquier cripto (y al revés)
   - Posiciones con costo promedio y PnL en USD y su valor en pesos con el dólar cripto
   - Detalle por moneda (`/cripto/[coinId]`)
 - **Cuenta** (Clerk)
@@ -55,7 +55,7 @@ de datos en la nube responden error hasta que haya una base.
 | --- | --- |
 | `pnpm lint` / `pnpm typecheck` | ESLint 9 / `tsc --noEmit` |
 | `pnpm test` | Unit tests (Vitest, `src/**/*.test.ts`) |
-| `pnpm test:e2e` | E2E (Playwright, `e2e/`): flujos en modo local con las APIs externas simuladas. La primera vez: `pnpm exec playwright install chromium` |
+| `pnpm test:e2e` | E2E (Playwright, `e2e/`) con las APIs externas simuladas: `--project=local` sin sesión, `--project=cloud` con sesión (Clerk de desarrollo + base de Neon de desarrollo, ver `AGENTS.md`). La primera vez: `pnpm exec playwright install chromium` |
 | `pnpm db:migrate` | Crea y aplica una migración en desarrollo |
 | `pnpm db:deploy` | Aplica las migraciones pendientes |
 | `pnpm db:studio` | Prisma Studio |
@@ -85,5 +85,6 @@ producción (Clerk, backups, logs): [`docs/operacion.md`](docs/operacion.md).
 ## 📚 Más documentación
 
 - [`AGENTS.md`](AGENTS.md): arquitectura, convenciones y comportamiento del estado.
-- [`docs/roadmap.md`](docs/roadmap.md): fases del proyecto y decisiones.
+- [`docs/roadmap.md`](docs/roadmap.md): lo pendiente, deuda técnica y próximas fases.
+- [`docs/historial.md`](docs/historial.md): fases cerradas y sus decisiones.
 - [`docs/operacion.md`](docs/operacion.md): producción (variables, Clerk, backups de Neon, logs, migraciones).

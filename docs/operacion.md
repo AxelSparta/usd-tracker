@@ -56,6 +56,11 @@ desde la principal y usar su URL en las variables de *Preview* (§1). Si una mig
 falta en la preview, aplicarla a mano contra esa rama (`DIRECT_URL=… pnpm db:deploy`) y
 recrearla desde la principal cuando se fusione.
 
+**Rama para los E2E con sesión.** `pnpm test:e2e --project=cloud` borra los datos del usuario de
+prueba antes de cada test. Usar la rama de desarrollo en el `.env` local y, para CI, una rama propia
+(secreto `E2E_DATABASE_URL`, junto con `E2E_CLERK_SECRET_KEY` y `E2E_CLERK_PUBLISHABLE_KEY` de la
+instancia de desarrollo de Clerk). Sin esos secretos, CI corre solo los E2E sin sesión.
+
 ## 4. Logs
 
 El server escribe una línea JSON por evento (`src/server/log.ts`); Vercel las guarda en
@@ -66,6 +71,7 @@ El server escribe una línea JSON por evento (`src/server/log.ts`); Vercel las g
 | `dolar.created/updated/removed`  | Escritura OK en `/api/dolar/transactions*`         |
 | `crypto.created/updated/removed` | Escritura OK en `/api/crypto/transactions*`        |
 | `crypto.swapped`      | Intercambio creado                                            |
+| `usdtSwap.created/removed` | Intercambio USDT ↔ cripto creado / borrado (las dos patas) |
 | `sync.imported`       | Subida de datos locales a la cuenta (creadas / salteadas)     |
 | `api.unexpected`      | Error no previsto en `/api/*` (el usuario ve un 500 genérico) |
 | `request.error`       | Error del server fuera de `/api/*` (render, proxy), vía `src/instrumentation.ts` |

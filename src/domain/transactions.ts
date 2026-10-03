@@ -11,6 +11,16 @@ import { sortTxs, validateTimeline } from './timeline'
 
 export type GroupedTransactions = Partial<Record<DolarOption, Transaction[]>>
 
+/** Las patas de un intercambio USDT ↔ cripto solo se borran completas (`features/usdt-swaps`) */
+export const USDT_SWAP_LEG_UPDATE =
+  'Los intercambios con USDT no se editan: borralo y cargalo de nuevo.'
+export const USDT_SWAP_LEG_REMOVE = 'Es un intercambio con USDT: borralo completo.'
+
+const findTransaction = (transactions: GroupedTransactions, transactionId: string) =>
+  Object.values(transactions)
+    .flatMap((group) => group ?? [])
+    .find((tx) => tx.id === transactionId)
+
 /** Agrupa por tipo de dólar, cada grupo ordenado con `sortTxs` */
 export const groupTransactions = (txs: Transaction[]): GroupedTransactions => {
   const groups: GroupedTransactions = {}
@@ -52,6 +62,9 @@ export const applyUpdateTransaction = (
 ): GroupedTransactions | null => {
   const previousOption = findGroup(transactions, transactionId)
   if (!previousOption) return null
+  if (findTransaction(transactions, transactionId)?.usdtSwapId) {
+    throw new Error(USDT_SWAP_LEG_UPDATE)
+  }
 
   const updated: GroupedTransactions = {
     ...transactions,
@@ -79,6 +92,9 @@ export const applyRemoveTransaction = (
 ): GroupedTransactions | null => {
   const option = findGroup(transactions, transactionId)
   if (!option) return null
+  if (findTransaction(transactions, transactionId)?.usdtSwapId) {
+    throw new Error(USDT_SWAP_LEG_REMOVE)
+  }
 
   const group = sortTxs(
     (transactions[option] || []).filter((tx) => tx.id !== transactionId),

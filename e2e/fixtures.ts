@@ -15,6 +15,8 @@ export const BTC = {
   image: null,
 }
 
+export const ETH = { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', image: null }
+
 /** Serie diaria plana del último año (para el gráfico de evolución) */
 const dailySeries = <T>(value: (date: string) => T) => {
   const points: T[] = []
@@ -27,7 +29,7 @@ const dailySeries = <T>(value: (date: string) => T) => {
 /** Simula las APIs externas y nuestras rutas que dependen de ellas */
 export const mockApis = async (page: Page) => {
   await page.route('https://dolarapi.com/**', (route) => route.fulfill({ json: DOLARES }))
-  await page.route('**/api/crypto/search**', (route) => route.fulfill({ json: [BTC] }))
+  await page.route('**/api/crypto/search**', (route) => route.fulfill({ json: [BTC, ETH] }))
   await page.route('**/api/crypto/prices**', (route) =>
     route.fulfill({
       json: { bitcoin: { usd: 60_000, change24h: 1.5, updatedAt: Date.now() } },

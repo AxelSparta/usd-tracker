@@ -43,6 +43,8 @@ export type CryptoTransaction = {
   fee?: CryptoFee
   /** Comparte el id con la otra pata de un intercambio cripto ↔ cripto */
   swapId?: string
+  /** Comparte el id con la pata del módulo dólar (USDT) de un intercambio USDT ↔ cripto */
+  usdtSwapId?: string
 }
 
 export type CryptoPosition = {

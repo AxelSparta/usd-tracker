@@ -130,3 +130,31 @@ describe('POST /api/sync/import', () => {
     expect(transactions.filter((t: { swapId?: string }) => t.swapId === swapId)).toHaveLength(2)
   })
 })
+
+describe('importación con intercambios USDT', () => {
+  const usdtBuy = { ...dolarTx(10, 'BUY', 1000, '2026-01-01T03:00:00.000Z'), dolarOption: 'cripto' }
+  const usdtLeg = {
+    ...dolarTx(11, 'SELL', 500, '2026-02-01T03:00:00.000Z'),
+    dolarOption: 'cripto',
+    usdtSwapId: uuid(13),
+  }
+  const coinLeg = cryptoTx(12, 'BUY', 0.01, '2026-02-01T03:00:00.000Z', { usdtSwapId: uuid(13) })
+
+  it('sube las dos patas enlazadas', async () => {
+    const response = await POST(
+      json({ dolar: [usdtBuy, usdtLeg], crypto: { transactions: [coinLeg], coins: { bitcoin: btc } } }),
+    )
+    expect(response.status).toBe(200)
+    expect(db.dolarRows.find((r) => r.id === uuid(11))?.usdtSwapId).toBe(uuid(13))
+    expect(db.cryptoRows[0].usdtSwapId).toBe(uuid(13))
+  })
+
+  it('422 si llega una pata sin la otra', async () => {
+    const response = await POST(
+      json({ dolar: [usdtBuy, usdtLeg], crypto: { transactions: [], coins: {} } }),
+    )
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('Hay un intercambio con USDT incompleto.')
+    expect(db.dolarRows).toHaveLength(0)
+  })
+})
