@@ -1,103 +1,87 @@
-# 💸 DolarTracker / Portfolio Tracker
+# 💸 Portfolio Tracker
 
-Aplicación web para seguir tus ahorros en Argentina, con dos módulos independientes:
+Aplicación web para seguir tus ahorros en Argentina: dólares y criptomonedas en un solo lugar,
+con cotizaciones del mercado argentino. Producción: <https://usd-tracker.vercel.app>.
 
-- **Dólar:** compras y ventas de USD en pesos, con métricas por tipo de dólar.
-- **Cripto:** compras y ventas de cualquier criptomoneda en USD, con precios de CoinGecko y valor en pesos según el dólar cripto.
+- **Dólar:** compras y ventas de USD en pesos, por tipo de dólar (oficial, blue, MEP, CCL, cripto…).
+- **Cripto:** compras, ventas e intercambios de cualquier moneda de CoinGecko, en USD, con su valor en pesos.
+- **Portfolio:** valor total en ARS y USD, composición por activo y evolución del valor en el tiempo.
 
-## 🚀 Tecnologías utilizadas
+Funciona **sin cuenta** (todo queda en tu navegador) o **con sesión** (los datos se guardan en tu
+cuenta y los ves en cualquier dispositivo).
 
-- ⚛️ [Next.js](https://nextjs.org/) (App Router) + [React](https://react.dev/)
-- 🟦 [TypeScript](https://www.typescriptlang.org/)
-- 🎨 [Tailwind CSS](https://tailwindcss.com/)
-- 🧠 [Zustand](https://zustand-demo.pmnd.rs/) para estado global + persistencia en `localStorage`
-- ✅ [React Hook Form](https://react-hook-form.com/) + [Zod](https://zod.dev/) para formularios y validaciones
-- 🌗 [next-themes](https://github.com/pacocoursey/next-themes) para modo claro/oscuro/sistema
-- 🔔 [Sonner](https://sonner.emilkowal.ski/) para notificaciones toast
-- 💱 [DolarAPI](https://dolarapi.com) para cotizaciones sin API key
-- 🪙 [CoinGecko](https://www.coingecko.com/en/api) para precios cripto (API key opcional)
+## 🧠 Funcionalidades
 
-## 🧠 Funcionalidades del proyecto
+- **Dashboard** (`/`)
+  - Valor total en ARS y USD, resumen por módulo con su ganancia
+  - Composición por activo (barra al 100 % + tabla con variación 24 h y acceso al detalle)
+  - Evolución del valor (1M / 3M / 6M / 1A, en ARS o USD), reconstruida desde tus operaciones y los precios históricos
+- **Dólar** (`/dolar`)
+  - Cotizaciones en vivo (DolarAPI), con reintentos si la API o la red fallan
+  - Por tipo de dólar: posición en USD, costo promedio, invertido, valor de mercado y ganancia realizada / no realizada
+  - Validación de la línea temporal: nunca se puede vender (ni borrar o editar) dejando saldo negativo
+- **Cripto** (`/cripto`)
+  - Buscador de monedas, precio autocompletado, comisiones en USD o en la moneda
+  - Intercambios cripto ↔ cripto (venta + compra enlazadas)
+  - Posiciones con costo promedio y PnL en USD y su valor en pesos con el dólar cripto
+  - Detalle por moneda (`/cripto/[coinId]`)
+- **Cuenta** (Clerk)
+  - Sin sesión: modo local (`localStorage`)
+  - Con sesión: datos en la nube (Neon + Prisma), cambios instantáneos que se revierten si el servidor los rechaza
+  - Al iniciar sesión, la app ofrece subir lo que cargaste sin cuenta (sin duplicar; la nube manda)
+- Tema claro / oscuro / sistema, interfaz en español, responsive
 
-- **Registro de transacciones**
-  - Alta de transacciones de tipo **Compra** o **Venta**
-  - Carga de monto en pesos (ARS), monto en dólares (USD) y fecha
-  - Cálculo automático del tipo de cambio unitario (`usdPrice`)
-  - Selección del tipo de dólar para cada transacción
+## 🚀 Stack
 
-- **Validaciones del formulario**
-  - Validación con Zod para campos obligatorios y tipos correctos
-  - Montos con formato local (AR) y conversión segura a número
-  - Restricciones de fecha (sin fechas futuras)
-  - Para ventas, protección contra saldo negativo por timeline
+Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui · Zustand ·
+React Hook Form + Zod · Clerk · Prisma 7 + Neon · recharts · Vitest · Playwright.
 
-- **Cotizaciones en tiempo real**
-  - Obtención de cotizaciones desde DolarAPI
-  - Refresco automático de cotizaciones cada 5 minutos
-  - Visualización destacada de: oficial, blue, bolsa y cripto
-  - Soporte interno para más tipos: contado con liqui, tarjeta y mayorista
+Datos externos: [DolarAPI](https://dolarapi.com) (cotizaciones), [ArgentinaDatos](https://argentinadatos.com)
+(histórico del dólar) y [CoinGecko](https://www.coingecko.com/en/api) (precios cripto). El navegador
+solo llama directo a DolarAPI; el resto pasa por las rutas `/api/*` del server, que validan y cachean.
 
-- **Métricas financieras por tipo de dólar**
-  - Historial agrupado por `dolarOption`
-  - Cálculo de:
-    - Posición actual en USD
-    - Costo promedio
-    - Total invertido (ARS)
-    - Valor de mercado actual (ARS)
-    - Ganancia realizada
-    - Ganancia no realizada (PnL)
-  - Re-cálculo automático de métricas cuando cambia la cotización
-  - Total agregado de todos los tipos de dólar
+## 🛠️ Desarrollo
 
-- **Módulo cripto**
-  - Buscador de cualquier moneda de CoinGecko (populares por defecto)
-  - Operaciones de compra/venta con cantidad, precio unitario en USD (autocompletable con el precio actual) y fecha
-  - Posiciones por moneda: cantidad, costo promedio, valor de mercado, PnL realizado y no realizado (USD y %)
-  - Resumen del portfolio en USD y su equivalente en pesos con el dólar cripto
-  - Precios con variación 24 h, refrescados cada minuto; el último precio queda guardado si la API falla
+```bash
+pnpm install       # también genera el cliente de Prisma (postinstall)
+cp .env.example .env
+pnpm dev           # http://localhost:3000
+```
 
-- **Gestión de historial**
-  - Tabla por grupo de dólar con orden cronológico y badges por operación
-  - Edición de transacciones y operaciones cripto en un diálogo, revalidando el saldo
-  - Eliminación de transacciones con confirmación
-  - Estado vacío con CTA para crear la primera transacción
+Sin variables de entorno la app funciona en modo local: Clerk arranca en *keyless mode* y las rutas
+de datos en la nube responden error hasta que haya una base.
 
-- **Experiencia de usuario**
-  - Navegación entre listado y nueva transacción
-  - Tema claro/oscuro/sistema
-  - Interfaz responsive
-  - Notificaciones de éxito/error al crear o eliminar
-  - Página personalizada de error 404
+| Comando | Qué hace |
+| --- | --- |
+| `pnpm lint` / `pnpm typecheck` | ESLint 9 / `tsc --noEmit` |
+| `pnpm test` | Unit tests (Vitest, `src/**/*.test.ts`) |
+| `pnpm test:e2e` | E2E (Playwright, `e2e/`): flujos en modo local con las APIs externas simuladas. La primera vez: `pnpm exec playwright install chromium` |
+| `pnpm db:migrate` | Crea y aplica una migración en desarrollo |
+| `pnpm db:deploy` | Aplica las migraciones pendientes |
+| `pnpm db:studio` | Prisma Studio |
 
-- **Persistencia y arquitectura**
-  - Persistencia local en `localStorage`:
-    - `transactions-storage`
-    - `dolar-storage`
-    - `crypto-storage`
-    - `crypto-prices-storage`
-  - Modo principal **local-first**
-  - Estructura preparada para modo autenticado con endpoints `/api/transactions` (parcialmente cableado)
-
-## 📍 Rutas principales
-
-- `/` → inicio con las secciones disponibles
-- `/dolar` → cotizaciones e historial de transacciones en USD
-- `/dolar/nueva` → formulario para cargar transacciones (`/new-transaction` redirige acá)
-- `/cripto` → portfolio cripto: resumen, posiciones e historial
-- `/cripto/nueva` → formulario para cargar operaciones cripto
-- `/api/crypto/prices?ids=` y `/api/crypto/search?q=` → proxy a CoinGecko
+CI (GitHub Actions) corre lint, typecheck, unit tests, build y E2E en cada PR y push a `main`.
 
 ## 🔑 Variables de entorno
 
-Ninguna es obligatoria. Opcionalmente, copiá `.env.example` a `.env.local` y cargá una
-clave Demo gratuita de CoinGecko en `COINGECKO_API_KEY` para tener un rate limit más alto.
+| Variable | Para qué | Obligatoria |
+| --- | --- | --- |
+| `DATABASE_URL` | Neon, conexión **con pooler** (la usa la app) | Para la nube |
+| `DIRECT_URL` | Neon, conexión directa (la usa `prisma migrate`; si falta, usa `DATABASE_URL`) | No |
+| `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY`, `CLERK_SECRET_KEY` | Login (Clerk) | En producción |
+| `COINGECKO_API_KEY` | Clave Demo de CoinGecko: más consultas por minuto | No |
 
-## 🛠️ Comandos
+## 🚢 Deploy (Vercel)
 
-```bash
-pnpm dev
-pnpm build
-pnpm start
-pnpm lint
-```
+Vercel despliega `main` automáticamente y usa `pnpm vercel-build` (`scripts/vercel-build.mjs`):
 
+- **Producción:** `prisma migrate deploy` y después `next build`. Si la migración falla, el deploy falla
+  y sigue publicada la versión anterior (nunca código nuevo con una base sin migrar).
+- **Previews:** solo `next build` (comparten la base: una rama sin fusionar no cambia el schema).
+
+Las variables de la tabla se cargan en *Project → Settings → Environment Variables*.
+
+## 📚 Más documentación
+
+- [`AGENTS.md`](AGENTS.md): arquitectura, convenciones y comportamiento del estado.
+- [`docs/roadmap.md`](docs/roadmap.md): fases del proyecto y decisiones.

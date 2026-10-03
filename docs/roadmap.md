@@ -337,15 +337,24 @@ ganó y cómo evolucionó.
 ## Fase 6 — Calidad, operación y despliegue
 
 - [x] CI (GitHub Actions, `.github/workflows/ci.yml`): `pnpm lint` + `pnpm typecheck` + `pnpm test` + `pnpm build` en cada PR y en cada push a `main`.
-- [ ] Tests E2E mínimos (Playwright): alta de transacción, login, sync.
-- [ ] Manejo robusto de errores de red: retries/backoff para DolarAPI y la API de
-  cripto, estados de fallback, toasts diferenciados.
-- [ ] Rate limits y validación en `/api/*` (Zod en el server, ownership checks).
+- [x] Tests E2E (Playwright, `e2e/`, job `e2e` en CI) en modo local con las APIs externas simuladas:
+  home vacía, alta de dólar + venta sin saldo, compra cripto con buscador, dashboard (composición,
+  evolución, drill-down) y DolarAPI caída.
+- [ ] E2E de login y sync (necesita `@clerk/testing` y un usuario de prueba en Clerk).
+- [x] Manejo robusto de errores de red: DolarAPI con timeout de 10 s, backoff 30 s → 4 min tras fallos,
+  reintento al volver la conexión, toasts distintos para "sin conexión" / "DolarAPI no responde" y
+  fallback a las últimas cotizaciones guardadas. Cripto ya tenía backoff (Fase 4); las escrituras a la
+  nube se revierten con toast (Fase 2).
+- [ ] Rate limits en `/api/*` (la validación con Zod y el ownership ya están, Fase 2). Un límite en memoria
+  no sirve en serverless: hace falta un store compartido (p. ej. Upstash Redis).
 - [ ] Observabilidad: logging de errores (Sentry u opcional), eventos clave
   (alta, venta, login, sync).
-- [ ] Deploy en Vercel + variables de entorno por ambiente; `prisma migrate deploy` en el deploy.
+- [x] `prisma migrate deploy` en el deploy: `pnpm vercel-build` migra solo en producción (las previews
+  comparten la base); si la migración falla, el deploy falla y queda la versión anterior.
+- [ ] Variables de entorno de producción en Vercel: verificar `DATABASE_URL` (la base nueva) y pasar Clerk
+  a una instancia de producción (hoy usa claves `pk_test_`).
 - [ ] Backups de Neon (point-in-time restore) y política de migraciones.
-- [ ] Actualizar `README.md` y `AGENTS.md` con la arquitectura final.
+- [x] Actualizar `README.md` y `AGENTS.md` con la arquitectura final.
 
 ---
 

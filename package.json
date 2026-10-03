@@ -13,7 +13,9 @@
     "postinstall": "prisma generate",
     "db:migrate": "prisma migrate dev",
     "db:deploy": "prisma migrate deploy",
-    "db:studio": "prisma studio"
+    "db:studio": "prisma studio",
+    "vercel-build": "node scripts/vercel-build.mjs",
+    "test:e2e": "playwright test"
   },
   "dependencies": {
     "@clerk/localizations": "^4.21.1",
@@ -51,6 +53,7 @@
     "zustand": "^5.0.12"
   },
   "devDependencies": {
+    "@playwright/test": "^1.63.0",
     "@tailwindcss/postcss": "^4.2.2",
     "@types/node": "^25.5.0",
     "@types/react": "^19.2.14",

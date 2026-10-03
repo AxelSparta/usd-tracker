@@ -26,7 +26,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 - Edición de transacciones en ambos módulos (`updateTransaction`): conserva el `id`, revalida el grupo destino y, si cambió el tipo de dólar / la moneda, también el de origen. El formulario es compartido entre alta y edición (`TransactionForm`, `CryptoTransactionForm`); las páginas de alta los envuelven (`NewTransactionForm`, `NewCryptoTransaction`).
 - Métricas **por tipo de dólar**, derivadas con `useTransactionsData()` (`TransactionsDataMap`, no se persisten):
   `totalUsd`, `investedPesos`, `averageCost`, `marketValuePesos`, `realizedProfit`, `unrealizedProfit`; más un total (`summarizeTransactionsData`) cuando hay más de un tipo de dólar.
-- Cotizaciones DolarAPI: carga inicial y refresco cada 5 min en `providers.tsx`; recálculo automático de métricas al llegar nuevas cotizaciones.
+- Cotizaciones DolarAPI: carga inicial y refresco cada 5 min en `providers.tsx`; si falla (timeout de 10 s, red caída, API caída) reintenta con backoff 30 s → 1 → 2 → 4 min (`dolarRefreshDelay`) y enseguida al volver la conexión (`online`), con toast distinto para "sin conexión" y "DolarAPI no responde" y las últimas cotizaciones guardadas como fallback. Recálculo automático de métricas al llegar nuevas cotizaciones.
 - Tarjetas de cotizaciones destacadas (`DolarPrice`): oficial, blue, bolsa, cripto.
 - **Dashboard del portfolio** (Fase 5, `src/features/portfolio/`): la home (`/`) muestra, si hay operaciones, valor total (ARS y USD), resumen por módulo (dólar en ARS, cripto en USD, cada uno con su ganancia), composición por activo (barra apilada al 100 % + tabla con 24 h y drill-down a `/dolar` o `/cripto/[coinId]`) y las cotizaciones; sin operaciones, la presentación. La composición se mide en **USD** (no depende de cotizaciones en pesos); los valores en ARS usan la cotización de cada tipo de dólar y el dólar cripto compra. Cálculo puro en `overview.ts` (`computePortfolioOverview`, `toAllocationSegments`). **Evolución del valor** (`ValueChart`, recharts): reconstruida, no guardada — por día, lo que se tenía según las transacciones × el precio de ese día (`history.ts`, `computeValueHistory`; sin precio → `null`, nunca inventado); hoy se valúa con los precios en vivo para que la serie cierre con el total. Rangos 1M/3M/6M/1A (CoinGecko público no da más de 365 días), ARS o USD (un solo eje).
 - Navegación con sidebar (shadcn `ui/sidebar`, colapsable a íconos, drawer en mobile): Inicio, Dólar (`/dolar`, `/dolar/nueva`) y Cripto (`/cripto`, `/cripto/nueva`). `/new-transaction` redirige a `/dolar/nueva` (`next.config.ts`).
@@ -62,6 +62,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 | Datos externos   | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key; [CoinGecko](https://www.coingecko.com/en/api) vía `src/server/coingecko.ts` — key opcional; [ArgentinaDatos](https://argentinadatos.com) (histórico del dólar) vía `src/server/argentinadatos.ts` — sin key |
 | Combobox         | `cmdk` (shadcn `ui/command`)                                                |
 | Gráficos         | `recharts` 3 (+ `react-is` 19, que pide con React 19)                        |
+| Tests            | Vitest (unit, `src/**/*.test.ts`) + Playwright (E2E, `e2e/`)                 |
 | Auth             | Clerk (`@clerk/nextjs` 7, `@clerk/localizations`)                           |
 | Base de datos    | Neon (Postgres) + Prisma 7 (`prisma-client`, `@prisma/adapter-neon`, `prisma.config.ts`) |
 
@@ -74,6 +75,9 @@ prisma/
 ├── schema.prisma               # User, DolarTransaction, CryptoTransaction (montos Decimal, ids UUID del cliente)
 └── migrations/                 # SQL versionado; aplicar con `pnpm db:deploy`
 prisma.config.ts                # Prisma 7: schema, migraciones y URL (DIRECT_URL ?? DATABASE_URL) para el CLI
+scripts/vercel-build.mjs        # build de Vercel: `prisma migrate deploy` solo en producción + `next build`
+e2e/                            # Playwright: fixtures.ts (APIs externas simuladas, datos sembrados) + specs
+playwright.config.ts            # puerto 3100, `next dev` directo (Playwright lo cierra al terminar)
 src/
 ├── app/
 │   ├── layout.tsx              # server: metadata, fuente, ClerkProvider, SidebarProvider + AppSidebar, <Toaster>
@@ -137,11 +141,13 @@ src/
 │   ├── sections.ts             # secciones/trackers (sidebar + home); nueva sección = nueva entrada
 │   ├── http.ts                 # requestJson + ApiRequestError (fetch a /api/* con el mensaje del server)
 │   ├── synced-store.ts         # origen local/nube de un store: createSync (commit optimista), localData
+│   ├── backoff.ts              # exponentialBackoff (lo usan dólar y cripto)
 │   └── utils.ts                # cn()
 ├── services/                   # dolarApi.ts (DolarAPI), transactionsApi.ts (/api/dolar/transactions)
 ├── store/
 │   ├── transaction.store.ts    # transacciones + persist v1 + useTransactionsData; cálculos en domain/
-│   └── dolar.store.ts          # allDolarData + persist; selectMarketPrices → MarketPriceMap
+│   ├── dolar.store.ts          # allDolarData + persist; selectMarketPrices → MarketPriceMap
+│   └── dolar-refresh.ts        # dolarRefreshDelay (5 min; backoff tras fallos)
 ├── types/                      # dolar.types.ts (DolarOption, DolarData), transaction.types.ts
 └── validations/transaction.ts  # schema Zod del formulario + parseTransactionFormInput + schemas de la API
 ```
@@ -186,12 +192,15 @@ pnpm lint       # ESLint 9 flat config (eslint.config.mjs, eslint-config-next)
 pnpm typecheck  # tsc --noEmit
 pnpm test       # Vitest (vitest.config.mts), tests en src/**/*.test.ts
 pnpm test:watch
+pnpm test:e2e   # Playwright (e2e/), modo local con APIs simuladas; 1ª vez: pnpm exec playwright install chromium
 pnpm db:migrate  # prisma migrate dev (crea y aplica una migración en dev)
 pnpm db:deploy   # prisma migrate deploy (aplica las pendientes; deploy)
 pnpm db:studio
 ```
 
-CI (`.github/workflows/ci.yml`) corre lint, typecheck, test y build en cada PR y push a `main` (pnpm 12, Node 24). Antes de dar un cambio por terminado: `pnpm lint && pnpm typecheck && pnpm test`; si toca UI, además probar el flujo en `pnpm dev`.
+CI (`.github/workflows/ci.yml`) corre lint, typecheck, test y build (job `check`) y los E2E (job `e2e`) en cada PR y push a `main` (pnpm 12, Node 24). Antes de dar un cambio por terminado: `pnpm lint && pnpm typecheck && pnpm test`; si toca UI, además `pnpm test:e2e` y probar el flujo en `pnpm dev`.
+
+Deploy: Vercel despliega `main` solo y usa `pnpm vercel-build` (`scripts/vercel-build.mjs`): en producción aplica `prisma migrate deploy` antes del build (si falla, el deploy falla y queda la versión anterior); en previews no migra.
 
 ## Variables de entorno
 

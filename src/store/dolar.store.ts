@@ -1,16 +1,19 @@
 import type { MarketPriceMap } from '@/domain/metrics'
-import { getAllDolars } from '@/services/dolarApi'
+import { DolarApiError, getAllDolars } from '@/services/dolarApi'
 import { type DolarData, DolarOption } from '@/types/dolar.types'
 import { create, StateCreator } from 'zustand'
 import { devtools, persist } from 'zustand/middleware'
 import { toast } from 'sonner'
 
+const ERROR_TOAST_ID = 'dolar-fetch-error'
+
 interface DolarState {
   allDolarData: Record<DolarOption, DolarData> | null
-  fetchAllDolars: () => Promise<void>
+  /** Devuelve `false` si falló, para que el refresco periódico aplique backoff */
+  fetchAllDolars: () => Promise<boolean>
 }
 
-const dolarApi: StateCreator<DolarState> = (set) => ({
+const dolarApi: StateCreator<DolarState> = (set, get) => ({
   allDolarData: null,
   fetchAllDolars: async () => {
     try {
@@ -22,14 +25,25 @@ const dolarApi: StateCreator<DolarState> = (set) => ({
         }
         return acc
       }, {} as Record<DolarOption, DolarData>)
-      
+
       set({ allDolarData: dataMap })
+      toast.dismiss(ERROR_TOAST_ID)
+      return true
     } catch (error) {
       console.error('Error fetching dolar data:', error)
-      // id fijo: el refresco periódico no apila toasts si la API sigue caída
-      toast.error('No se pudieron actualizar las cotizaciones.', {
-        id: 'dolar-fetch-error',
-      })
+      const offline =
+        (error instanceof DolarApiError && error.offline) ||
+        (typeof navigator !== 'undefined' && navigator.onLine === false)
+      // Con cotizaciones guardadas, la app sigue usando las últimas conocidas
+      const fallback = get().allDolarData ? ' Mostramos las últimas guardadas.' : ''
+      // id fijo: los reintentos no apilan toasts mientras siga fallando
+      toast.error(
+        offline
+          ? `Sin conexión: no se pudieron actualizar las cotizaciones.${fallback}`
+          : `DolarAPI no responde: reintentamos en unos segundos.${fallback}`,
+        { id: ERROR_TOAST_ID },
+      )
+      return false
     }
   }
 })
