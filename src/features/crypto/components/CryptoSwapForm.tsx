@@ -41,7 +41,7 @@ import CoinCombobox from './CoinCombobox'
 
 type CryptoSwapFormProps = {
   /** Puede lanzar un `Error` de negocio: se muestra como toast y el form queda abierto */
-  onSubmit: (swap: CryptoSwapInput) => void
+  onSubmit: (swap: CryptoSwapInput) => void | Promise<void>
 }
 
 type AmountFieldName = 'fromQuantity' | 'toQuantity' | 'valueUsd'
@@ -99,10 +99,10 @@ export default function CryptoSwapForm({ onSubmit }: CryptoSwapFormProps) {
     }
   }
 
-  function handleSubmit(data: CryptoSwapFormInput) {
+  async function handleSubmit(data: CryptoSwapFormInput) {
     if (!fromCoin || !toCoin) return
     try {
-      onSubmit({
+      await onSubmit({
         from: fromCoin,
         fromQuantity: parseLocaleAmount(data.fromQuantity),
         to: toCoin,
@@ -265,7 +265,7 @@ export default function CryptoSwapForm({ onSubmit }: CryptoSwapFormProps) {
             </FormItem>
           )}
         />
-        <Button type='submit' className='w-full'>
+        <Button type='submit' className='w-full' disabled={form.formState.isSubmitting}>
           Guardar intercambio
         </Button>
       </form>

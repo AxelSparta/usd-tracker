@@ -42,9 +42,9 @@ export default function CryptoTransactionList({ coinId }: CryptoTransactionListP
     return other ? (coins[other.coinId]?.symbol ?? other.coinId) : '—'
   }
 
-  const handleDelete = (id: string) => {
+  const handleDelete = async (id: string) => {
     try {
-      removeTransaction(id)
+      await removeTransaction(id)
       toast.success('Operación eliminada.')
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Error al eliminar la operación')

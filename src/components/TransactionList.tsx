@@ -20,18 +20,22 @@ import { cn } from '@/lib/utils'
 import { Stat, pnlClass } from './Stat'
 import EditTransactionDialog from './EditTransactionDialog'
 import { Trash2 } from 'lucide-react'
+import SyncGate from './SyncGate'
+import { Skeleton } from './ui/skeleton'
 
 export default function TransactionList() {
   const transactionsGrouped = useTransactionStore((state) => state.transactions)
   const removeTransaction = useTransactionStore(
     (state) => state.removeTransaction,
   )
+  const status = useTransactionStore((state) => state.status)
+  const retryCloud = useTransactionStore((state) => state.retryCloud)
   const transactionsData = useTransactionsData()
   const allDolarData = useDolarStore((state) => state.allDolarData)
 
-  const handleDeleteTransaction = (transactionId: string) => {
+  const handleDeleteTransaction = async (transactionId: string) => {
     try {
-      removeTransaction(transactionId)
+      await removeTransaction(transactionId)
       toast.success('Transacción eliminada con éxito.')
     } catch (error: unknown) {
       toast.error(
@@ -40,6 +44,23 @@ export default function TransactionList() {
           : 'Error al eliminar la transacción',
       )
     }
+  }
+
+  if (status !== 'ready') {
+    return (
+      <section className='space-y-4'>
+        <h2 className='text-sm font-medium text-muted-foreground'>
+          Transacciones
+        </h2>
+        <SyncGate
+          status={status}
+          onRetry={retryCloud}
+          fallback={<Skeleton className='h-40 w-full' />}
+        >
+          {null}
+        </SyncGate>
+      </section>
+    )
   }
 
   const hasAnyTransaction = Object.values(transactionsGrouped).some(

@@ -89,3 +89,71 @@ export const cryptoSwapFormSchema = z
   })
 
 export type CryptoSwapFormInput = z.infer<typeof cryptoSwapFormSchema>
+
+// --- Body de la API (`/api/crypto/*`): montos ya numéricos y fecha ISO ---
+
+const apiDateField = z.coerce
+  .date({ error: () => 'La fecha es requerida' })
+  .refine((d) => d <= endOfDay(new Date()), 'La fecha no puede ser futura')
+
+const positiveNumber = (label: string) =>
+  z.number().finite().positive(`${label} debe ser mayor a cero`)
+
+/** ids de CoinGecko: minúsculas, dígitos y guiones (ej. `bitcoin`, `usd-coin`) */
+export const coinIdField = z.string().regex(/^[a-z0-9-]{1,100}$/, 'Moneda inválida')
+
+export const coinApiSchema = z.object({
+  id: coinIdField,
+  symbol: z.string().min(1).max(50),
+  name: z.string().min(1).max(200),
+  image: z.url().max(2000).nullable(),
+})
+
+export const cryptoTransactionFields = z.object({
+  coinId: coinIdField,
+  type: z.enum(TransactionType),
+  quantity: positiveNumber('La cantidad'),
+  priceUsd: positiveNumber('El precio'),
+  date: apiDateField,
+  fee: z
+    .object({
+      amount: positiveNumber('La comisión'),
+      currency: z.enum(['USD', 'COIN']),
+    })
+    .optional(),
+})
+
+const coinMatches = {
+  check: (d: { transaction: { coinId: string }; coin: { id: string } }) =>
+    d.transaction.coinId === d.coin.id,
+  params: { path: ['coin'], message: 'La moneda no coincide con la operación' },
+}
+
+/** Edición */
+export const cryptoTransactionApiSchema = z
+  .object({ transaction: cryptoTransactionFields, coin: coinApiSchema })
+  .refine(coinMatches.check, coinMatches.params)
+
+/** Alta: el id lo genera el cliente (`crypto.randomUUID()`) */
+export const createCryptoTransactionApiSchema = z
+  .object({
+    transaction: cryptoTransactionFields.extend({ id: z.uuid('Id inválido') }),
+    coin: coinApiSchema,
+  })
+  .refine(coinMatches.check, coinMatches.params)
+
+export const cryptoSwapApiSchema = z.object({
+  swap: z.object({
+    from: coinApiSchema,
+    fromQuantity: positiveNumber('La cantidad'),
+    to: coinApiSchema,
+    toQuantity: positiveNumber('La cantidad'),
+    valueUsd: positiveNumber('El valor'),
+    date: apiDateField,
+  }),
+  ids: z.object({
+    swapId: z.uuid('Id inválido'),
+    sellId: z.uuid('Id inválido'),
+    buyId: z.uuid('Id inválido'),
+  }),
+})

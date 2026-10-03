@@ -50,8 +50,8 @@ export default function EditTransactionDialog({ tx }: { tx: Transaction }) {
             dollarsAmount: numberToArInput(tx.dollarsAmount),
             date: new Date(tx.date),
           }}
-          onSubmit={(values) => {
-            updateTransaction(tx.id, values)
+          onSubmit={async (values) => {
+            await updateTransaction(tx.id, values)
             toast.success('Transacción actualizada.')
             setOpen(false)
           }}

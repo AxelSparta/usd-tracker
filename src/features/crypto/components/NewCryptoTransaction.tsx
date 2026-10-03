@@ -67,16 +67,16 @@ export default function NewCryptoTransaction() {
           {mode === 'trade' ? (
             <CryptoTransactionForm
               submitLabel='Guardar operación'
-              onSubmit={(tx, coin) => {
-                addTransaction(tx, coin)
+              onSubmit={async (tx, coin) => {
+                await addTransaction(tx, coin)
                 toast.success('Operación registrada.')
                 router.push('/cripto')
               }}
             />
           ) : (
             <CryptoSwapForm
-              onSubmit={(swap) => {
-                addSwap(swap)
+              onSubmit={async (swap) => {
+                await addSwap(swap)
                 toast.success('Intercambio registrado.')
                 router.push('/cripto')
               }}

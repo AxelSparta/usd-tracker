@@ -61,8 +61,8 @@ export default function EditCryptoTransactionDialog({
             feeCurrency: tx.fee?.currency ?? 'USD',
             date: new Date(tx.date),
           }}
-          onSubmit={(values, selectedCoin) => {
-            updateTransaction(tx.id, values, selectedCoin)
+          onSubmit={async (values, selectedCoin) => {
+            await updateTransaction(tx.id, values, selectedCoin)
             toast.success('Operación actualizada.')
             setOpen(false)
           }}

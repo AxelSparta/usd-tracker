@@ -4,7 +4,8 @@ import { esUY } from '@clerk/localizations'
 import './globals.css'
 
 import AppSidebar from '@/components/AppSidebar'
-import LocalModeBadge from '@/components/LocalModeBadge'
+import LocalImportDialog from '@/features/auth/components/LocalImportDialog'
+import SyncBadge from '@/features/auth/components/SyncBadge'
 import {
   SidebarInset,
   SidebarProvider,
@@ -96,13 +97,14 @@ export default function RootLayout({
               <SidebarInset>
                 <header className='sticky top-0 z-10 flex h-12 items-center justify-between border-b bg-background/80 px-4 backdrop-blur'>
                   <SidebarTrigger className='-ml-1 text-muted-foreground' />
-                  <LocalModeBadge />
+                  <SyncBadge />
                 </header>
                 <div className='mx-auto flex w-full max-w-6xl flex-1 flex-col px-4 py-8 md:px-8 md:py-12'>
                   {children}
                 </div>
               </SidebarInset>
             </SidebarProvider>
+            <LocalImportDialog />
             <Toaster richColors closeButton position='top-center' />
           </ClientProviders>
         </ClerkProvider>

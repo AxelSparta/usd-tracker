@@ -1,0 +1,74 @@
+// Fase 2: una tabla por módulo (dólar y cripto no comparten modelo).
+// Los ids de las operaciones los genera el cliente (`crypto.randomUUID()`): permite
+// updates optimistas sin reconciliar ids y subir datos locales sin duplicar (Fase 3).
+// Montos como `Decimal` sin precisión fija (numeric de Postgres): guardan exacto lo
+// que manda el cliente; la conversión a `number` vive en `src/server/mappers.ts`.
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum TransactionType {
+  BUY
+  SELL
+}
+
+enum FeeCurrency {
+  USD
+  COIN
+}
+
+model User {
+  /// userId de Clerk (`user_…`); la fila se crea en la primera escritura
+  id                 String              @id
+  createdAt          DateTime            @default(now())
+  dolarTransactions  DolarTransaction[]
+  cryptoTransactions CryptoTransaction[]
+}
+
+model DolarTransaction {
+  id            String          @id @db.Uuid
+  userId        String
+  user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Valor de `DolarOption` ('blue', 'oficial', …); validado con Zod en la API
+  dolarOption   String
+  type          TransactionType
+  dollarsAmount Decimal
+  pesosAmount   Decimal
+  date          DateTime
+  createdAt     DateTime        @default(now())
+  updatedAt     DateTime        @updatedAt
+
+  @@index([userId, dolarOption, date])
+}
+
+model CryptoTransaction {
+  id          String          @id @db.Uuid
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// id de CoinGecko, ej. `bitcoin`
+  coinId      String
+  /// Metadatos de la moneda, para mostrarla sin consultar CoinGecko
+  symbol      String
+  name        String
+  image       String?
+  type        TransactionType
+  quantity    Decimal
+  priceUsd    Decimal
+  date        DateTime
+  /// Comisión opcional: los dos campos van juntos (o ninguno)
+  feeAmount   Decimal?
+  feeCurrency FeeCurrency?
+  /// Enlaza la venta y la compra de un intercambio cripto ↔ cripto
+  swapId      String?         @db.Uuid
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  @@index([userId, coinId, date])
+  @@index([swapId])
+}
