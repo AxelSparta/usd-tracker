@@ -177,3 +177,14 @@ export const applyRemoveCryptoTransaction = (
     removedIds: removed.map((t) => t.id),
   }
 }
+
+/** Valida la línea temporal de todas las monedas (lanza con el mensaje de la primera inválida) */
+export const validateCryptoTimelines = ({ transactions, coins }: CryptoPortfolioState) => {
+  for (const coinId of new Set(transactions.map((t) => t.coinId))) {
+    assertCoinTimeline(
+      transactions.filter((t) => t.coinId === coinId),
+      coins[coinId],
+      (symbol, date) => `No tenés suficiente ${symbol} para vender el ${date}.`,
+    )
+  }
+}

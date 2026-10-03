@@ -185,7 +185,7 @@ la persistencia todavía.
 
 ---
 
-## Fase 2 — Persistencia cloud (Neon + Prisma)
+## Fase 2 — Persistencia cloud (Neon + Prisma) ✅
 
 **Objetivo:** las transacciones viven en Postgres para usuarios autenticados.
 
@@ -232,17 +232,29 @@ refresco y a otro dispositivo; sin sesión, todo sigue funcionando en local.
 
 ---
 
-## Fase 3 — Integración híbrida y sincronización
+## Fase 3 — Integración híbrida y sincronización ✅
 
 **Objetivo:** un solo flujo de verdad según la sesión.
 
 - [x] ~~Selección de repositorio en el store~~ — hecho en la Fase 2 (`source` local / nube según la sesión).
-- [ ] **Migración inicial**: al primer login, detectar transacciones locales y ofrecer
-  (dialog) subirlas a la nube; idempotencia por `id` (los `crypto.randomUUID()`
-  locales pueden conservarse como IDs).
+- [x] **Migración inicial** (`src/features/auth/`): al iniciar sesión, `LocalImportDialog` detecta las
+  operaciones locales que no están en la cuenta (por id) y ofrece subirlas con `POST /api/sync/import`
+  (dólar + cripto en una transacción). Idempotente por `id`: los `crypto.randomUUID()` locales se
+  conservan; datos viejos con ids no UUID reciben uno nuevo (`toImportPayload`, swaps incluidos).
+  "Ahora no" recuerda esos ids por usuario (`sync-storage`) para no insistir; se pueden subir después
+  desde el badge.
 - [x] Logout: no borrar locales automáticamente — hecho en la Fase 2 (`disconnectCloud` restaura la copia local).
-- [ ] Reflejar el estado de sync en el badge ("sincronizado / pendiente"); con sesión ya dice "En la nube" (Fase 2).
-- [ ] Manejo de conflictos simples (la nube manda tras el primer sync; documentar la regla).
+- [x] Estado de sync en el badge (`SyncBadge`): Modo local / Cargando… / Guardando… (escrituras en curso)
+  / Sincronizado / Sin conexión (con "Reintentar"), y aviso de operaciones locales sin subir.
+- [x] **Regla de conflictos: la nube manda.** Lo local solo *agrega* operaciones: un id que ya existe en la
+  nube se saltea (gana la versión de la nube), igual que los metadatos de monedas ya conocidas; un id que
+  choca con otro usuario se saltea sin revelarlo. El server valida la línea temporal combinada (422 si no
+  cierra). Después de subir, lo local queda intacto en el navegador (se vuelve a ver al cerrar sesión) y
+  no se vuelve a ofrecer.
+- [x] Verificado: tests de la ruta (idempotencia, la nube manda, otro usuario, 422, swaps), importación contra
+  Neon real con un usuario de prueba, y en el navegador el diálogo con el conteo correcto, "Ahora no" (no
+  reaparece al recargar) y el popover del badge ofreciendo la subida manual. Falta: hacer clic en "Subir a
+  mi cuenta" en el navegador con datos reales.
 
 **Criterio de salida:** flujo continuo local → login → nube sin pérdida de datos.
 

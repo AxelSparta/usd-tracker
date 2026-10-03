@@ -3,7 +3,7 @@
 import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
 import { useDolarStore } from '@/store/dolar.store'
-import { CloudSync } from './cloud-sync'
+import { CloudSync } from '@/features/auth/CloudSync'
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   const fetchAllDolars = useDolarStore((state) => state.fetchAllDolars)

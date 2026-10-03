@@ -36,6 +36,8 @@ interface State extends SyncFields<DolarData> {
   connectCloud: () => Promise<void>
   disconnectCloud: () => void
   retryCloud: () => Promise<void>
+  /** Recarga desde la nube sin mostrar `loading` */
+  refreshCloud: () => Promise<void>
 }
 
 type DolarData = { transactions: GroupedTransactions }
@@ -82,6 +84,7 @@ const storeApi: StateCreator<State> = (set, get) => {
     connectCloud: sync.connectCloud,
     disconnectCloud: sync.disconnectCloud,
     retryCloud: sync.retry,
+    refreshCloud: sync.refresh,
   }
 }
 

@@ -9,7 +9,7 @@ Aplicación web (**Portfolio Tracker**, antes DolarTracker) orientada al mercado
 - **Dólar:** compras y ventas de USD en ARS por tipo de dólar (DolarAPI), métricas en ARS.
 - **Cripto:** compras y ventas de cualquier moneda de CoinGecko en USD, métricas en USD y equivalente en ARS con el dólar cripto.
 
-No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `src/lib/`, y cripto lee la cotización del dólar cripto de `useDolarStore`. Sin sesión, modo **local-first** con persistencia en el navegador; con sesión (Clerk), los datos activos vienen de la nube (Neon + Prisma vía API) y lo local queda guardado aparte (ver "Modo remoto").
+No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `src/lib/`, y cripto lee la cotización del dólar cripto de `useDolarStore`. Sin sesión, modo **local-first** con persistencia en el navegador; con sesión (Clerk), los datos activos vienen de la nube (Neon + Prisma vía API) y lo local queda guardado aparte; al iniciar sesión se ofrece subirlo (ver "Modo remoto" y "Sincronización").
 
 ## Funcionalidades implementadas (estado actual)
 
@@ -40,7 +40,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - línea temporal validada por moneda al agregar, editar y borrar (`findNegativeBalance`)
 - **API de datos** (Fase 2): CRUD protegido por módulo en `/api/dolar/transactions[/:id]`, `/api/crypto/transactions[/:id]` y `/api/crypto/swaps`. Cada handler: `requireUserId()` (401 sin sesión) → body validado con Zod (400) → servicio en `src/server/` que filtra por `userId` (operación ajena = 404), valida la línea temporal con las **mismas funciones puras que los stores** (422 con el mismo mensaje) y escribe en una transacción `Serializable` (conflicto = 409). Los ids los genera el cliente (`crypto.randomUUID()`); id repetido = 409.
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
-- Badge en la barra superior (`LocalModeBadge`): "Modo local" sin sesión, "En la nube" con sesión (el tooltip avisa que lo local sigue en el navegador).
+- **Sincronización** (Fase 3, `src/features/auth/`): `SyncBadge` en la barra superior (Modo local / Cargando… / Guardando… / Sincronizado / Sin conexión, con popover para reintentar o subir lo local); `LocalImportDialog` ofrece subir las operaciones locales que no están en la cuenta al iniciar sesión (`POST /api/sync/import`, idempotente por id, **la nube manda**: un id existente se saltea). "Ahora no" guarda esos ids por usuario en `sync-storage` para no volver a preguntar; igual se pueden subir desde el badge.
 - **Login con Clerk** (Fase 1): `<ClerkProvider>` en el layout (localización `esUY`, colores vía variables CSS de shadcn), `src/proxy.ts` con `clerkMiddleware()` sin protección por ruta (las futuras rutas de datos chequean `auth()` en cada handler; `createRouteMatcher` está deprecado), `UserMenu` en el pie del sidebar. Clerk v7 (Core 3): usar `<Show when='signed-in'>`, no `SignedIn`/`SignedOut`. La sesión elige el origen de datos de los stores (`src/app/cloud-sync.tsx`).
 
 ## Stack (versiones según `package.json`)
@@ -76,7 +76,6 @@ src/
 ├── app/
 │   ├── layout.tsx              # server: metadata, fuente, ClerkProvider, SidebarProvider + AppSidebar, <Toaster>
 │   ├── providers.tsx           # client: ThemeProvider + CloudSync + fetch/refresh de cotizaciones
-│   ├── cloud-sync.tsx          # client: sesión de Clerk → connectCloud/disconnectCloud de los stores
 │   ├── page.tsx                # "/" → home: intro + tarjetas de secciones + "cómo funciona"
 │   ├── dolar/page.tsx          # "/dolar" → DolarPrice + TransactionList
 │   ├── dolar/nueva/page.tsx    # "/dolar/nueva" → NewTransactionForm
@@ -86,6 +85,7 @@ src/
 │   ├── api/crypto/{prices,search}/route.ts  # proxy a CoinGecko (valida params, cachea)
 │   ├── api/dolar/transactions/[id]/         # CRUD del dólar (GET/POST, PATCH/DELETE)
 │   ├── api/crypto/{transactions/[id],swaps}/ # CRUD cripto + alta de intercambios
+│   ├── api/sync/import/route.ts # subida de datos locales (dólar + cripto) a la cuenta
 │   ├── not-found.tsx           # 404
 │   └── globals.css
 ├── components/                 # piezas de la app (AppSidebar, UserMenu, ThemeSwitch, LocalModeBadge, Stat,
@@ -98,6 +98,12 @@ src/
 │   ├── metrics.ts              # dólar: computeGroupMetrics, computeTransactionsData, MarketPriceMap
 │   ├── timeline.ts             # sortTxs, findNegativeBalance, validateTimeline
 │   └── transactions.ts         # dólar: applyAdd/Update/RemoveTransaction, groupTransactions (store + server)
+├── features/auth/              # sincronización local ↔ nube (Fase 3) + __tests__/
+│   ├── CloudSync.tsx           # sesión de Clerk → connectCloud/disconnectCloud de los stores
+│   ├── local-import.ts         # puro: localNotInCloud, excludeIds, toImportPayload (ids no UUID → UUID)
+│   ├── sync.store.ts           # ids ya ofrecidos por usuario (persist `sync-storage`, v1)
+│   ├── api.ts, hooks.ts        # importLocalData; useCloudStatus, useLocalImport
+│   └── components/             # SyncBadge, LocalImportDialog, describe (textos)
 ├── features/crypto/            # módulo cripto completo + __tests__/
 │   ├── types.ts, metrics.ts, validations.ts, refresh.ts (backoff de precios)
 │   ├── api.ts                  # fetch del navegador a /api/crypto/* (precios, búsqueda, cryptoApi CRUD)
@@ -113,6 +119,7 @@ src/
 │   ├── coingecko.ts            # cliente CoinGecko + schemas Zod de respuesta
 │   ├── db.ts                   # getDb (PrismaClient + PrismaNeon, lazy), withUserTransaction
 │   ├── auth.ts, errors.ts      # requireUserId; ApiError, parseBody, parseIdParam, errorResponse
+│   ├── import.ts               # importSchema + importLocalData (la nube manda, skipDuplicates)
 │   ├── mappers.ts              # única conversión fila Prisma (Decimal) ↔ modelo de dominio (number)
 │   └── {dolar,crypto}-transactions.ts  # servicios con ownership + validación de línea temporal
 ├── lib/
@@ -131,17 +138,17 @@ src/
 
 - Alias: `@/*` → `src/*` (ver `tsconfig.json`).
 - Dirección de dependencias: `components → store → (domain, services, lib, types)`; `domain → types` únicamente. `domain`, `validations` y `types` **nunca** importan stores ni React. `types/transaction.types.ts` define el modelo de dominio y no importa `validations`.
-- `features/crypto` puede usar `domain`, `lib`, `types`, `components/ui`, `hooks` y leer `useDolarStore` (solo el dólar cripto); el módulo dólar **no** importa nada de `features/crypto`. `server/` solo se importa desde route handlers (y puede usar `domain`, `types`, `validations` y las piezas puras de `features/crypto`: `operations`, `metrics`, `types`).
+- `features/crypto` puede usar `domain`, `lib`, `types`, `components/ui`, `hooks` y leer `useDolarStore` (solo el dólar cripto); el módulo dólar **no** importa nada de `features/crypto`. `features/auth` es la capa de sincronización: puede usar los stores de ambos módulos, y ningún módulo la importa (solo `app/`). `server/` solo se importa desde route handlers (y puede usar `domain`, `types`, `validations` y las piezas puras de `features/crypto`: `operations`, `metrics`, `types`).
 - El navegador nunca llama a CoinGecko directo: siempre vía `/api/crypto/*` (key en el server, Data Cache con `next.revalidate`, respuestas validadas con Zod).
 - Arquitectura objetivo (mover dólar a `src/features/dolar`, etc.): ver `docs/roadmap.md`. **No** crearla a medias fuera de la fase correspondiente.
 
 ## Comportamiento importante del estado
 
-- **Persistencia:** Zustand `persist` con claves `transactions-storage`, `dolar-storage`, `crypto-storage` (v2: `fee`/`swapId` opcionales, `migrateCryptoStorage`) y `crypto-prices-storage`, el resto en `version: 1`, todas con `partialize` (solo datos, nunca métricas derivadas). Ojo: si se sube `version` sin `migrate`, Zustand **descarta** lo guardado. `migrateTransactionsStorage` (v0 → v1) tiene test con un snapshot real. Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
+- **Persistencia:** Zustand `persist` con claves `transactions-storage`, `dolar-storage`, `crypto-storage` (v2: `fee`/`swapId` opcionales, `migrateCryptoStorage`), `crypto-prices-storage` y `sync-storage`, el resto en `version: 1`, todas con `partialize` (solo datos, nunca métricas derivadas). Ojo: si se sube `version` sin `migrate`, Zustand **descarta** lo guardado. `migrateTransactionsStorage` (v0 → v1) tiene test con un snapshot real. Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
 - **Forma de los datos:** `transactions: Partial<Record<DolarOption, Transaction[]>>`, cada grupo ordenado con `sortTxs`. Los montos se guardan como `number`; la fecha, como `Date` serializada a string por `persist` (usar `new Date(tx.date)` al leer).
 - **Métricas derivadas:** no hay suscripción entre stores. `useTransactionsData` (dólar) y `useCryptoPortfolio` (cripto) recalculan con `useMemo` cuando cambian las transacciones o los precios. No volver a guardar métricas en el estado.
 - **Cálculos:** el algoritmo vive en `src/domain/position.ts` (`computePosition`, con `dust` según la unidad: 0,0001 para USD, 1e-9 por defecto para cripto) y cada módulo lo adapta. Dólar (`src/domain/metrics.ts`): costo promedio ponderado con compras; cada venta suma `(precio venta − costo promedio) × USD` a la ganancia realizada y reduce la posición; la no realizada usa `MarketPrice.sell` **del mismo tipo de dólar del grupo**. Los precios se inyectan: `useTransactionsData` arma el `MarketPriceMap` con `selectMarketPrices({ allDolarData })`. Cualquier cambio en la matemática va acompañado de tests en `src/domain/__tests__/`.
-- **Modo remoto** (`src/lib/synced-store.ts`): cada store tiene `source` (`local` | `cloud`) y `status` (`pending` hasta que se resuelve la sesión, `loading`, `ready`, `error`). `CloudSync` llama a `connectCloud()` con sesión (guarda lo local en `localSnapshot` y carga `GET /api/...`) y a `disconnectCloud()` sin sesión (vuelve lo local); si Clerk no carga en 4 s, pasa a local. `partialize` (`persistedTransactions`, `persistedCrypto`) **siempre** persiste lo local: la nube nunca se escribe en `localStorage`. Las acciones son `async`: validan con las funciones puras, aplican el estado al instante y, en la nube, confirman con la API; si falla, revierten (o recargan si hubo otra escritura en el medio) y relanzan el error para el toast. Los componentes **deben** hacer `await` de las acciones. Las vistas de datos se muestran con `SyncGate` (skeleton mientras `pending`/`loading`, reintentar si `error`), que además evita el mismatch de hidratación. Pendiente (Fase 3): subir los datos locales al iniciar sesión. Las reglas de negocio (alta/edición/borrado) viven en funciones puras (`domain/transactions.ts`, `features/crypto/operations.ts`) que comparten store y server: cambiarlas en un solo lugar.
+- **Modo remoto** (`src/lib/synced-store.ts`): cada store tiene `source` (`local` | `cloud`), `status`, `pendingWrites` (escrituras en curso, para "Guardando…") (`pending` hasta que se resuelve la sesión, `loading`, `ready`, `error`). `CloudSync` llama a `connectCloud()` con sesión (guarda lo local en `localSnapshot` y carga `GET /api/...`) y a `disconnectCloud()` sin sesión (vuelve lo local); si Clerk no carga en 4 s, pasa a local. `partialize` (`persistedTransactions`, `persistedCrypto`) **siempre** persiste lo local: la nube nunca se escribe en `localStorage`. Las acciones son `async`: validan con las funciones puras, aplican el estado al instante y, en la nube, confirman con la API; si falla, revierten (o recargan si hubo otra escritura en el medio) y relanzan el error para el toast. Los componentes **deben** hacer `await` de las acciones. Las vistas de datos se muestran con `SyncGate` (skeleton mientras `pending`/`loading`, reintentar si `error`), que además evita el mismatch de hidratación. `refreshCloud()` recarga sin pasar por `loading` (lo usa la importación). Las reglas de negocio (alta/edición/borrado) viven en funciones puras (`domain/transactions.ts`, `features/crypto/operations.ts`) que comparten store y server: cambiarlas en un solo lugar.
 - **Base de datos:** cambios de forma en `prisma/schema.prisma` van con una migración nueva (`pnpm db:migrate`) en el mismo PR; nunca editar migraciones ya aplicadas.
 
 ## Convenciones de desarrollo

@@ -39,10 +39,18 @@ const table = (rows: Row[]) => ({
     rows.push(row)
     return row
   },
-  createMany: async ({ data }: { data: Record<string, unknown>[] }) => {
-    if (data.some((d) => rows.some((r) => r.id === d.id))) throw duplicate()
-    rows.push(...data.map(toRow))
-    return { count: data.length }
+  createMany: async ({
+    data,
+    skipDuplicates,
+  }: {
+    data: Record<string, unknown>[]
+    skipDuplicates?: boolean
+  }) => {
+    const exists = (d: Record<string, unknown>) => rows.some((r) => r.id === d.id)
+    if (!skipDuplicates && data.some(exists)) throw duplicate()
+    const fresh = data.filter((d) => !exists(d))
+    rows.push(...fresh.map(toRow))
+    return { count: fresh.length }
   },
   update: async ({ where, data }: { where: Where; data: Record<string, unknown> }) => {
     const index = rows.findIndex((r) => matches(r, where))

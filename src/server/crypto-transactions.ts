@@ -21,7 +21,7 @@ import { toCoin, toCryptoTransaction, toCryptoTransactionData } from './mappers'
 
 const NOT_FOUND = 'La operación no existe.'
 
-const loadState = async (
+export const loadCryptoState = async (
   db: Pick<DbTransaction, 'cryptoTransaction'>,
   userId: string,
 ): Promise<CryptoPortfolioState> => {
@@ -34,7 +34,7 @@ const loadState = async (
   return { transactions: rows.map(toCryptoTransaction), coins }
 }
 
-export const listCryptoTransactions = (userId: string) => loadState(getDb(), userId)
+export const listCryptoTransactions = (userId: string) => loadCryptoState(getDb(), userId)
 
 export const createCryptoTransaction = (
   userId: string,
@@ -42,7 +42,7 @@ export const createCryptoTransaction = (
   coin: Coin,
 ) =>
   withUserTransaction(userId, async (db) => {
-    const state = await loadState(db, userId)
+    const state = await loadCryptoState(db, userId)
     applyOrReject(() => applyAddCryptoTransaction(state, tx, coin))
 
     const row = await db.cryptoTransaction.create({
@@ -58,7 +58,7 @@ export const updateCryptoTransaction = (
   coin: Coin,
 ) =>
   withUserTransaction(userId, async (db) => {
-    const state = await loadState(db, userId)
+    const state = await loadCryptoState(db, userId)
     const updated = applyOrReject(() =>
       applyUpdateCryptoTransaction(state, id, tx, coin),
     )
@@ -74,7 +74,7 @@ export const updateCryptoTransaction = (
 
 export const createCryptoSwap = (userId: string, swap: CryptoSwapInput, ids: SwapIds) =>
   withUserTransaction(userId, async (db) => {
-    const state = await loadState(db, userId)
+    const state = await loadCryptoState(db, userId)
     applyOrReject(() => applyAddSwap(state, swap, ids))
 
     const legs = buildSwapLegs(swap, ids)
@@ -92,7 +92,7 @@ export const createCryptoSwap = (userId: string, swap: CryptoSwapInput, ids: Swa
 /** Devuelve los ids borrados (las dos patas si era un intercambio) */
 export const removeCryptoTransaction = (userId: string, id: string) =>
   withUserTransaction(userId, async (db) => {
-    const state = await loadState(db, userId)
+    const state = await loadCryptoState(db, userId)
     const result = applyOrReject(() => applyRemoveCryptoTransaction(state, id))
     if (!result) throw new ApiError(404, NOT_FOUND)
 

@@ -22,12 +22,15 @@ export type SyncFields<D> = {
   status: SyncStatus
   /** Copia local mientras `source === 'cloud'` */
   localSnapshot: D | null
+  /** Escrituras enviadas a la API que todavía no respondieron */
+  pendingWrites: number
 }
 
 export const initialSyncFields = <D>(): SyncFields<D> => ({
   source: 'local',
   status: 'pending',
   localSnapshot: null,
+  pendingWrites: 0,
 })
 
 export const createSync = <D extends object, S extends SyncFields<D> & D>(
@@ -73,11 +76,15 @@ export const createSync = <D extends object, S extends SyncFields<D> & D>(
         source: 'local',
         status: 'ready',
         localSnapshot: null,
+        pendingWrites: 0,
       } as Partial<S>)
     },
 
     /** Reintenta la carga tras un error */
     retry: () => reload(true),
+
+    /** Vuelve a pedir los datos sin pasar por `loading` (ej. después de importar) */
+    refresh: () => (get().source === 'cloud' ? reload(false) : Promise.resolve()),
 
     commit: async (next: D, remote: () => Promise<unknown>) => {
       const previous = pick(get())
@@ -85,9 +92,16 @@ export const createSync = <D extends object, S extends SyncFields<D> & D>(
       if (get().source !== 'cloud') return
 
       const started = generation
+      // Sin mirar `generation`: una recarga en el medio no debe dejar el contador colgado
+      // (al cerrar sesión se pone en 0 y el `max` evita negativos)
+      const settle = () =>
+        set({ pendingWrites: Math.max(0, get().pendingWrites - 1) } as Partial<S>)
+      set({ pendingWrites: get().pendingWrites + 1 } as Partial<S>)
       try {
         await remote()
+        settle()
       } catch (error) {
+        settle()
         if (started === generation) {
           const current = pick(get())
           const untouched = (Object.keys(next) as (keyof D)[]).every(

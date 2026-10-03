@@ -86,3 +86,10 @@ export const applyRemoveTransaction = (
   validateTimeline(group)
   return { ...transactions, [option]: group }
 }
+
+/** Valida la línea temporal de todos los grupos (lanza con el mensaje del primero inválido) */
+export const validateAllGroups = (transactions: GroupedTransactions) => {
+  for (const group of Object.values(transactions)) {
+    if (group) validateTimeline(group)
+  }
+}

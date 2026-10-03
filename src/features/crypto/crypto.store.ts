@@ -32,6 +32,8 @@ interface CryptoState extends CryptoPortfolioState, SyncFields<CryptoPortfolioSt
   connectCloud: () => Promise<void>
   disconnectCloud: () => void
   retryCloud: () => Promise<void>
+  /** Recarga desde la nube sin mostrar `loading` */
+  refreshCloud: () => Promise<void>
 }
 
 const EMPTY: CryptoPortfolioState = { transactions: [], coins: {} }
@@ -83,6 +85,7 @@ const storeApi: StateCreator<CryptoState> = (set, get) => {
     connectCloud: sync.connectCloud,
     disconnectCloud: sync.disconnectCloud,
     retryCloud: sync.retry,
+    refreshCloud: sync.refresh,
   }
 }
 

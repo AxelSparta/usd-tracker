@@ -109,7 +109,7 @@ export const coinApiSchema = z.object({
   image: z.url().max(2000).nullable(),
 })
 
-const cryptoTransactionFields = z.object({
+export const cryptoTransactionFields = z.object({
   coinId: coinIdField,
   type: z.enum(TransactionType),
   quantity: positiveNumber('La cantidad'),
