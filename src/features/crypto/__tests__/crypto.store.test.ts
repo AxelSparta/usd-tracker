@@ -21,19 +21,19 @@ describe('useCryptoStore', () => {
     expect(coins.bitcoin).toEqual(btc)
   })
 
-  it('rechaza vender más de lo que se tenía a esa fecha', () => {
+  it('rechaza vender más de lo que se tenía a esa fecha', async () => {
     add(TransactionType.BUY, 1, '2026-02-01')
-    expect(() => add(TransactionType.SELL, 0.5, '2026-01-15')).toThrow(
+    await expect( add(TransactionType.SELL, 0.5, '2026-01-15')).rejects.toThrow(
       'No tenés suficiente BTC para vender el 15/01/2026.',
     )
     expect(useCryptoStore.getState().transactions).toHaveLength(1)
   })
 
-  it('rechaza borrar una compra que deja una venta sin saldo', () => {
+  it('rechaza borrar una compra que deja una venta sin saldo', async () => {
     add(TransactionType.BUY, 1, '2026-01-01')
     add(TransactionType.SELL, 1, '2026-02-01')
     const buyId = useCryptoStore.getState().transactions[0].id
-    expect(() => useCryptoStore.getState().removeTransaction(buyId)).toThrow(
+    await expect( useCryptoStore.getState().removeTransaction(buyId)).rejects.toThrow(
       /No se puede eliminar/,
     )
   })
@@ -65,24 +65,24 @@ describe('updateTransaction', () => {
     ])
   })
 
-  it('rechaza reducir una compra por debajo de lo vendido después', () => {
+  it('rechaza reducir una compra por debajo de lo vendido después', async () => {
     add(TransactionType.BUY, 1, '2026-01-01')
     add(TransactionType.SELL, 1, '2026-02-01')
     const [buy] = useCryptoStore.getState().transactions
-    expect(() =>
+    await expect(
       useCryptoStore.getState().updateTransaction(buy.id, { ...buy, quantity: 0.5 }, btc),
-    ).toThrow('No tenés suficiente BTC para la venta del 01/02/2026.')
+    ).rejects.toThrow('No tenés suficiente BTC para la venta del 01/02/2026.')
   })
 
-  it('cambiar de moneda revalida la moneda de origen', () => {
+  it('cambiar de moneda revalida la moneda de origen', async () => {
     add(TransactionType.BUY, 1, '2026-01-01')
     add(TransactionType.SELL, 1, '2026-02-01')
     const [buy] = useCryptoStore.getState().transactions
-    expect(() =>
+    await expect(
       useCryptoStore
         .getState()
         .updateTransaction(buy.id, { ...buy, coinId: 'ethereum' }, eth),
-    ).toThrow(/No se puede cambiar: la venta de BTC/)
+    ).rejects.toThrow(/No se puede cambiar: la venta de BTC/)
   })
 
   it('cambiar de moneda guarda los metadatos de la nueva', () => {
@@ -96,7 +96,7 @@ describe('updateTransaction', () => {
 describe('comisiones en la línea temporal', () => {
   beforeEach(() => useCryptoStore.setState({ transactions: [], coins: {} }))
 
-  it('la comisión en la moneda de la compra reduce el saldo disponible', () => {
+  it('la comisión en la moneda de la compra reduce el saldo disponible', async () => {
     useCryptoStore.getState().addTransaction(
       {
         coinId: 'bitcoin',
@@ -108,8 +108,8 @@ describe('comisiones en la línea temporal', () => {
       },
       btc,
     )
-    expect(() => add(TransactionType.SELL, 1, '2026-02-01')).toThrow(/No tenés suficiente BTC/)
-    expect(() => add(TransactionType.SELL, 0.99, '2026-02-01')).not.toThrow()
+    await expect( add(TransactionType.SELL, 1, '2026-02-01')).rejects.toThrow(/No tenés suficiente BTC/)
+    await expect( add(TransactionType.SELL, 0.99, '2026-02-01')).resolves.toBeUndefined()
   })
 })
 
@@ -138,16 +138,16 @@ describe('intercambios', () => {
     expect(useCryptoStore.getState().coins.ethereum).toEqual(eth)
   })
 
-  it('rechaza entregar más de lo que se tiene', () => {
+  it('rechaza entregar más de lo que se tiene', async () => {
     add(TransactionType.BUY, 0.1, '2026-01-01')
-    expect(() => swap(0.5, '2026-02-01')).toThrow(
+    await expect( swap(0.5, '2026-02-01')).rejects.toThrow(
       'No tenés suficiente BTC para intercambiar el 01/02/2026.',
     )
     expect(useCryptoStore.getState().transactions).toHaveLength(1)
   })
 
-  it('rechaza intercambiar una moneda por sí misma', () => {
-    expect(() =>
+  it('rechaza intercambiar una moneda por sí misma', async () => {
+    await expect(
       useCryptoStore.getState().addSwap({
         from: btc,
         fromQuantity: 1,
@@ -156,7 +156,7 @@ describe('intercambios', () => {
         valueUsd: 1,
         date: day('2026-01-01'),
       }),
-    ).toThrow(/dos monedas distintas/)
+    ).rejects.toThrow(/dos monedas distintas/)
   })
 
   it('borrar una pata borra el intercambio completo', () => {
@@ -167,7 +167,7 @@ describe('intercambios', () => {
     expect(useCryptoStore.getState().transactions).toHaveLength(1)
   })
 
-  it('no deja borrar un intercambio si la moneda recibida ya se vendió', () => {
+  it('no deja borrar un intercambio si la moneda recibida ya se vendió', async () => {
     add(TransactionType.BUY, 1, '2026-01-01')
     swap(0.5, '2026-02-01')
     useCryptoStore.getState().addTransaction(
@@ -175,19 +175,19 @@ describe('intercambios', () => {
       eth,
     )
     const sellLeg = useCryptoStore.getState().transactions[1]
-    expect(() => useCryptoStore.getState().removeTransaction(sellLeg.id)).toThrow(
+    await expect( useCryptoStore.getState().removeTransaction(sellLeg.id)).rejects.toThrow(
       /la venta de ETH del 01\/03\/2026/,
     )
     expect(useCryptoStore.getState().transactions).toHaveLength(4)
   })
 
-  it('las patas de un intercambio no se editan', () => {
+  it('las patas de un intercambio no se editan', async () => {
     add(TransactionType.BUY, 1, '2026-01-01')
     swap(0.5, '2026-02-01')
     const sellLeg = useCryptoStore.getState().transactions[1]
-    expect(() =>
+    await expect(
       useCryptoStore.getState().updateTransaction(sellLeg.id, { ...sellLeg, quantity: 0.1 }, btc),
-    ).toThrow(/no se editan/)
+    ).rejects.toThrow(/no se editan/)
   })
 })
 

@@ -5,7 +5,7 @@ import { ArrowLeft, Plus } from 'lucide-react'
 import { Stat, pnlClass } from '@/components/Stat'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useMounted } from '@/hooks/use-mounted'
+import SyncGate from '@/components/SyncGate'
 import {
   formatCurrency,
   formatPercent,
@@ -15,6 +15,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useDolarStore } from '@/store/dolar.store'
 import { DolarOption } from '@/types/dolar.types'
+import { useCryptoStore } from '../crypto.store'
 import { useCryptoPortfolio, useCryptoPriceSync } from '../hooks'
 import CoinIcon from './CoinIcon'
 import CryptoTransactionList from './CryptoTransactionList'
@@ -28,7 +29,8 @@ type CryptoCoinDetailProps = {
 
 /** Posición y operaciones de una sola moneda (`/cripto/[coinId]`). */
 export default function CryptoCoinDetail({ coinId }: CryptoCoinDetailProps) {
-  const mounted = useMounted()
+  const status = useCryptoStore((s) => s.status)
+  const retryCloud = useCryptoStore((s) => s.retryCloud)
   useCryptoPriceSync()
   const { positions } = useCryptoPortfolio()
   const dolarCripto = useDolarStore((s) => s.allDolarData?.[DolarOption.Cripto])
@@ -44,12 +46,22 @@ export default function CryptoCoinDetail({ coinId }: CryptoCoinDetailProps) {
     </Button>
   )
 
-  if (!mounted) {
+  if (status !== 'ready') {
     return (
       <div className='space-y-8'>
         {backLink}
-        <Skeleton className='h-8 w-48' />
-        <Skeleton className='h-28 w-full' />
+        <SyncGate
+          status={status}
+          onRetry={retryCloud}
+          fallback={
+            <>
+              <Skeleton className='h-8 w-48' />
+              <Skeleton className='h-28 w-full' />
+            </>
+          }
+        >
+          {null}
+        </SyncGate>
       </div>
     )
   }

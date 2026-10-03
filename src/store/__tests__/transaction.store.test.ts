@@ -102,14 +102,14 @@ describe('updateTransaction', () => {
     const before = txsOf(DolarOption.Blue)
     const buy = before.find((t) => t.type === TransactionType.BUY)!
 
-    expect(() =>
+    await expect(
       useTransactionStore.getState().updateTransaction(buy.id, {
         ...base,
         type: TransactionType.BUY,
         dollarsAmount: 50,
         date: day('2026-01-01'),
       }),
-    ).toThrow(/saldo de USD quedaría negativo/)
+    ).rejects.toThrow(/saldo de USD quedaría negativo/)
     expect(txsOf(DolarOption.Blue)).toEqual(before)
   })
 
@@ -118,13 +118,13 @@ describe('updateTransaction', () => {
     await add(TransactionType.SELL, '2026-02-01')
     const buy = txsOf(DolarOption.Blue).find((t) => t.type === TransactionType.BUY)!
 
-    expect(() =>
+    await expect(
       useTransactionStore.getState().updateTransaction(buy.id, {
         ...base,
         type: TransactionType.BUY,
         date: day('2026-01-01'),
         dolarOption: DolarOption.Oficial,
       }),
-    ).toThrow(/saldo de USD quedaría negativo/)
+    ).rejects.toThrow(/saldo de USD quedaría negativo/)
   })
 })

@@ -3,101 +3,87 @@ import type {
   Transaction,
   TransactionsDataMap,
 } from '@/types/transaction.types'
-import { DolarOption } from '@/types/dolar.types'
 import { create, StateCreator } from 'zustand'
 import { persist } from 'zustand/middleware'
 import { selectMarketPrices, useDolarStore } from './dolar.store'
 import { computeTransactionsData } from '@/domain/metrics'
-import { sortTxs, validateTimeline } from '@/domain/timeline'
+import {
+  applyAddTransaction,
+  applyRemoveTransaction,
+  applyUpdateTransaction,
+  groupTransactions,
+  type GroupedTransactions,
+} from '@/domain/transactions'
+import {
+  createSync,
+  initialSyncFields,
+  localData,
+  type SyncFields,
+} from '@/lib/synced-store'
+import { dolarTransactionsApi } from '@/services/transactionsApi'
 
-type GroupedTransactions = Partial<Record<DolarOption, Transaction[]>>
-
-interface State {
+interface State extends SyncFields<DolarData> {
   transactions: GroupedTransactions
 
-  /** Solo local: la persistencia remota se construye en las Fases 2–3 (repositorio) */
-  addTransaction: (tx: Omit<Transaction, 'id'>) => void
-  updateTransaction: (transactionId: string, tx: Omit<Transaction, 'id'>) => void
-  removeTransaction: (transactionId: string) => void
+  /**
+   * Validan con las funciones puras del dominio (rechazan con `Error` en español) y,
+   * con sesión, confirman con la API (rechazan con su mensaje y revierten).
+   */
+  addTransaction: (tx: Omit<Transaction, 'id'>) => Promise<void>
+  updateTransaction: (transactionId: string, tx: Omit<Transaction, 'id'>) => Promise<void>
+  removeTransaction: (transactionId: string) => Promise<void>
+
+  connectCloud: () => Promise<void>
+  disconnectCloud: () => void
+  retryCloud: () => Promise<void>
 }
 
-const findGroup = (
-  transactions: GroupedTransactions,
-  transactionId: string,
-): DolarOption | null => {
-  for (const option in transactions) {
-    if (transactions[option as DolarOption]?.some((tx) => tx.id === transactionId)) {
-      return option as DolarOption
-    }
+type DolarData = { transactions: GroupedTransactions }
+
+const EMPTY: DolarData = { transactions: {} }
+
+const storeApi: StateCreator<State> = (set, get) => {
+  const sync = createSync<DolarData, State>(set, get, {
+    pick: ({ transactions }) => ({ transactions }),
+    empty: EMPTY,
+    fetchCloud: async () => ({
+      transactions: groupTransactions(await dolarTransactionsApi.list()),
+    }),
+  })
+
+  return {
+    ...EMPTY,
+    ...initialSyncFields<DolarData>(),
+
+    addTransaction: async (tx) => {
+      const newTransaction: Transaction = { id: crypto.randomUUID(), ...tx }
+      const transactions = applyAddTransaction(get().transactions, newTransaction)
+      await sync.commit({ transactions }, () =>
+        dolarTransactionsApi.create(newTransaction),
+      )
+    },
+
+    updateTransaction: async (transactionId, tx) => {
+      const transactions = applyUpdateTransaction(get().transactions, transactionId, tx)
+      if (!transactions) return
+      await sync.commit({ transactions }, () =>
+        dolarTransactionsApi.update(transactionId, tx),
+      )
+    },
+
+    removeTransaction: async (transactionId) => {
+      const transactions = applyRemoveTransaction(get().transactions, transactionId)
+      if (!transactions) return
+      await sync.commit({ transactions }, () =>
+        dolarTransactionsApi.remove(transactionId),
+      )
+    },
+
+    connectCloud: sync.connectCloud,
+    disconnectCloud: sync.disconnectCloud,
+    retryCloud: sync.retry,
   }
-  return null
 }
-
-const storeApi: StateCreator<State> = (set, get) => ({
-  transactions: {},
-
-  addTransaction: (tx) => {
-    const newTransaction: Transaction = {
-      id: crypto.randomUUID(),
-      ...tx,
-    }
-    const currentGroup = get().transactions[tx.dolarOption] || []
-    const newGroup = sortTxs([...currentGroup, newTransaction])
-
-    validateTimeline(newGroup)
-
-    set({
-      transactions: {
-        ...get().transactions,
-        [newTransaction.dolarOption]: newGroup,
-      },
-    })
-  },
-
-  updateTransaction: (transactionId, tx) => {
-    const transactions = get().transactions
-    const previousOption = findGroup(transactions, transactionId)
-    if (!previousOption) return
-
-    const updated: GroupedTransactions = {
-      ...transactions,
-      [previousOption]: (transactions[previousOption] || []).filter(
-        (t) => t.id !== transactionId,
-      ),
-    }
-    updated[tx.dolarOption] = sortTxs([
-      ...(updated[tx.dolarOption] || []),
-      { id: transactionId, ...tx },
-    ])
-
-    // Si cambió el tipo de dólar, el grupo de origen también pierde saldo
-    validateTimeline(updated[tx.dolarOption]!)
-    if (previousOption !== tx.dolarOption) {
-      validateTimeline(updated[previousOption]!)
-    }
-
-    set({ transactions: updated })
-  },
-
-  removeTransaction: (transactionId) => {
-    const foundOption = findGroup(get().transactions, transactionId)
-    if (!foundOption) return
-
-    const currentTxs = get().transactions[foundOption] || []
-    const sortedGroup = sortTxs(
-      currentTxs.filter((tx) => tx.id !== transactionId),
-    )
-
-    validateTimeline(sortedGroup)
-
-    set({
-      transactions: {
-        ...get().transactions,
-        [foundOption]: sortedGroup,
-      },
-    })
-  },
-})
 
 /**
  * v0 → v1: se deja de persistir `transactionsData` (ahora se deriva con
@@ -114,11 +100,15 @@ export const migrateTransactionsStorage = (
   return state as Pick<State, 'transactions'>
 }
 
+/** `partialize`: con sesión, `transactions` son de la nube; se persiste la copia local */
+export const persistedTransactions = (state: State): DolarData =>
+  localData(state, { transactions: state.transactions }, EMPTY)
+
 export const useTransactionStore = create<State>()(
   persist(storeApi, {
     name: 'transactions-storage',
     version: 1,
-    partialize: ({ transactions }) => ({ transactions }),
+    partialize: persistedTransactions,
     migrate: migrateTransactionsStorage,
   }),
 )

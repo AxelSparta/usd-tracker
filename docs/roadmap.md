@@ -21,7 +21,7 @@ Este roadmap define la evolución del producto en cuatro ejes:
 
 ---
 
-## Estado actual (septiembre 2026)
+## Estado actual (octubre 2026)
 
 ### Lo que funciona hoy
 
@@ -177,8 +177,8 @@ comporta idéntico para el usuario y el dominio no importa ningún store.
   habría mandado las operaciones de usuarios logueados a endpoints inexistentes y las habría perdido en
   silencio. El store queda local y síncrono (como el de cripto); la Fase 2 suma el repositorio remoto.
   `LocalModeBadge` aclara que, aun con sesión, los datos siguen siendo locales.
-- [ ] Server-side: `auth()` de `@clerk/nextjs/server` en route handlers — se usa al crear los
-  handlers de la Fase 2 (hoy no hay rutas con datos de usuario).
+- [x] Server-side: `auth()` de `@clerk/nextjs/server` en route handlers (`requireUserId` en
+  `src/server/auth.ts`, usado por la API CRUD de la Fase 2).
 
 **Criterio de salida:** se puede registrarse/iniciar sesión en la app, sin cambios en
 la persistencia todavía.
@@ -189,62 +189,43 @@ la persistencia todavía.
 
 **Objetivo:** las transacciones viven en Postgres para usuarios autenticados.
 
-- [ ] Instancia en **Neon.tech** + `prisma` / `@prisma/client`; `prisma init`
-  (output del cliente en `src/generated/prisma`, ya ignorado en git).
-- [ ] **Schema** (una tabla por módulo, porque los modelos no comparten campos):
-
-  ```prisma
-  model User {
-    id                 String              @id   // clerkId
-    dolarTransactions  DolarTransaction[]
-    cryptoTransactions CryptoTransaction[]
-  }
-
-  model DolarTransaction {
-    id            String   @id @default(uuid())
-    userId        String
-    user          User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    dolarOption   String            // 'blue' | 'oficial' | …
-    type          String            // 'BUY' | 'SELL'
-    dollarsAmount Decimal
-    pesosAmount   Decimal
-    date          DateTime
-    createdAt     DateTime @default(now())
-    updatedAt     DateTime @updatedAt
-    @@index([userId, dolarOption, date])
-  }
-
-  model CryptoTransaction {
-    id        String   @id @default(uuid())
-    userId    String
-    user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
-    coinId    String            // id de CoinGecko: 'bitcoin'
-    symbol    String            // metadatos para mostrar sin consultar CoinGecko
-    name      String
-    image     String?
-    type      String            // 'BUY' | 'SELL'
-    quantity  Decimal           // hasta 18 decimales
-    priceUsd  Decimal
-    date      DateTime
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-    @@index([userId, coinId, date])
-  }
-  ```
-
-- [ ] **API CRUD** por módulo en `src/app/api/{dolar,crypto}/transactions/` (lógica en `src/server/`):
-  - `GET` — listar del usuario (auth por `clerkId`).
-  - `POST` — crear (validar con el esquema Zod del módulo).
-  - `PATCH /:id` — editar.
-  - `DELETE /:id` — borrar.
-  - Ownership check en cada operación (un usuario no toca datos de otro).
-  - `Decimal` ↔ `number`: convertir en un único mapper server-side.
-- [ ] **Reconstruir la rama remota del store** vía `apiRepository` (hoy falla silenciosamente):
-  fetch inicial (`GET`), optimistic updates con rollback, toasts de error reales,
-  estados de carga/offline. Mismo patrón para `useCryptoStore`.
-- [ ] **Validación timeline en el server** (misma función del dominio que los tests
-  ya cubren) para que no dependa del cliente.
-- [ ] Paridad local/cloud: mismos cálculos, mismos errores.
+- [x] Instancia en **Neon.tech** (sa-east-1, base nueva) con la migración inicial aplicada (`pnpm db:deploy`).
+  La API se probó contra la base real: CRUD de ambos módulos, decimales exactos, 422, ownership y dos
+  ventas concurrentes (una 201, la otra 409).
+- [x] **Prisma 7.10** (`prisma` + `@prisma/client` + `@prisma/adapter-neon`): generator `prisma-client`
+  con output en `src/generated/prisma` (ignorado), `prisma.config.ts` (Prisma 7 ya no lee `.env` ni
+  la URL del schema), `postinstall: prisma generate`, scripts `db:migrate` / `db:deploy` / `db:studio`.
+  El cliente usa el driver serverless de Neon (WebSocket sobre 443) y se crea al primer uso.
+- [x] **Schema** (`prisma/schema.prisma`, migración `20261002000000_init`), una tabla por módulo:
+  - `User.id` = userId de Clerk; la fila se crea (upsert) en la primera escritura, sin webhook.
+  - `DolarTransaction` y `CryptoTransaction` con `id` UUID **generado por el cliente** (updates
+    optimistas sin reconciliar ids, subida idempotente en la Fase 3), `type` como enum
+    `TransactionType`, montos `Decimal` e índices `(userId, dolarOption|coinId, date)`.
+  - `CryptoTransaction` suma lo que agregó la Fase 4: `feeAmount` + `feeCurrency` (`USD | COIN`,
+    juntos o ninguno) y `swapId` (indexado), más los metadatos de la moneda (`symbol`, `name`, `image`).
+- [x] **API CRUD** por módulo (handlers en `src/app/api/`, lógica en `src/server/`):
+  - `GET/POST /api/dolar/transactions`, `PATCH/DELETE /api/dolar/transactions/:id`.
+  - `GET/POST /api/crypto/transactions` (`{ transactions, coins }` / `{ transaction, coin }`),
+    `PATCH/DELETE /api/crypto/transactions/:id` (el DELETE devuelve `removedIds`: borra las dos patas
+    de un intercambio) y `POST /api/crypto/swaps` (`{ swap, ids }`).
+  - Errores con mensaje en español: 401 sin sesión, 400 body inválido (Zod), 404 operación inexistente
+    o ajena (ownership: toda query filtra por `userId`), 409 id repetido o escritura concurrente
+    (transacción `Serializable`), 422 línea temporal inválida.
+  - `Decimal` ↔ `number`: un único mapper server-side (`src/server/mappers.ts`).
+- [x] **Validación timeline en el server**: las reglas de alta/edición/borrado se extrajeron de los stores
+  a funciones puras (`src/domain/transactions.ts`, `src/features/crypto/operations.ts`) que usan el
+  store y el server, con los mismos mensajes de error.
+- [x] Tests: funciones puras, mappers y los route handlers reales contra una base en memoria
+  (`src/server/__tests__/`: 401/400/404/409/422, ownership entre usuarios, intercambios, comisiones).
+- [x] **Origen de datos en los stores** (`src/lib/synced-store.ts`, mismo patrón para dólar y cripto):
+  `source` local / nube según la sesión (`src/app/cloud-sync.tsx`), carga inicial con `GET`, escrituras
+  optimistas que se confirman con la API y se revierten si fallan (toast con el mensaje del server),
+  `status` con skeleton y "Reintentar" (`SyncGate`). Con sesión, lo local se conserva aparte y es lo
+  único que se persiste en `localStorage`: no se pierde ni se mezcla (la Fase 3 ofrece subirlo).
+  Mientras tanto, al iniciar sesión se ve solo lo de la nube.
+- [x] Verificado en el navegador con sesión: alta desde el formulario, recarga (los datos vienen de Neon),
+  borrado fallido simulado (toast "No hay conexión con el servidor." y la fila vuelve), borrado real,
+  `/cripto` en la nube, `localStorage` intacto y sin errores en consola.
 
 **Criterio de salida:** con sesión iniciada, crear/editar/borrar sobrevive a un
 refresco y a otro dispositivo; sin sesión, todo sigue funcionando en local.
@@ -255,13 +236,12 @@ refresco y a otro dispositivo; sin sesión, todo sigue funcionando en local.
 
 **Objetivo:** un solo flujo de verdad según la sesión.
 
-- [ ] Selección de repositorio en el store: `isSignedIn` → `apiRepository`; caso contrario → `localRepository`.
+- [x] ~~Selección de repositorio en el store~~ — hecho en la Fase 2 (`source` local / nube según la sesión).
 - [ ] **Migración inicial**: al primer login, detectar transacciones locales y ofrecer
   (dialog) subirlas a la nube; idempotencia por `id` (los `crypto.randomUUID()`
   locales pueden conservarse como IDs).
-- [ ] Logout: no borrar locales automáticamente (pensado en re-login / uso offline).
-- [ ] Ocultar el aviso "Modo local" (`LocalModeBadge`) al autenticarse; reflejar estado de sync
-  ("sincronizado / pendiente").
+- [x] Logout: no borrar locales automáticamente — hecho en la Fase 2 (`disconnectCloud` restaura la copia local).
+- [ ] Reflejar el estado de sync en el badge ("sincronizado / pendiente"); con sesión ya dice "En la nube" (Fase 2).
 - [ ] Manejo de conflictos simples (la nube manda tras el primer sync; documentar la regla).
 
 **Criterio de salida:** flujo continuo local → login → nube sin pérdida de datos.

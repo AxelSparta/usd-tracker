@@ -3,6 +3,7 @@
 import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
 import { useDolarStore } from '@/store/dolar.store'
+import { CloudSync } from './cloud-sync'
 
 export function ClientProviders({ children }: { children: React.ReactNode }) {
   const fetchAllDolars = useDolarStore((state) => state.fetchAllDolars)
@@ -17,6 +18,7 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
 
   return (
     <ThemeProvider attribute='class' defaultTheme='system' enableSystem>
+      <CloudSync />
       {children}
     </ThemeProvider>
   )

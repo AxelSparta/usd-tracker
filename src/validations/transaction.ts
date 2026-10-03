@@ -47,3 +47,22 @@ export function parseTransactionFormInput(
     dollarsAmount: parseLocaleAmount(data.dollarsAmount),
   }
 }
+
+/**
+ * Body de la API (`/api/dolar/transactions`): montos ya numéricos y fecha ISO.
+ * Mismas reglas que el formulario, para que el server no dependa del cliente.
+ */
+export const transactionApiSchema = z.object({
+  type: z.enum(TransactionType),
+  pesosAmount: z.number().finite().min(0, 'La cantidad de pesos no puede ser negativa'),
+  dollarsAmount: z.number().finite().positive('La cantidad de dólares debe ser mayor a cero'),
+  date: z.coerce
+    .date({ error: () => 'La fecha es requerida' })
+    .refine((d) => d <= endOfDay(new Date()), 'La fecha no puede ser futura'),
+  dolarOption: z.enum(DolarOption),
+})
+
+/** Alta: el id lo genera el cliente (`crypto.randomUUID()`) */
+export const createTransactionApiSchema = transactionApiSchema.extend({
+  id: z.uuid('Id inválido'),
+})

@@ -4,7 +4,7 @@ import Link from 'next/link'
 import { Stat, pnlClass } from '@/components/Stat'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
-import { useMounted } from '@/hooks/use-mounted'
+import SyncGate from '@/components/SyncGate'
 import {
   formatCurrency,
   formatPercent,
@@ -14,6 +14,7 @@ import {
 import { cn } from '@/lib/utils'
 import { useDolarStore } from '@/store/dolar.store'
 import { DolarOption } from '@/types/dolar.types'
+import { useCryptoStore } from '../crypto.store'
 import { useCryptoPortfolio, useCryptoPriceSync } from '../hooks'
 import CoinIcon from './CoinIcon'
 import CryptoTransactionList from './CryptoTransactionList'
@@ -39,7 +40,9 @@ function PortfolioSkeleton() {
 }
 
 export default function CryptoPortfolio() {
-  const mounted = useMounted()
+  const status = useCryptoStore((s) => s.status)
+  const retryCloud = useCryptoStore((s) => s.retryCloud)
+  const ready = status === 'ready'
   useCryptoPriceSync()
   const { positions, summary } = useCryptoPortfolio()
   const dolarCripto = useDolarStore((s) => s.allDolarData?.[DolarOption.Cripto])
@@ -69,8 +72,10 @@ export default function CryptoPortfolio() {
           </p>
         </div>
 
-        {!mounted ? (
-          <PortfolioSkeleton />
+        {!ready ? (
+          <SyncGate status={status} onRetry={retryCloud} fallback={<PortfolioSkeleton />}>
+            {null}
+          </SyncGate>
         ) : positions.length === 0 ? (
           <div className='rounded-lg border border-dashed p-10 text-center'>
             <p className='text-sm text-muted-foreground'>
@@ -115,7 +120,7 @@ export default function CryptoPortfolio() {
         )}
       </section>
 
-      {mounted && openPositions.length > 0 && (
+      {ready && openPositions.length > 0 && (
         <section aria-labelledby='posiciones' className='space-y-4'>
           <h2 id='posiciones' className='text-sm font-medium text-muted-foreground'>
             Posiciones
@@ -184,7 +189,7 @@ export default function CryptoPortfolio() {
         </section>
       )}
 
-      {mounted && positions.length > 0 && <CryptoTransactionList />}
+      {ready && positions.length > 0 && <CryptoTransactionList />}
     </div>
   )
 }

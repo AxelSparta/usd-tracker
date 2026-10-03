@@ -54,7 +54,7 @@ type CryptoTransactionFormProps = {
   defaultValues?: Partial<CryptoTransactionFormInput>
   submitLabel: string
   /** Puede lanzar un `Error` de negocio: se muestra como toast y el form queda abierto */
-  onSubmit: (tx: Omit<CryptoTransaction, 'id'>, coin: Coin) => void
+  onSubmit: (tx: Omit<CryptoTransaction, 'id'>, coin: Coin) => void | Promise<void>
 }
 
 /** Campos de una operación cripto; lo usan el alta y la edición. */
@@ -122,10 +122,10 @@ export default function CryptoTransactionForm({
     if (!form.getValues('priceUsd')) fillCurrentPrice(selected)
   }
 
-  function handleSubmit(data: CryptoTransactionFormInput) {
+  async function handleSubmit(data: CryptoTransactionFormInput) {
     if (!coin) return
     try {
-      onSubmit(parseCryptoTransactionFormInput(data), coin)
+      await onSubmit(parseCryptoTransactionFormInput(data), coin)
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Algo malió sal.')
     }
@@ -342,7 +342,7 @@ export default function CryptoTransactionForm({
             </FormItem>
           )}
         />
-        <Button type='submit' className='w-full'>
+        <Button type='submit' className='w-full' disabled={form.formState.isSubmitting}>
           {submitLabel}
         </Button>
       </form>
