@@ -368,6 +368,143 @@ ganó y cómo evolucionó.
 
 ---
 
+## Fase 7 — Transferencias Dólar → Cripto y resultados de trades
+
+**Objetivo:** dos operaciones nuevas que hoy no se pueden cargar sin "inventar" datos:
+
+1. **Transferencia de USD del módulo Dólar a cualquier cripto** (p. ej. los USD comprados como
+   dólar cripto pasan a USDT o BTC). Hoy hay que cargar una venta de USD y una compra cripto
+   sueltas, sin enlace y sin validar que coincidan.
+2. **Resultado de un trade acreditado en una moneda** (futuros, margin, bots: "+50 USDT", "−0,01 BTC"),
+   sin compra ni venta de por medio. Cambia el saldo de la moneda y el PnL realizado.
+
+> **Decisión (oct 2026):** es la primera operación que cruza los dos módulos. No se fusionan modelos
+> ni stores: se agrega un **composer** nuevo, `src/features/transfers/`, igual que `features/auth` y
+> `features/portfolio` (lee los dos stores, ningún módulo lo importa salvo lo indicado en 7.4).
+
+### 7.1 Modelo — transferencia Dólar → Cripto
+
+Se guarda como **dos operaciones enlazadas por `transferId`** (mismo patrón que `swapId`):
+
+- **Pata dólar:** `Transaction` `SELL` en el grupo de origen (por defecto `cripto`; se puede elegir
+  cualquier tipo de dólar con saldo) por `dollarsAmount` = USD transferidos y `pesosAmount` = USD ×
+  cotización de ese día (autocompletada con el **dólar cripto compra** de DolarAPI hoy o de
+  ArgentinaDatos para fechas pasadas, vía `/api/history/dolar`; editable).
+  → La ganancia cambiaria hasta la transferencia queda **realizada en ARS** en el módulo Dólar, sin
+  cambiar el motor (`computePosition`).
+- **Pata cripto:** `CryptoTransaction` `BUY` de la moneda elegida por `quantity` unidades, con
+  `priceUsd` = USD transferidos / `quantity` y `fee?` opcional (como cualquier compra).
+- Se borran juntas, no se editan (se borra y se vuelve a cargar), igual que los intercambios.
+
+*Alternativa descartada:* que la pata dólar salga "a costo" (sin realizar PnL en ARS). Obliga a tocar
+el motor y a recalcular la pata cada vez que se edita una compra anterior, y esconde la ganancia
+cambiaria hasta ese día.
+
+Tareas:
+
+- [ ] `Transaction.transferId?: string` y `CryptoTransaction.transferId?: string`.
+- [ ] `transactions-storage` v1 → **v2** y `crypto-storage` v2 → **v3**, cada uno con `migrate`
+      (campos opcionales: los datos viejos ya son válidos) + test con snapshot.
+- [ ] Prisma: `transferId String? @db.Uuid` + `@@index([transferId])` en `DolarTransaction` y
+      `CryptoTransaction`; migración nueva (`pnpm db:migrate`).
+- [ ] `src/features/transfers/operations.ts` (puro, store + server):
+  - `buildTransferLegs(input, ids)` → `[Transaction, CryptoTransaction]`.
+  - `applyAddTransfer({ dolar, crypto }, input, ids)`: reutiliza `applyAddTransaction` (saldo USD
+    del grupo de origen) y `applyAddCryptoTransaction`; lanza con mensaje en español
+    ("No tenés suficientes USD (cripto) el dd/MM/yyyy.").
+  - `applyRemoveTransfer({ dolar, crypto }, transferId)`: quita las dos patas y revalida el grupo de
+    dólar (la cripto puede haberse vendido después → "No se puede eliminar: la venta de BTC del …
+    quedaría sin saldo.").
+- [ ] Las funciones de cada módulo **rechazan** editar o borrar una pata sola
+      (`applyUpdate/RemoveTransaction`, `applyUpdate/RemoveCryptoTransaction`):
+      "Es una transferencia entre Dólar y Cripto: borrala completa."
+- [ ] Tests en `src/features/transfers/__tests__/` (alta, sin saldo, borrado, pata huérfana) y en
+      `src/domain/__tests__/` para el rechazo de patas sueltas.
+
+### 7.2 Modelo — resultado de trade en una moneda
+
+Nueva variante de operación cripto con `kind: 'TRADE_RESULT'` (sin `kind` = compra/venta normal),
+usando el `type` existente: `BUY` = ganancia (entran unidades), `SELL` = pérdida (salen unidades).
+Campos: `coinId`, `quantity`, `priceUsd` (precio de la moneda ese día, autocompletado), `date`,
+`note?` (p. ej. "BTCUSDT long x10"). Sin comisión: se carga el resultado neto.
+
+Contabilidad (en `toPositionLot` + motor):
+
+- **Ganancia:** las unidades entran con costo = valor de mercado (`quantity × priceUsd`) y ese mismo
+  valor se suma al **PnL realizado**. Así, lo que cambie el precio después es PnL no realizado, como
+  con cualquier compra.
+- **Pérdida:** las unidades salen sin cobrar nada (`quoteAmount = 0`) → el motor ya realiza
+  `−costo promedio × cantidad`. No necesita cambios.
+- Motor: `PositionLot` suma `realizedProfit?: number` (ajuste directo al PnL realizado); por defecto 0,
+  el módulo Dólar no lo usa. Tests en `src/domain/__tests__/position.test.ts`.
+- La línea temporal (`findNegativeBalance`) ya funciona: una pérdida es una salida de unidades y
+  no puede dejar el saldo negativo. `computeValueHistory` también (usa `toPositionLot(tx).quantity`).
+
+Tareas:
+
+- [ ] `CryptoTransaction.kind?: 'TRADE_RESULT'` y `note?: string` (entran en la misma subida a
+      `crypto-storage` v3 de 7.1).
+- [ ] Prisma: `enum CryptoTransactionKind { TRADE_RESULT }`, `kind CryptoTransactionKind?`,
+      `note String?` (misma migración que 7.1); `mappers.ts` ida y vuelta.
+- [ ] `toPositionLot` y `computePosition` según lo de arriba; `CryptoPosition` y
+      `CryptoPortfolioSummary` suman `tradePnlUsd` (la parte del realizado que viene de trades) para
+      mostrarla aparte. Tests en `src/features/crypto/__tests__/metrics.test.ts`.
+- [ ] Zod (`features/crypto/validations.ts`): form y API aceptan `kind`/`note`; un resultado de trade
+      no lleva `fee` ni `swapId`/`transferId`.
+- [ ] Se puede editar (es una operación sola) con la misma revalidación que una compra/venta.
+
+### 7.3 API y sincronización
+
+- [ ] `POST /api/transfers` (`{ transfer, ids }`) y `DELETE /api/transfers/:transferId`:
+      `requireUserId` → Zod → `src/server/transfers.ts`, que carga **los dos** estados del usuario,
+      aplica `applyAddTransfer` / `applyRemoveTransfer` y escribe las dos tablas en una sola
+      `withUserTransaction` (`Serializable`). 401/400/404/409/422 como el resto; log `transfer.created`
+      / `transfer.removed` sin montos.
+- [ ] `PATCH`/`DELETE` de `/api/{dolar,crypto}/transactions/:id` sobre una pata → 422 (lo hacen solas
+      las funciones puras de 7.1).
+- [ ] `POST /api/crypto/transactions` y `PATCH` aceptan `kind`/`note` (resultado de trade).
+- [ ] `importSchema` / `toImportPayload` / `localNotInCloud`: llevan `transferId`, `kind` y `note`; al
+      importar se validan ambas líneas temporales (ya pasa) y que cada `transferId` tenga sus dos patas.
+- [ ] Tests de la API en `src/server/__tests__/` (alta y borrado atómicos, ownership, 422 por saldo,
+      pata suelta, import con transferencias).
+
+### 7.4 Stores y UI
+
+- [ ] Cada store expone una acción genérica `applyExternal(next, remote)` (envuelve `sync.commit`)
+      para que `features/transfers` actualice los dos de forma optimista con **una** sola llamada a
+      la API compartida; si falla, cada uno revierte lo suyo (o recarga si hubo otra escritura).
+- [ ] `features/transfers/hooks.ts`: `useAddTransfer`, `useRemoveTransfer` (validan con las funciones
+      puras sobre el estado actual de los dos stores).
+- [ ] Formulario **Transferir desde Dólar** (tercera pestaña en `/cripto/nueva`, junto a compra/venta
+      e intercambio): tipo de dólar de origen (default `cripto`, muestra el saldo), USD, moneda
+      destino (`CoinCombobox`), cantidad recibida, cotización ARS (autocompletada, editable), fecha,
+      comisión opcional. Muestra el precio implícito por unidad.
+- [ ] Formulario **Resultado de trade** (cuarta pestaña): ganancia/pérdida, moneda, cantidad, precio
+      USD (autocompletado con el precio del día; para fechas pasadas, el histórico de CoinGecko),
+      fecha y nota.
+- [ ] Historiales: badge "Transferencia" en las dos listas (dólar y cripto) con el lado opuesto
+      ("→ 0,0012 BTC" / "← 100 USD (cripto)"), sin editar, y borrar elimina las dos patas
+      (confirmación que lo aclara). Badge "Trade" con la nota en el historial cripto.
+      **Excepción a la regla de módulos:** `TransactionList` y `CryptoTransactionList` importan solo
+      `useRemoveTransfer` de `features/transfers` para esas filas (documentarlo en `AGENTS.md`).
+- [ ] Resumen cripto y detalle por moneda: línea "Resultado de trades" dentro del PnL realizado.
+- [ ] Dashboard: sin cambios de cálculo (los dos módulos ya reflejan la transferencia); verificar que el
+      total no se duplique ni pierda valor el día de la transferencia.
+- [ ] E2E (`e2e/`): transferencia dólar cripto → USDT y borrado desde cada lista; ganancia y pérdida
+      de trade con su efecto en saldo y PnL.
+
+### Fuera de alcance (posibles siguientes pasos)
+
+- Transferencia inversa (Cripto → Dólar, p. ej. vender USDT a dólares). Con el mismo `transferId`
+  sería una venta cripto + compra de dólar; se suma cuando haga falta.
+- Resultados de trade sin moneda (solo un monto en USD que no cambia ningún saldo).
+
+**Criterio de salida:** se puede mover USD del módulo Dólar a cualquier cripto y cargar ganancias o
+pérdidas de trades en una moneda, con saldos y PnL correctos en los dos módulos, en local y en la
+nube, y borrar cualquiera de esas operaciones sin dejar patas sueltas.
+
+---
+
 ## Orden y dependencias
 
 ```
@@ -378,6 +515,7 @@ Fase 0 (desacoplar + tests + lint)
    └─> Fase 4 (cripto, local)  ← puede avanzar en paralelo a 1–3
              └─> Fase 5 (portfolio tracker)  ← requiere 3 si se quiere en la nube
 Fase 6 (calidad/operación): transversal, CI desde que existen tests (Fase 0)
+Fase 7 (transferencias Dólar → Cripto, resultados de trades): requiere 3 y 4
 ```
 
 **Notas:**
