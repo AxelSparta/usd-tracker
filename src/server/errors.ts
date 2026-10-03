@@ -1,5 +1,6 @@
 import { z } from 'zod'
 import { Prisma } from '@/generated/prisma/client'
+import { logError } from './log'
 
 /** Error con status HTTP; el mensaje (en español) llega al usuario en un toast */
 export class ApiError extends Error {
@@ -55,7 +56,7 @@ export const errorResponse = (error: unknown): Response => {
       )
     }
   }
-  console.error('API:', error)
+  logError('api.unexpected', error)
   return Response.json({ error: 'Error inesperado del servidor.' }, { status: 500 })
 }
 

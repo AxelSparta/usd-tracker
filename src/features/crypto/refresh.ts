@@ -1,3 +1,5 @@
+import { exponentialBackoff } from '@/lib/backoff'
+
 export const PRICE_REFRESH_MS = 60 * 1000
 export const MAX_PRICE_REFRESH_MS = 10 * 60 * 1000
 
@@ -7,7 +9,4 @@ export const MAX_PRICE_REFRESH_MS = 10 * 60 * 1000
  * 2 min → 4 min → 8 min, con tope en 10 min.
  */
 export const priceRefreshDelay = (consecutiveFailures: number): number =>
-  Math.min(
-    PRICE_REFRESH_MS * 2 ** Math.max(0, consecutiveFailures),
-    MAX_PRICE_REFRESH_MS,
-  )
+  exponentialBackoff(PRICE_REFRESH_MS, consecutiveFailures + 1, MAX_PRICE_REFRESH_MS)
