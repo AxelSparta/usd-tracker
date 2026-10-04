@@ -125,9 +125,10 @@ Sin fase asignada; se planifica cuando haga falta.
 Fases 0–5 ✅
 Fase 6 (pendiente: retención de Neon, secretos E2E en CI, lo de "usuarios reales")
 Fase 7 ✅ (7a: intercambios USDT ↔ cripto · 7b: resultados de trades)
+Fases 8–10 (Pesos y CEDEARs): ver docs/roadmap-cedears.md
 ```
 
-- Lo que sigue es lo pendiente de la Fase 6 y el backlog; no hay una fase nueva planificada.
+- Lo que sigue: Pesos y CEDEARs (Fases 8–10, `docs/roadmap-cedears.md`), más lo pendiente de la Fase 6 y el backlog.
 
 ---
 

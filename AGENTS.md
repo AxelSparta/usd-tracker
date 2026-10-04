@@ -233,7 +233,7 @@ Deploy: Vercel despliega `main` solo y usa `pnpm vercel-build` (`scripts/vercel-
 
 ## Documentación y skills adicionales
 
-- Roadmap (lo pendiente, deuda técnica, Fase 7): `docs/roadmap.md`; fases cerradas y sus decisiones: `docs/historial.md`.
+- Roadmap (lo pendiente, deuda técnica): `docs/roadmap.md`; fases cerradas y sus decisiones: `docs/historial.md`; Pesos y CEDEARs (Fases 8–10, planificadas): `docs/roadmap-cedears.md`.
 - Operación en producción (variables, Clerk prod, backups de Neon, logs, migraciones): `docs/operacion.md`.
 - Buenas prácticas Next.js: `.agents/skills/next-best-practices/SKILL.md` (instalado desde `vercel-labs/next-skills`, ver `skills-lock.json`).
 
