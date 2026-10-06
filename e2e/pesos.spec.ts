@@ -132,3 +132,21 @@ test('conversiones: dólar → pesos y conversión sin saldo', async ({ page }) 
   await expect(page).toHaveURL(/\/pesos$/)
   await expect(page.getByRole('row').filter({ hasText: 'Venta de USD MEP' })).toContainText('$154.360,00')
 })
+
+test('dashboard: el saldo de pesos suma al total y entra a la composición al MEP', async ({ page }) => {
+  await addIncome(page, '1551900')
+  await page.goto('/')
+
+  await expect(page.getByRole('heading', { name: 'Tu portfolio' })).toBeVisible()
+  // 1.551.900 / MEP venta simulado (1.551,90) = US$1.000
+  const summary = page.getByRole('region', { name: 'Resumen' })
+  await expect(summary).toContainText('$1.551.900,00')
+  await expect(summary).toContainText('US$1.000,00')
+
+  const composition = page.getByRole('table').filter({ hasText: 'Parte' })
+  const row = composition.getByRole('row').filter({ has: page.getByRole('link', { name: /^Pesos$/ }) })
+  await expect(row).toContainText('US$1.000,00')
+  await expect(row).toContainText('100')
+  await row.getByRole('link', { name: /^Pesos$/ }).click()
+  await expect(page).toHaveURL(/\/pesos$/)
+})

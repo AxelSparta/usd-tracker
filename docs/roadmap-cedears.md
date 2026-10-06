@@ -233,18 +233,19 @@ type PesosMovement = {
 
 ### 8.3 Pesos en el dashboard (estaba en la Fase 10)
 
-- [ ] `overview.ts`: módulo `pesos` (activo `pesos:ars`, drill-down a `/pesos`): `valueArs` = saldo,
+- [x] `overview.ts`: módulo `pesos` (activo `pesos:ars`, drill-down a `/pesos`): `valueArs` = saldo,
       `valueUsd` = saldo / MEP venta. Sin cotización MEP no entra a la composición y se avisa (como
       `missingPrices`). Sin PnL: `ModuleSummary.pnl` admite `null` y la tarjeta no lo muestra.
-- [ ] `history.ts`: saldo de pesos por día; ARS = saldo, USD = saldo / MEP venta de ese día
+      La tarjeta "Pesos" del resumen aparece solo si hay movimientos (saldo + equivalente MEP).
+- [x] `history.ts`: saldo de pesos por día; ARS = saldo, USD = saldo / MEP venta de ese día
       (`priceAt`). `useValueHistory` pide `bolsa` cuando hay pesos. Sin cotización → `null`.
-- [ ] `usePortfolioOverview`: estado combinado de los tres stores, `hasOperations` y `retry` con Pesos.
-- [ ] Verificar: una conversión no cambia el total en ARS si se hizo a la cotización de valuación, y en
+- [x] `usePortfolioOverview`: estado combinado de los tres stores, `hasOperations` y `retry` con Pesos.
+- [x] Verificar (test en `overview.test.ts`): una conversión no cambia el total en ARS si se hizo a la cotización de valuación, y en
       USD solo cambia por la diferencia entre la cotización usada y el MEP (ej. pesos a blue).
 
 ### 8.4 Cierre
 
-- [ ] E2E: ingreso; egreso sin saldo (error); borrado que dejaría saldo negativo (error); conversión
+- [x] E2E: ingreso; egreso sin saldo (error); borrado que dejaría saldo negativo (error); conversión
       pesos → blue (baja el saldo de pesos y aparece en `/dolar`); la pata no se edita desde `/dolar` y
       borrarla ahí borra las dos; dólar → pesos; conversión sin saldo (error). Con sesión en
       `e2e/sync.cloud.spec.ts`: alta, conversión e importación de lo local.
