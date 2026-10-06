@@ -33,8 +33,12 @@ jobs:
   e2e:
     runs-on: ubuntu-latest
     env:
-      # E2E con sesión solo si el repo tiene los secretos (Clerk de desarrollo + rama de Neon para tests)
-      HAS_CLOUD_SECRETS: ${{ secrets.E2E_CLERK_SECRET_KEY != '' }}
+      # Clerk apaga el keyless mode con `CI`/`GITHUB_ACTIONS`: hasta los E2E sin sesión necesitan las
+      # claves de la instancia de **desarrollo** (`pk_test_`/`sk_test_`), nunca las de producción
+      NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
+      CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
+      # E2E con sesión solo si además hay una rama de Neon para tests
+      HAS_CLOUD_SECRETS: ${{ secrets.E2E_DATABASE_URL != '' }}
     steps:
       - uses: actions/checkout@v4
 
@@ -49,14 +53,17 @@ jobs:
 
       - run: pnpm install --frozen-lockfile
       - run: pnpm exec playwright install --with-deps chromium
-      # Modo local con APIs externas simuladas; Clerk arranca en keyless mode (sin secretos)
+      - name: Claves de Clerk
+        if: env.CLERK_SECRET_KEY == '' || env.NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY == ''
+        run: |
+          echo "::error::Faltan los secretos E2E_CLERK_PUBLISHABLE_KEY / E2E_CLERK_SECRET_KEY (los PRs desde forks no los reciben)"
+          exit 1
+      # Sin sesión, con las APIs externas simuladas
       - run: pnpm test:e2e --project=local
       - name: E2E con sesión
         if: env.HAS_CLOUD_SECRETS == 'true'
         run: pnpm test:e2e --project=cloud
         env:
-          CLERK_SECRET_KEY: ${{ secrets.E2E_CLERK_SECRET_KEY }}
-          NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY: ${{ secrets.E2E_CLERK_PUBLISHABLE_KEY }}
           DATABASE_URL: ${{ secrets.E2E_DATABASE_URL }}
 
       - uses: actions/upload-artifact@v4

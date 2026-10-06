@@ -51,7 +51,7 @@ La app está en producción (Vercel) con los dos módulos, login, nube y dashboa
 
 | Tema | Impacto | Dónde se resuelve |
 | ---- | ------- | ----------------- |
-| Los E2E con sesión no corren en CI | Pasan en local; en CI se saltean hasta que se carguen los secretos `E2E_*` | Fase 6 (opcional) |
+| Los E2E con sesión no corren en CI | Pasan en local; en CI se saltean hasta que se cargue `E2E_DATABASE_URL` | Fase 6 (opcional) |
 | Clerk en instancia de desarrollo (`pk_test_`) | Límite de usuarios y aviso de "development mode": no sirve para usuarios reales | Fase 6 (manual) |
 | Sin rate limits en `/api/*` | Bajo: toda escritura exige sesión y solo toca datos propios; los proxies de precios cachean | Fase 6, siguiente iteración |
 | El módulo dólar vive en `store/`, `services/` y `components/`, no en `features/dolar/` | Solo de orden: no bloquea nada | **Sin fase asignada.** No moverlo a medias; si se decide, se planifica como fase propia |
@@ -96,8 +96,10 @@ está en [`historial.md`](historial.md#fase-6--calidad-operación-y-despliegue-p
   alta con sesión que sobrevive a la recarga y no toca `localStorage`, escritura fallida que se
   revierte, importación de lo local con "Subir a mi cuenta" (cierra lo que la Fase 3 dejó sin probar).
   Pasan en local contra Clerk de desarrollo (con "Email address" habilitado) y la rama de desarrollo.
-- [ ] *(opcional)* CI: cargar los secretos `E2E_CLERK_SECRET_KEY`, `E2E_CLERK_PUBLISHABLE_KEY` y
-  `E2E_DATABASE_URL` (rama de Neon propia para tests) para que el paso "E2E con sesión" corra
+- [x] CI: secretos `E2E_CLERK_PUBLISHABLE_KEY` y `E2E_CLERK_SECRET_KEY` (oct 2026). Sin ellos el job
+  `e2e` nunca pasó: Clerk apaga el keyless mode en CI y `next dev` no arrancaba.
+- [ ] *(opcional)* CI: cargar `E2E_DATABASE_URL` (rama de Neon propia para tests) para que el paso
+  "E2E con sesión" corra
   (`docs/operacion.md` §3).
 
 **Cuando haya usuarios reales:**
