@@ -58,8 +58,14 @@ recrearla desde la principal cuando se fusione.
 
 **Rama para los E2E con sesión.** `pnpm test:e2e --project=cloud` borra los datos del usuario de
 prueba antes de cada test. Usar la rama de desarrollo en el `.env` local y, para CI, una rama propia
-(secreto `E2E_DATABASE_URL`, junto con `E2E_CLERK_SECRET_KEY` y `E2E_CLERK_PUBLISHABLE_KEY` de la
-instancia de desarrollo de Clerk). Sin esos secretos, CI corre solo los E2E sin sesión.
+(secreto `E2E_DATABASE_URL`). Sin él, CI corre solo los E2E sin sesión.
+
+**Secretos de CI.** Son *repository secrets* (*Settings → Secrets and variables → Actions*), no de
+los environments `Production`/`Preview`, que los crea Vercel para sus deploys y el workflow no usa.
+`E2E_CLERK_PUBLISHABLE_KEY` y `E2E_CLERK_SECRET_KEY` (instancia de **desarrollo** de Clerk,
+`pk_test_`/`sk_test_`) son obligatorios para todo el job `e2e`: Clerk apaga el keyless mode si existe
+`CI` o `GITHUB_ACTIONS`, así que sin claves `next dev` no arranca. Los PRs desde forks no reciben
+secretos y ese job falla con un mensaje claro.
 
 ## 4. Logs
 

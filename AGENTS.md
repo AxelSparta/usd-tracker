@@ -218,7 +218,7 @@ pnpm db:deploy   # prisma migrate deploy (aplica las pendientes; deploy)
 pnpm db:studio
 ```
 
-CI (`.github/workflows/ci.yml`) corre lint, typecheck, test y build (job `check`) y los E2E (job `e2e`: `local` siempre; `cloud` solo si el repo tiene los secretos `E2E_CLERK_SECRET_KEY`, `E2E_CLERK_PUBLISHABLE_KEY` y `E2E_DATABASE_URL`) en cada PR y push a `main` (pnpm 12, Node 24). Antes de dar un cambio por terminado: `pnpm lint && pnpm typecheck && pnpm test`; si toca UI, además `pnpm test:e2e` y probar el flujo en `pnpm dev`.
+CI (`.github/workflows/ci.yml`) corre lint, typecheck, test y build (job `check`) y los E2E (job `e2e`: `local` siempre, con las claves de Clerk de desarrollo de los secretos `E2E_CLERK_PUBLISHABLE_KEY` y `E2E_CLERK_SECRET_KEY`, porque Clerk apaga el keyless mode si existe `CI` o `GITHUB_ACTIONS`; `cloud` solo si además está `E2E_DATABASE_URL`) en cada PR y push a `main` (pnpm 12, Node 24). Antes de dar un cambio por terminado: `pnpm lint && pnpm typecheck && pnpm test`; si toca UI, además `pnpm test:e2e` y probar el flujo en `pnpm dev`.
 
 Deploy: Vercel despliega `main` solo y usa `pnpm vercel-build` (`scripts/vercel-build.mjs`): en producción aplica `prisma migrate deploy` antes del build (si falla, el deploy falla y queda la versión anterior); en previews no migra.
 
@@ -226,7 +226,7 @@ Deploy: Vercel despliega `main` solo y usa `pnpm vercel-build` (`scripts/vercel-
 
 - La cotización del dólar **no** requiere variables: URL fija en `dolarApi.ts`.
 - `COINGECKO_API_KEY` (opcional, clave Demo, header `x-cg-demo-api-key`): sin ella se usa la API pública con menor rate limit. Documentada en `.env.example` (excluido del ignore con `!.env.example`).
-- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` (claves de test de Clerk) en `.env`, documentadas en `.env.example`. Sin ellas, `next dev` usa el keyless mode de Clerk (carpeta `.clerk/`, ignorada) y `next build` igual compila (CI no tiene secretos).
+- `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` y `CLERK_SECRET_KEY` (claves de test de Clerk) en `.env`, documentadas en `.env.example`. Sin ellas, `next dev` usa el keyless mode de Clerk (carpeta `.clerk/`, ignorada) y `next build` igual compila (el job `check` de CI no usa secretos). En CI no hay keyless mode: Clerk lo apaga en entornos automatizados (`CI`, `GITHUB_ACTIONS`), por eso el job `e2e` usa los secretos `E2E_CLERK_*`.
 - E2E con sesión (`e2e/cloud.ts`): usan `CLERK_SECRET_KEY`, `NEXT_PUBLIC_CLERK_PUBLISHABLE_KEY` y `DATABASE_URL` del `.env` (o del entorno en CI) y `E2E_CLERK_USER_EMAIL` opcional (por defecto `e2e+clerk_test@example.com`). Crean ese usuario en Clerk si no existe y **borran sus datos** de la base antes de cada test: nunca apuntarlos a producción. La instancia de Clerk necesita "Email address" habilitado (ya lo está en la de desarrollo).
 - `DATABASE_URL` (Neon con pooler, la usa la app vía `@prisma/adapter-neon` sobre WebSocket/443) y `DIRECT_URL` (sin `-pooler`, la usa `prisma migrate`; opcional, cae en `DATABASE_URL`). Sin ellas, la app y `next build` funcionan, pero `/api/{dolar,crypto}/transactions*` responde 500 al primer acceso a la base.
 - El `.env` local (ignorado por git vía `.env*`) puede tener claves de integraciones viejas (NextAuth, Google): no se usan. **No commitear secretos** ni volcar valores reales en documentación o issues. Si se agrega un `.env.example`, hay que excluirlo en `.gitignore` con `!.env.example`.
