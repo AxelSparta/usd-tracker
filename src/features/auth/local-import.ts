@@ -70,6 +70,7 @@ export const toImportPayload = (
       ...t,
       id: fix(t.id),
       ...(t.usdtSwapId && { usdtSwapId: fix(t.usdtSwapId) }),
+      ...(t.conversionId && { conversionId: fix(t.conversionId) }),
     })),
     crypto: {
       transactions: data.crypto.transactions.map((t) => ({

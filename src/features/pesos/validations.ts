@@ -1,7 +1,9 @@
 import { endOfDay } from 'date-fns'
 import { z } from 'zod'
 import { parseLocaleAmount } from '@/lib/locale-amount'
+import { DolarOption } from '@/types/dolar.types'
 import { TransactionType } from '@/types/transaction.types'
+import type { ConversionInput } from './conversions'
 import type { PesosMovement } from './types'
 
 const noteField = z.string().trim().max(200, 'La nota puede tener hasta 200 caracteres')
@@ -54,4 +56,52 @@ export const pesosMovementApiSchema = z.object({
 /** Alta: el id lo genera el cliente (`crypto.randomUUID()`) */
 export const createPesosMovementApiSchema = pesosMovementApiSchema.extend({
   id: z.uuid('Id inválido'),
+})
+
+// --- Conversión pesos ↔ dólar (8.2) ---
+
+const positiveText = (label: string) =>
+  z
+    .string()
+    .min(1, `${label} es requerida`)
+    .refine((s) => Number.isFinite(parseLocaleAmount(s)), 'Ingresá un número válido')
+    .refine((s) => parseLocaleAmount(s) > 0, `${label} debe ser mayor a cero`)
+
+export const conversionFormSchema = z.object({
+  direction: z.enum(['PESOS_TO_DOLAR', 'DOLAR_TO_PESOS']),
+  dolarOption: z.enum(DolarOption),
+  /** Con impuestos y comisiones: lo que realmente salió (o entró) de Pesos */
+  pesosAmount: positiveText('La cantidad de pesos'),
+  dollarsAmount: positiveText('La cantidad de dólares'),
+  date: z
+    .date({ error: () => 'La fecha es requerida' })
+    .refine((d) => d <= endOfDay(new Date()), 'La fecha no puede ser futura'),
+})
+
+export type ConversionFormInput = z.infer<typeof conversionFormSchema>
+
+export const parseConversionFormInput = (data: ConversionFormInput): ConversionInput => ({
+  ...data,
+  pesosAmount: parseLocaleAmount(data.pesosAmount),
+  dollarsAmount: parseLocaleAmount(data.dollarsAmount),
+})
+
+const apiDate = z.coerce
+  .date({ error: () => 'La fecha es requerida' })
+  .refine((d) => d <= endOfDay(new Date()), 'La fecha no puede ser futura')
+
+/** Body de `POST /api/pesos/conversions`: la conversión + los ids que generó el cliente */
+export const conversionApiSchema = z.object({
+  conversion: z.object({
+    direction: z.enum(['PESOS_TO_DOLAR', 'DOLAR_TO_PESOS']),
+    dolarOption: z.enum(DolarOption),
+    pesosAmount: z.number().finite().positive('La cantidad de pesos debe ser mayor a cero'),
+    dollarsAmount: z.number().finite().positive('La cantidad de dólares debe ser mayor a cero'),
+    date: apiDate,
+  }),
+  ids: z.object({
+    conversionId: z.uuid('Id inválido'),
+    pesosId: z.uuid('Id inválido'),
+    dolarId: z.uuid('Id inválido'),
+  }),
 })

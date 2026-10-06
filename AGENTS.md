@@ -30,7 +30,8 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 - Tarjetas de cotizaciones destacadas (`DolarPrice`): oficial, blue, bolsa, cripto.
 - **Dashboard del portfolio** (Fase 5, `src/features/portfolio/`): la home (`/`) muestra, si hay operaciones, valor total (ARS y USD), resumen por módulo (dólar en ARS, cripto en USD, cada uno con su ganancia), composición por activo (barra apilada al 100 % + tabla con 24 h y drill-down a `/dolar` o `/cripto/[coinId]`) y las cotizaciones; sin operaciones, la presentación. La composición se mide en **USD** (no depende de cotizaciones en pesos); los valores en ARS usan la cotización de cada tipo de dólar y el dólar cripto compra. Cálculo puro en `overview.ts` (`computePortfolioOverview`, `toAllocationSegments`). **Evolución del valor** (`ValueChart`, recharts): reconstruida, no guardada — por día, lo que se tenía según las transacciones × el precio de ese día (`history.ts`, `computeValueHistory`; sin precio → `null`, nunca inventado); hoy se valúa con los precios en vivo para que la serie cierre con el total. Rangos 1M/3M/6M/1A (CoinGecko público no da más de 365 días), ARS o USD (un solo eje).
 - Navegación con sidebar (shadcn `ui/sidebar`, colapsable a íconos, drawer en mobile): Inicio, Pesos (`/pesos`, `/pesos/nueva`), Dólar (`/dolar`, `/dolar/nueva`) y Cripto (`/cripto`, `/cripto/nueva`). `/new-transaction` redirige a `/dolar/nueva` (`next.config.ts`).
-- **Módulo Pesos** (Fase 8.1, `src/features/pesos/`): saldo en ARS del portafolio. Movimiento = `type` (`BUY` = ingreso, `SELL` = egreso), `amount` (ARS > 0), `date`, `note?` y `conversionId?` (pata de una conversión pesos ↔ dólar, 8.2: no se edita ni se borra sola). Sin PnL. Saldo nunca negativo (`validatePesosTimeline`, al agregar, editar y borrar). En `/pesos`: saldo, equivalente en USD con el **dólar MEP venta** (`bolsa`), ingresos, egresos e historial con edición y borrado; alta en `/pesos/nueva`. Etiquetas con `pesosMovementLabel`. Las conversiones (8.2) y el dashboard (8.3) están pendientes (`docs/roadmap-cedears.md`).
+- **Módulo Pesos** (Fase 8.1, `src/features/pesos/`): saldo en ARS del portafolio. Movimiento = `type` (`BUY` = ingreso, `SELL` = egreso), `amount` (ARS > 0), `date`, `note?` y `conversionId?` (pata de una conversión pesos ↔ dólar, 8.2: no se edita ni se borra sola). Sin PnL. Saldo nunca negativo (`validatePesosTimeline`, al agregar, editar y borrar). En `/pesos`: saldo, equivalente en USD con el **dólar MEP venta** (`bolsa`), ingresos, egresos e historial con edición y borrado; alta en `/pesos/nueva`. Etiquetas con `pesosMovementLabel`. El dashboard con Pesos (8.3) está pendiente (`docs/roadmap-cedears.md`).
+- **Conversiones pesos ↔ dólar** (Fase 8.2, `features/pesos/conversions.ts`): dos operaciones enlazadas por `conversionId`, un movimiento de Pesos y una compra o venta del Dólar (cualquier tipo) con el mismo monto en ARS; para el Dólar es una compra/venta normal. Se cargan los dos montos; la cotización del día (`useDolarRate`: venta si se compran dólares, compra si se venden) es referencia y completa uno desde el otro. No se editan; se borran juntas (`applyRemoveConversion` revalida las dos líneas) desde `/pesos` o `/dolar` (contexto `usePesosConversionLinks`). `linkOf(tx)` (`domain/transactions.ts`) dice si una operación del Dólar es pata (`usdtSwap` o `conversion`); como mucho un enlace por operación. Pestaña **Convertir** en `/pesos/nueva` (`?modo=conversion&dolar=<tipo>`); atajo "Comprar con pesos" en `/dolar`. Escritura en los dos stores con `commitAcross` (`lib/synced-store.ts`) y un solo request.
 - **Módulo cripto** (`src/features/crypto/`):
   - operación = `coinId` (id de CoinGecko), `type`, `quantity`, `priceUsd`, `date`, `fee?` (`{ amount, currency: 'USD' | 'COIN' }`) y `swapId?`; metadatos de cada moneda (`Coin`) guardados aparte en el store
   - comisiones: `toPositionLot` (`metrics.ts`) las aplica al lote del motor y al saldo de la línea temporal (en USD ajustan el monto; en la moneda, las unidades)
@@ -42,9 +43,9 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
   - posiciones y resumen **derivados** con `useCryptoPortfolio` (no se persisten): costo promedio, PnL realizado/no realizado en USD; valor ARS = valor USD × dólar cripto **compra**
   - precios vía `/api/crypto/prices`, refresco cada 60 s solo mientras `/cripto` está montado (`useCryptoPriceSync`); ante fallos (p. ej. 429) backoff exponencial hasta 10 min (`refresh.ts`)
   - línea temporal validada por moneda al agregar, editar y borrar (`findNegativeBalance`)
-- **API de datos** (Fase 2): CRUD protegido por módulo en `/api/dolar/transactions[/:id]`, `/api/crypto/transactions[/:id]` y `/api/crypto/swaps`, `/api/pesos/movements[/:id]`, más `POST /api/usdt-swaps` y `DELETE /api/usdt-swaps/:usdtSwapId` (escriben las dos tablas en una sola transacción). Cada handler: `requireUserId()` (401 sin sesión) → body validado con Zod (400) → servicio en `src/server/` que filtra por `userId` (operación ajena = 404), valida la línea temporal con las **mismas funciones puras que los stores** (422 con el mismo mensaje) y escribe en una transacción `Serializable` (conflicto = 409). Los ids los genera el cliente (`crypto.randomUUID()`); id repetido = 409.
+- **API de datos** (Fase 2): CRUD protegido por módulo en `/api/dolar/transactions[/:id]`, `/api/crypto/transactions[/:id]` y `/api/crypto/swaps`, `/api/pesos/movements[/:id]`, más `POST /api/usdt-swaps`, `DELETE /api/usdt-swaps/:usdtSwapId`, `POST /api/pesos/conversions` y `DELETE /api/pesos/conversions/:conversionId` (escriben las dos tablas en una sola transacción; cargan los módulos con `server/linked-state.ts`). Cada handler: `requireUserId()` (401 sin sesión) → body validado con Zod (400) → servicio en `src/server/` que filtra por `userId` (operación ajena = 404), valida la línea temporal con las **mismas funciones puras que los stores** (422 con el mismo mensaje) y escribe en una transacción `Serializable` (conflicto = 409). Los ids los genera el cliente (`crypto.randomUUID()`); id repetido = 409.
 - Tema claro/oscuro/sistema (`next-themes`), toasts (Sonner), UI en español.
-- **Logs del server** (`src/server/log.ts`): una línea JSON por evento (`logEvent`, `logError`), sin servicio externo. Los route handlers registran las escrituras OK (`dolar.*`, `crypto.*`, `pesos.*`, `usdtSwap.*`, `sync.imported`); `errorResponse` registra los 500 (`api.unexpected`) y `src/instrumentation.ts` (`onRequestError`) el resto (`request.error`). Nunca loguear montos, headers ni cookies. Operación en producción: `docs/operacion.md`.
+- **Logs del server** (`src/server/log.ts`): una línea JSON por evento (`logEvent`, `logError`), sin servicio externo. Los route handlers registran las escrituras OK (`dolar.*`, `crypto.*`, `pesos.*`, `usdtSwap.*`, `pesosConversion.*`, `sync.imported`); `errorResponse` registra los 500 (`api.unexpected`) y `src/instrumentation.ts` (`onRequestError`) el resto (`request.error`). Nunca loguear montos, headers ni cookies. Operación en producción: `docs/operacion.md`.
 - **Sincronización** (Fase 3, `src/features/auth/`): `SyncBadge` en la barra superior (Modo local / Cargando… / Guardando… / Sincronizado / Sin conexión, con popover para reintentar o subir lo local); `LocalImportDialog` ofrece subir las operaciones locales (dólar, cripto y pesos) que no están en la cuenta al iniciar sesión (`POST /api/sync/import`, idempotente por id, **la nube manda**: un id existente se saltea). "Ahora no" guarda esos ids por usuario en `sync-storage` para no volver a preguntar; igual se pueden subir desde el badge.
 - **Login con Clerk** (Fase 1): `<ClerkProvider>` en el layout (localización `esUY`, colores vía variables CSS de shadcn), `src/proxy.ts` con `clerkMiddleware()` sin protección por ruta (las futuras rutas de datos chequean `auth()` en cada handler; `createRouteMatcher` está deprecado), `UserMenu` en el pie del sidebar. Clerk v7 (Core 3): usar `<Show when='signed-in'>`, no `SignedIn`/`SignedOut`. La sesión elige el origen de datos de los stores (`src/features/auth/CloudSync.tsx`).
 
@@ -101,6 +102,7 @@ src/
 │   ├── api/crypto/{transactions/[id],swaps}/ # CRUD cripto + alta de intercambios
 │   ├── api/usdt-swaps/[id]/    # intercambios USDT ↔ cripto (POST, DELETE): las dos tablas a la vez
 │   ├── api/pesos/movements/[id]/ # CRUD de Pesos (GET/POST, PATCH/DELETE)
+│   ├── api/pesos/conversions/[id]/ # conversiones pesos ↔ dólar (POST, DELETE): las dos tablas a la vez
 │   ├── api/sync/import/route.ts # subida de datos locales (dólar + cripto) a la cuenta
 │   ├── api/history/{dolar,crypto}/route.ts # precios diarios del último año (ArgentinaDatos / CoinGecko, cache 6 h)
 │   ├── not-found.tsx           # 404
@@ -111,7 +113,8 @@ src/
 │   └── ui/                     # primitivos shadcn — no meter lógica de negocio aquí
 ├── hooks/                      # use-mobile (lo usa ui/sidebar), use-mounted (contenido de localStorage),
 │                               #   use-usdt-swap-links (contexto: las listas borran/describen intercambios USDT),
-│                               #   use-dolar-cripto-rate (cotización del dólar cripto de un día)
+│                               #   use-pesos-conversion-links (contexto: /dolar borra conversiones de pesos),
+│                               #   use-dolar-rate (cotización de un tipo de dólar en un día)
 ├── domain/                     # motor financiero puro (sin React ni stores) + __tests__/
 │   ├── position.ts             # computePosition: costo promedio genérico (quantity/quoteAmount)
 │   ├── metrics.ts              # dólar: computeGroupMetrics, computeTransactionsData, MarketPriceMap
@@ -139,10 +142,12 @@ src/
 │   ├── types.ts                # PesosMovement, PesosState
 │   ├── operations.ts           # puro (store + server): applyAdd/Update/RemovePesosMovement,
 │   │                           #   validatePesosTimeline, computePesosBalance, assertPesosShape
-│   ├── validations.ts          # form (monto AR) y API (sin conversionId)
+│   ├── conversions.ts          # puro: buildConversionLegs, applyAdd/RemoveConversion, assertConversionsComplete
+│   ├── actions.ts              # addConversion/removeConversion: Pesos + Dólar con un solo request (commitAcross)
+│   ├── validations.ts          # form y API de movimientos (sin conversionId) y de conversiones
 │   ├── api.ts, pesos.store.ts  # pesosApi; usePesosStore (persist `pesos-storage`, v1, createSync)
-│   └── components/             # PesosOverview, PesosMovementList, PesosMovementForm,
-│                               #   EditPesosMovementDialog, NewPesosMovement
+│   └── components/             # PesosOverview, PesosMovementList, PesosMovementForm, ConversionForm,
+│                               #   EditPesosMovementDialog, NewPesosMovement (pestañas), PesosConversionLinksProvider
 ├── features/crypto/            # módulo cripto completo + __tests__/
 │   ├── types.ts, metrics.ts, validations.ts, refresh.ts (backoff de precios)
 │   ├── api.ts                  # fetch del navegador a /api/crypto/* (precios, búsqueda, cryptoApi CRUD)
@@ -165,6 +170,8 @@ src/
 │   ├── import.ts               # importSchema + importLocalData (la nube manda, skipDuplicates)
 │   ├── mappers.ts              # única conversión fila Prisma (Decimal) ↔ modelo de dominio (number)
 │   ├── pesos-movements.ts      # servicio de Pesos (ownership + saldo nunca negativo)
+│   ├── pesos-conversions.ts    # conversiones: las dos patas en una transacción
+│   ├── linked-state.ts         # loadLinkedState(db, userId, ['dolar' | 'crypto' | 'pesos'])
 │   └── {dolar,crypto}-transactions.ts  # servicios con ownership + validación de línea temporal
 ├── lib/
 │   ├── locale-amount.ts        # parse/format de montos AR (parseLocaleAmount, formatCurrency…)
@@ -172,10 +179,12 @@ src/
 │   ├── http.ts                 # requestJson + ApiRequestError (fetch a /api/* con el mensaje del server)
 │   ├── synced-store.ts         # origen local/nube de un store: createSync (commit optimista), localData
 │   ├── backoff.ts              # exponentialBackoff (lo usan dólar y cripto)
-│   ├── operation-label.ts      # texto de cada fila: Compra / Venta / Ganancia o Pérdida de trade
+│   ├── operation-label.ts      # texto de cada fila: Compra / Venta / Ganancia o Pérdida de trade;
+│   │                           #   pesosMovementLabel (Ingreso / Egreso / Compra o Venta de USD <tipo>)
+│   ├── dolar-labels.ts         # nombre corto de cada tipo de dólar (Blue, MEP, CCL…)
 │   └── utils.ts                # cn()
 ├── services/                   # dolarApi.ts (DolarAPI), transactionsApi.ts (/api/dolar/transactions),
-│                               #   dolarHistory.ts (rateOn: cotización del día o la anterior, fetchCriptoHistory)
+│                               #   dolarHistory.ts (rateOn: cotización del día o la anterior, fetchDolarHistory)
 ├── store/
 │   ├── transaction.store.ts    # transacciones + persist v1 + useTransactionsData; cálculos en domain/
 │   ├── dolar.store.ts          # allDolarData + persist; selectMarketPrices → MarketPriceMap
@@ -186,13 +195,13 @@ src/
 
 - Alias: `@/*` → `src/*` (ver `tsconfig.json`).
 - Dirección de dependencias: `components → store → (domain, services, lib, types)`; `domain → types` únicamente. `domain`, `validations` y `types` **nunca** importan stores ni React. `types/transaction.types.ts` define el modelo de dominio y no importa `validations`.
-- `features/crypto` puede usar `domain`, `lib`, `types`, `components/ui`, `hooks` y leer `useDolarStore` (solo el dólar cripto); el módulo dólar **no** importa nada de `features/crypto`. `features/pesos` usa `domain`, `lib`, `types`, `components/ui` y lee `useDolarStore` (MEP venta); con las conversiones (8.2) podrá importar funciones puras y el store del Dólar (D2: `dólar ← pesos`), nunca al revés. `features/auth` (sincronización), `features/portfolio` (dashboard) y `features/usdt-swaps` (intercambios USDT) componen los dos módulos: pueden leer sus stores, hooks y componentes, y ningún módulo los importa (solo `app/`). Cuando un módulo necesita algo de un composer, lo recibe por un contexto neutro de `src/hooks/` (ej. `useUsdtSwapLinks`, provisto en `app/providers.tsx`) o por props desde `app/` (ej. `swapForm`). `server/` solo se importa desde route handlers (y puede usar `domain`, `types`, `validations` y las piezas puras de `features/crypto` — `operations`, `metrics`, `types` — de `features/pesos` — `operations`, `validations`, `types` — y de `features/usdt-swaps` — `operations`, `validations`).
+- `features/crypto` puede usar `domain`, `lib`, `types`, `components/ui`, `hooks` y leer `useDolarStore` (solo el dólar cripto); el módulo dólar **no** importa nada de `features/crypto`. `features/pesos` puede importar `domain`, `lib`, `types`, `components/ui`, `hooks`, `useDolarStore` y el store del Dólar (`useTransactionStore`, para las conversiones): D2, `dólar ← pesos`. Nunca al revés: el Dólar ve las patas de conversión por `usePesosConversionLinks`. `features/auth` (sincronización), `features/portfolio` (dashboard) y `features/usdt-swaps` (intercambios USDT) componen los dos módulos: pueden leer sus stores, hooks y componentes, y ningún módulo los importa (solo `app/`). Cuando un módulo necesita algo de un composer, lo recibe por un contexto neutro de `src/hooks/` (ej. `useUsdtSwapLinks`, provisto en `app/providers.tsx`) o por props desde `app/` (ej. `swapForm`). `server/` solo se importa desde route handlers (y puede usar `domain`, `types`, `validations` y las piezas puras de `features/crypto` — `operations`, `metrics`, `types` — de `features/pesos` — `operations`, `conversions`, `validations`, `types` — y de `features/usdt-swaps` — `operations`, `validations`).
 - El navegador nunca llama a CoinGecko directo: siempre vía `/api/crypto/*` (key en el server, Data Cache con `next.revalidate`, respuestas validadas con Zod).
 - Mover el dólar a `src/features/dolar` no tiene fase asignada (deuda técnica en `docs/roadmap.md`): **no** hacerlo a medias; si se decide, se planifica como fase propia.
 
 ## Comportamiento importante del estado
 
-- **Persistencia:** Zustand `persist` con claves `dolar-storage`, `transactions-storage` (v3: `usdtSwapId`, `kind`, `note` opcionales), `crypto-storage` (v4: `fee`/`swapId`/`usdtSwapId`/`kind`/`note` opcionales, `migrateCryptoStorage`), `crypto-prices-storage`, `pesos-storage` y `sync-storage`, el resto en `version: 1`, todas con `partialize` (solo datos, nunca métricas derivadas). Ojo: si se sube `version` sin `migrate`, Zustand **descarta** lo guardado. `migrateTransactionsStorage` y `migrateCryptoStorage` tienen tests con snapshots reales de cada versión. Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `PesosMovement`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
+- **Persistencia:** Zustand `persist` con claves `dolar-storage`, `transactions-storage` (v4: `usdtSwapId`, `kind`, `note`, `conversionId` opcionales), `crypto-storage` (v4: `fee`/`swapId`/`usdtSwapId`/`kind`/`note` opcionales, `migrateCryptoStorage`), `crypto-prices-storage`, `pesos-storage` y `sync-storage`, el resto en `version: 1`, todas con `partialize` (solo datos, nunca métricas derivadas). Ojo: si se sube `version` sin `migrate`, Zustand **descarta** lo guardado. `migrateTransactionsStorage` y `migrateCryptoStorage` tienen tests con snapshots reales de cada versión. Cualquier cambio de forma en `Transaction`, `CryptoTransaction`, `Coin`, `PesosMovement`, `DolarOption` o el estado persistido rompe datos de usuarios existentes: añadir o subir `version` + `migrate` en el mismo cambio.
 - **Forma de los datos:** `transactions: Partial<Record<DolarOption, Transaction[]>>`, cada grupo ordenado con `sortTxs`. Los montos se guardan como `number`; la fecha, como `Date` serializada a string por `persist` (usar `new Date(tx.date)` al leer).
 - **Métricas derivadas:** no hay suscripción entre stores. `useTransactionsData` (dólar) y `useCryptoPortfolio` (cripto) recalculan con `useMemo` cuando cambian las transacciones o los precios. No volver a guardar métricas en el estado.
 - **Cálculos:** el algoritmo vive en `src/domain/position.ts` (`computePosition`, con `dust` según la unidad: 0,0001 para USD, 1e-9 por defecto para cripto) y cada módulo lo adapta. Dólar (`src/domain/metrics.ts`): costo promedio ponderado con compras; cada venta suma `(precio venta − costo promedio) × USD` a la ganancia realizada y reduce la posición; la no realizada usa `MarketPrice.sell` **del mismo tipo de dólar del grupo**. Los precios se inyectan: `useTransactionsData` arma el `MarketPriceMap` con `selectMarketPrices({ allDolarData })`. Cualquier cambio en la matemática va acompañado de tests en `src/domain/__tests__/`.

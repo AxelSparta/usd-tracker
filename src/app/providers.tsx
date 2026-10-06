@@ -4,6 +4,7 @@ import { ThemeProvider } from 'next-themes'
 import { useEffect } from 'react'
 import { useDolarStore } from '@/store/dolar.store'
 import { CloudSync } from '@/features/auth/CloudSync'
+import PesosConversionLinksProvider from '@/features/pesos/components/PesosConversionLinksProvider'
 import UsdtSwapLinksProvider from '@/features/usdt-swaps/components/UsdtSwapLinksProvider'
 import { dolarRefreshDelay } from '@/store/dolar-refresh'
 
@@ -40,7 +41,9 @@ export function ClientProviders({ children }: { children: React.ReactNode }) {
   return (
     <ThemeProvider attribute='class' defaultTheme='system' enableSystem>
       <CloudSync />
-      <UsdtSwapLinksProvider>{children}</UsdtSwapLinksProvider>
+      <UsdtSwapLinksProvider>
+        <PesosConversionLinksProvider>{children}</PesosConversionLinksProvider>
+      </UsdtSwapLinksProvider>
     </ThemeProvider>
   )
 }

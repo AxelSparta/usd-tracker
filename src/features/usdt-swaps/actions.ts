@@ -1,4 +1,5 @@
 import { useCryptoStore } from '@/features/crypto/crypto.store'
+import { commitAcross, write } from '@/lib/synced-store'
 import { useTransactionStore } from '@/store/transaction.store'
 import { usdtSwapsApi } from './api'
 import {
@@ -23,19 +24,11 @@ const currentState = (): LinkedState => {
   return { dolar: useTransactionStore.getState().transactions, crypto: { transactions, coins } }
 }
 
-/** Los dos stores llaman a `remote` (solo con sesión): que salga un único request */
-const once = <T>(request: () => Promise<T>) => {
-  let pending: Promise<T> | undefined
-  return () => (pending ??= request())
-}
-
-const commitBoth = async (next: LinkedState, remote: () => Promise<unknown>) => {
-  const request = once(remote)
-  await Promise.all([
-    useTransactionStore.getState().applyExternal({ transactions: next.dolar }, request),
-    useCryptoStore.getState().applyExternal(next.crypto, request),
-  ])
-}
+const commitBoth = (next: LinkedState, remote: () => Promise<unknown>) =>
+  commitAcross(
+    [write(useTransactionStore, { transactions: next.dolar }), write(useCryptoStore, next.crypto)],
+    remote,
+  )
 
 export const addUsdtSwap = async (swap: UsdtSwapInput) => {
   await bothReady()

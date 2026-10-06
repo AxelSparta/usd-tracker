@@ -217,3 +217,32 @@ describe('importación de pesos', () => {
     expect((await POST(json(empty))).status).toBe(200)
   })
 })
+
+describe('importación con conversiones de pesos', () => {
+  const conversionId = uuid(42)
+  const income = { id: uuid(40), type: 'BUY', amount: 3_000_000, date: '2026-01-01T03:00:00.000Z' }
+  const pesosLeg = { id: uuid(41), type: 'SELL', amount: 1_560_000, date: '2026-02-01T03:00:00.000Z', conversionId }
+  const dolarLeg = { ...dolarTx(43, 'BUY', 1000, '2026-02-01T03:00:00.000Z'), pesosAmount: 1_560_000, conversionId }
+  const crypto = { transactions: [], coins: {} }
+
+  it('sube las dos patas enlazadas', async () => {
+    const response = await POST(json({ dolar: [dolarLeg], crypto, pesos: [income, pesosLeg] }))
+    expect(response.status).toBe(200)
+    expect(db.dolarRows[0].conversionId).toBe(conversionId)
+    expect(db.pesosRows.find((r) => r.id === uuid(41))?.conversionId).toBe(conversionId)
+  })
+
+  it('422 si llega una pata sin la otra', async () => {
+    const response = await POST(json({ dolar: [], crypto, pesos: [income, pesosLeg] }))
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('Hay una conversión de pesos incompleta.')
+    expect(db.pesosRows).toHaveLength(0)
+  })
+
+  it('422 si las patas no tienen el mismo monto en ARS', async () => {
+    const response = await POST(
+      json({ dolar: [{ ...dolarLeg, pesosAmount: 1 }], crypto, pesos: [income, pesosLeg] }),
+    )
+    expect(response.status).toBe(422)
+  })
+})

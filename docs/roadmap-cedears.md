@@ -195,38 +195,41 @@ type PesosMovement = {
 
 ### 8.2 Conversiones pesos ↔ dólar (D9)
 
-- [ ] Dólar: `conversionId?` en `Transaction`. `transactions-storage` v3 → **v4** con `migrate`
+- [x] Dólar: `conversionId?` en `Transaction`. `transactions-storage` v3 → **v4** con `migrate`
       (campo opcional: los datos viejos son válidos) + test con snapshot. Prisma: `conversionId
-      String? @db.Uuid` + `@@index([conversionId])` en `DolarTransaction` (misma migración que 8.1);
+      String? @db.Uuid` + `@@index([conversionId])` en `DolarTransaction` (migración propia,
+      `20261005120000_dolar_conversions`);
       `mappers.ts` ida y vuelta.
-- [ ] Reglas de forma con `linkOf(tx)` (D8): una operación del Dólar tiene como mucho un enlace
+- [x] Reglas de forma con `linkOf(tx)` (D8): una operación del Dólar tiene como mucho un enlace
       (`usdtSwapId` o `conversionId`) y una pata de conversión no es un resultado de trade.
       `applyUpdateTransaction` / `applyRemoveTransaction` rechazan una pata de conversión ("Es una
       conversión de pesos: borrala completa."). La API del Dólar devuelve 422 sola. Tests en
       `src/domain/__tests__/`.
-- [ ] Funciones puras (`features/pesos/conversions.ts`, store + server): `buildConversionLegs(input,
+- [x] Funciones puras (`features/pesos/conversions.ts`, store + server): `buildConversionLegs(input,
       ids)` → `[pata pesos, pata dólar]` con el mismo monto en ARS; `applyAddConversion` (valida los
       pesos en Pesos → dólar y los USD del grupo en Dólar → pesos; montos > 0) y
       `applyRemoveConversion` (revalida las dos líneas); `assertConversionsComplete` para la
       importación (cada `conversionId`: una pata en cada módulo, de tipos opuestos y con el mismo monto
       en ARS; si no, 422, como `assertUsdtSwapsComplete`).
-- [ ] Llevar `commitBoth` y `once` de `features/usdt-swaps/actions.ts` a `lib/synced-store.ts` como
-      `commitAcross([{ store, next }], remote)`, para N stores. `usdt-swaps` lo usa sin cambiar de
+- [x] Llevar `commitBoth` y `once` de `features/usdt-swaps/actions.ts` a `lib/synced-store.ts` como
+      `commitAcross([write(store, next), …], remote)`, para N stores. `usdt-swaps` lo usa sin cambiar de
       comportamiento. Test: si falla el request, cada store revierte lo suyo.
-- [ ] Server: `loadLinkedState` de `server/usdt-swaps.ts` pasa a un helper compartido que carga los
+- [x] Server: `loadLinkedState` de `server/usdt-swaps.ts` pasa a un helper compartido que carga los
       módulos pedidos (`dolar`, `crypto`, `pesos`; `cedears` en la Fase 9) dentro de la misma
       `withUserTransaction`. `POST /api/pesos/conversions` (input + ids del cliente) y
       `DELETE /api/pesos/conversions/:conversionId` escriben las dos tablas en una transacción
       `Serializable` (`server/pesos-conversions.ts`); logs `pesosConversion.*`. Tests: atomicidad,
       ownership, 422 por saldo, pata editada o borrada desde `/api/dolar` o `/api/pesos` → 422.
-- [ ] Cotización de referencia: generalizar `fetchCriptoHistory` → `fetchDolarHistory(option)` y
+- [x] Cotización de referencia: generalizar `fetchCriptoHistory` → `fetchDolarHistory(option)` y
       `useDolarCriptoRate` → `useDolarRate(option, side, date)` (el de cripto pasa a ser un caso).
-- [ ] UI: pestaña **Convertir** en `/pesos/nueva` (`?modo=conversion&dolar=<tipo>`): dirección,
+- [x] UI: pestaña **Convertir** en `/pesos/nueva` (`?modo=conversion&dolar=<tipo>`): dirección,
       tipo de dólar, fecha, monto ARS, monto USD, cotización de referencia y cotización implícita, y
       el saldo disponible (pesos o USD de ese tipo). Atajo "Comprar con pesos" en `/dolar`. En `/dolar`
       la pata se ve con un distintivo "Pesos" y sin editar; borrarla borra la conversión completa por
       el contexto `use-pesos-conversion-links` (`hooks/`, provisto por `features/pesos` en
-      `app/providers.tsx`).
+      `app/providers.tsx`). El atajo abre `/pesos/nueva?modo=conversion` (sin tipo preseleccionado;
+      `&dolar=` funciona igual). Desde Pesos, la pata se ve como "Compra de USD Blue" con los USD y
+      la cotización implícita.
 
 ### 8.3 Pesos en el dashboard (estaba en la Fase 10)
 

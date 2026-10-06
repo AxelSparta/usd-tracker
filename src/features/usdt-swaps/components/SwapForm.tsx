@@ -31,7 +31,8 @@ import { fetchCoinPrices } from '@/features/crypto/api'
 import CoinCombobox from '@/features/crypto/components/CoinCombobox'
 import { useCryptoStore } from '@/features/crypto/crypto.store'
 import { useCryptoPricesStore } from '@/features/crypto/prices.store'
-import { useDolarCriptoRate } from '@/hooks/use-dolar-cripto-rate'
+import { useDolarRate } from '@/hooks/use-dolar-rate'
+import { DolarOption } from '@/types/dolar.types'
 import type { Coin } from '@/features/crypto/types'
 import {
   formatAmountArInput,
@@ -94,7 +95,8 @@ export default function SwapForm({ defaultFrom }: SwapFormProps) {
   const coin = direction === 'USDT_TO_COIN' ? toCoin : direction === 'COIN_TO_USDT' ? fromCoin : null
 
   // Cotización del dólar cripto del día: compra si se entregan USDT, venta si se reciben
-  const { rate, note: rateNote } = useDolarCriptoRate(
+  const { rate, note: rateNote } = useDolarRate(
+    DolarOption.Cripto,
     direction ? (direction === 'USDT_TO_COIN' ? 'buy' : 'sell') : null,
     date,
   )

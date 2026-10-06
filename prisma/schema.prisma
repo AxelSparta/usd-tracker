@@ -50,6 +50,8 @@ model DolarTransaction {
   date          DateTime
   /// Enlaza esta pata (grupo `cripto` = USDT) con la del módulo cripto de un intercambio USDT ↔ cripto
   usdtSwapId    String?         @db.Uuid
+  /// Enlaza esta pata con el movimiento de Pesos de una conversión pesos ↔ dólar
+  conversionId  String?         @db.Uuid
   kind          OperationKind?
   note          String?
   createdAt     DateTime        @default(now())
@@ -57,6 +59,7 @@ model DolarTransaction {
 
   @@index([userId, dolarOption, date])
   @@index([usdtSwapId])
+  @@index([conversionId])
 }
 
 model CryptoTransaction {

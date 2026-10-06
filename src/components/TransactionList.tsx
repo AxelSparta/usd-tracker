@@ -20,7 +20,8 @@ import { operationLabel } from '@/lib/operation-label'
 import { cn } from '@/lib/utils'
 import { Stat, pnlClass } from './Stat'
 import EditTransactionDialog from './EditTransactionDialog'
-import { ArrowLeftRight, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Banknote, Trash2 } from 'lucide-react'
+import { usePesosConversionLinks } from '@/hooks/use-pesos-conversion-links'
 import { useUsdtSwapLinks } from '@/hooks/use-usdt-swap-links'
 import type { Transaction } from '@/types/transaction.types'
 import SyncGate from './SyncGate'
@@ -36,6 +37,7 @@ export default function TransactionList() {
   const transactionsData = useTransactionsData()
   const allDolarData = useDolarStore((state) => state.allDolarData)
   const usdtSwaps = useUsdtSwapLinks()
+  const conversions = usePesosConversionLinks()
 
   const handleDeleteTransaction = async (tx: Transaction) => {
     try {
@@ -43,6 +45,12 @@ export default function TransactionList() {
       if (tx.usdtSwapId) {
         await usdtSwaps.remove(tx.usdtSwapId)
         toast.success('Intercambio eliminado.')
+        return
+      }
+      // Una pata de una conversión se borra junto con el movimiento de Pesos
+      if (tx.conversionId) {
+        await conversions.remove(tx.conversionId)
+        toast.success('Conversión eliminada.')
         return
       }
       await removeTransaction(tx.id)
@@ -249,6 +257,15 @@ export default function TransactionList() {
                               {usdtSwaps.cryptoSide(tx.usdtSwapId) ?? 'cripto'}
                             </span>
                           )}
+                          {tx.conversionId && (
+                            <Link
+                              href='/pesos'
+                              className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline'
+                            >
+                              <Banknote className='size-3' aria-hidden />
+                              {tx.type === 'BUY' ? 'con pesos' : 'a pesos'}
+                            </Link>
+                          )}
                         </td>
                         <td className='px-4 py-3 text-right'>
                           ${formatCurrency(tx.pesosAmount)}
@@ -261,8 +278,8 @@ export default function TransactionList() {
                         </td>
                         <td className='px-2 py-1'>
                           <div className='flex justify-end'>
-                            {/* Un intercambio USDT se edita como unidad: se borra y se vuelve a cargar */}
-                            {!tx.usdtSwapId && <EditTransactionDialog tx={tx} />}
+                            {/* Intercambios y conversiones se editan como unidad: se borran y se vuelven a cargar */}
+                            {!tx.usdtSwapId && !tx.conversionId && <EditTransactionDialog tx={tx} />}
                             <Popover>
                               <PopoverTrigger asChild>
                                 <Button
@@ -278,7 +295,9 @@ export default function TransactionList() {
                                 <p className='mb-3 text-sm'>
                                   {tx.usdtSwapId
                                     ? '¿Eliminar el intercambio completo (USDT y cripto)?'
-                                    : '¿Eliminar esta transacción?'}
+                                    : tx.conversionId
+                                      ? '¿Eliminar la conversión completa (pesos y dólares)?'
+                                      : '¿Eliminar esta transacción?'}
                                 </p>
                                 <Button
                                   className='w-full'

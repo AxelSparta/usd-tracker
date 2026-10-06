@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Plus } from 'lucide-react'
+import { Banknote, Plus } from 'lucide-react'
 import type { Metadata } from 'next'
 import DolarPrice from '@/components/DolarPrice'
 import TransactionList from '@/components/TransactionList'
@@ -19,12 +19,20 @@ export default function DolarPage() {
             Cotizaciones y rendimiento de tus compras de USD.
           </p>
         </div>
-        <Button asChild size='sm'>
-          <Link href='/dolar/nueva'>
-            <Plus />
-            Nueva transacción
-          </Link>
-        </Button>
+        <div className='flex gap-2'>
+          <Button asChild variant='outline' size='sm'>
+            <Link href='/pesos/nueva?modo=conversion'>
+              <Banknote />
+              Comprar con pesos
+            </Link>
+          </Button>
+          <Button asChild size='sm'>
+            <Link href='/dolar/nueva'>
+              <Plus />
+              Nueva transacción
+            </Link>
+          </Button>
+        </div>
       </header>
       <DolarPrice />
       <TransactionList />

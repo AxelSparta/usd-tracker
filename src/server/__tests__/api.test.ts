@@ -29,6 +29,8 @@ const usdtSwaps = await import('@/app/api/usdt-swaps/route')
 const usdtSwapById = await import('@/app/api/usdt-swaps/[id]/route')
 const pesos = await import('@/app/api/pesos/movements/route')
 const pesosById = await import('@/app/api/pesos/movements/[id]/route')
+const conversions = await import('@/app/api/pesos/conversions/route')
+const conversionById = await import('@/app/api/pesos/conversions/[id]/route')
 
 const json = (body: unknown) =>
   new Request('http://localhost/api', {
@@ -469,5 +471,108 @@ describe('/api/pesos/movements', () => {
     expect((await pesosById.PATCH(json(data), ctx(ID.buy))).status).toBe(404)
     expect((await pesosById.DELETE(json({}), ctx(ID.buy))).status).toBe(404)
     expect((await pesos.POST(json(pesosMovement(ID.buy, 'BUY', 1, '2026-01-01')))).status).toBe(409)
+  })
+})
+
+describe('/api/pesos/conversions', () => {
+  const CONV = {
+    conversionId: '00000000-0000-4000-8000-0000000000c1',
+    pesosId: '00000000-0000-4000-8000-0000000000c2',
+    dolarId: '00000000-0000-4000-8000-0000000000c3',
+  }
+  const income = { id: ID.buy, type: 'BUY', amount: 3_000_000, date: '2026-01-01T03:00:00.000Z' }
+  const toBlue = {
+    direction: 'PESOS_TO_DOLAR',
+    dolarOption: 'blue',
+    pesosAmount: 1_560_000,
+    dollarsAmount: 1000,
+    date: '2026-02-01T03:00:00.000Z',
+  }
+
+  beforeEach(async () => {
+    await pesos.POST(json(income))
+  })
+
+  it('crea las dos patas en una sola escritura y cada módulo lista la suya', async () => {
+    const response = await conversions.POST(json({ conversion: toBlue, ids: CONV }))
+    expect(response.status).toBe(201)
+
+    const { movements } = await (await pesos.GET()).json()
+    expect(movements.find((m: { id: string }) => m.id === CONV.pesosId)).toMatchObject({
+      type: 'SELL',
+      amount: 1_560_000,
+      conversionId: CONV.conversionId,
+    })
+    expect(await (await dolar.GET()).json()).toEqual([
+      {
+        id: CONV.dolarId,
+        type: 'BUY',
+        pesosAmount: 1_560_000,
+        dollarsAmount: 1000,
+        date: '2026-02-01T03:00:00.000Z',
+        dolarOption: 'blue',
+        conversionId: CONV.conversionId,
+      },
+    ])
+    expect(log.logEvent).toHaveBeenCalledWith('pesosConversion.created', {
+      userId: 'user_a',
+      conversionId: CONV.conversionId,
+      direction: 'PESOS_TO_DOLAR',
+      dolarOption: 'blue',
+    })
+  })
+
+  it('422 sin pesos o sin USD suficientes, y no escribe ninguna pata', async () => {
+    const noPesos = await conversions.POST(json({ conversion: { ...toBlue, pesosAmount: 5_000_000 }, ids: CONV }))
+    expect(noPesos.status).toBe(422)
+    expect((await noPesos.json()).error).toBe('No tenés pesos suficientes para convertir el 01/02/2026.')
+
+    const noUsd = await conversions.POST(json({ conversion: { ...toBlue, direction: 'DOLAR_TO_PESOS' }, ids: CONV }))
+    expect(noUsd.status).toBe(422)
+    expect((await noUsd.json()).error).toBe('No tenés suficientes USD Blue para convertir el 01/02/2026.')
+    expect(db.pesosRows).toHaveLength(1)
+    expect(db.dolarRows).toHaveLength(0)
+  })
+
+  it('400 con datos inválidos', async () => {
+    const response = await conversions.POST(json({ conversion: { ...toBlue, dolarOption: 'euro' }, ids: CONV }))
+    expect(response.status).toBe(400)
+  })
+
+  it('una pata no se edita ni se borra desde su módulo; la conversión se borra completa', async () => {
+    await conversions.POST(json({ conversion: toBlue, ids: CONV }))
+
+    const { id, ...dolarData } = dolarTx(CONV.dolarId, 'BUY', 1000, '2026-02-01T03:00:00.000Z')
+    expect((await dolarById.PATCH(json(dolarData), ctx(CONV.dolarId))).status).toBe(422)
+    const dolarRemove = await dolarById.DELETE(json({}), ctx(CONV.dolarId))
+    expect(dolarRemove.status).toBe(422)
+    expect((await dolarRemove.json()).error).toBe('Es una conversión de pesos: borrala completa.')
+    expect((await pesosById.DELETE(json({}), ctx(CONV.pesosId))).status).toBe(422)
+
+    const removed = await conversionById.DELETE(json({}), ctx(CONV.conversionId))
+    expect(removed.status).toBe(200)
+    expect((await removed.json()).removedIds.sort()).toEqual([CONV.pesosId, CONV.dolarId].sort())
+    expect(db.pesosRows.map((r) => r.id)).toEqual([ID.buy])
+    expect(db.dolarRows).toHaveLength(0)
+  })
+
+  it('no se borra si los USD comprados ya se vendieron', async () => {
+    await conversions.POST(json({ conversion: toBlue, ids: CONV }))
+    await dolar.POST(json(dolarTx(ID.sell, 'SELL', 600, '2026-03-01T03:00:00.000Z')))
+    const response = await conversionById.DELETE(json({}), ctx(CONV.conversionId))
+    expect(response.status).toBe(422)
+    expect(db.dolarRows).toHaveLength(2)
+  })
+
+  it('la API del Dólar no crea patas de conversión', async () => {
+    await dolar.POST(json({ ...dolarTx(ID.other, 'BUY', 1, '2026-01-01'), conversionId: CONV.conversionId }))
+    expect(db.dolarRows[0].conversionId).toBeNull()
+  })
+
+  it('ownership: otro usuario no la ve ni la borra (404)', async () => {
+    await conversions.POST(json({ conversion: toBlue, ids: CONV }))
+    session.userId = 'user_b'
+    expect((await conversionById.DELETE(json({}), ctx(CONV.conversionId))).status).toBe(404)
+    expect(db.dolarRows).toHaveLength(1)
   })
 })

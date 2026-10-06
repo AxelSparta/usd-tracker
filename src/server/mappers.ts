@@ -22,6 +22,7 @@ export const toDolarTransaction = (row: DolarTransactionRow): Transaction => ({
   date: row.date,
   dolarOption: row.dolarOption as DolarOption,
   ...(row.usdtSwapId !== null && { usdtSwapId: row.usdtSwapId }),
+  ...(row.conversionId !== null && { conversionId: row.conversionId }),
   ...(row.kind !== null && { kind: row.kind }),
   ...(row.note !== null && { note: row.note }),
 })
@@ -33,6 +34,7 @@ export const toDolarTransactionData = (tx: Omit<Transaction, 'id'>) => ({
   date: new Date(tx.date),
   dolarOption: tx.dolarOption,
   usdtSwapId: tx.usdtSwapId ?? null,
+  conversionId: tx.conversionId ?? null,
   kind: tx.kind ?? null,
   note: tx.note ?? null,
 })

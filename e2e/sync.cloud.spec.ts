@@ -176,3 +176,38 @@ test('con sesión, los movimientos de pesos van a la nube y lo local se sube', a
   const local = await page.evaluate(() => localStorage.getItem('pesos-storage'))
   expect(JSON.parse(local ?? '{}').state.movements).toHaveLength(1)
 })
+
+test('con sesión, una conversión pesos → blue escribe las dos patas y se borra completa', async ({ page }) => {
+  await signIn(page)
+  await page.goto('/pesos/nueva')
+  await expect(page.getByRole('button', { name: 'Sincronizado' })).toBeVisible()
+  await page.getByLabel('Monto (ARS)').fill('3000000')
+  await page.getByRole('button', { name: 'Guardar movimiento' }).click()
+  await expect(page).toHaveURL(/\/pesos$/)
+  await settled(page)
+
+  await page.goto('/pesos/nueva?modo=conversion&dolar=blue')
+  await page.getByLabel('Pesos que salen (ARS)').fill('1560000')
+  await page.getByLabel('Dólares que recibís (USD)').fill('1000')
+  await page.getByRole('button', { name: 'Guardar conversión' }).click()
+  await expect(page).toHaveURL(/\/pesos$/)
+  await settled(page)
+
+  // Al recargar, las dos patas vienen de la base
+  await page.reload()
+  const leg = page.getByRole('row').filter({ hasText: 'Compra de USD Blue' })
+  await expect(leg).toContainText('-$1.560.000,00')
+  await page.goto('/dolar')
+  await expect(page.getByRole('row').filter({ hasText: 'con pesos' })).toContainText('1.000,00')
+
+  // Se borra desde Pesos y desaparecen las dos
+  await page.goto('/pesos')
+  await leg.getByRole('button', { name: 'Eliminar movimiento' }).click()
+  await page.getByRole('button', { name: 'Confirmar' }).click()
+  await expect(page.getByText('Conversión eliminada.')).toBeVisible()
+  await settled(page)
+  await page.reload()
+  await expect(leg).toHaveCount(0)
+  await page.goto('/dolar')
+  await expect(page.getByText('Todavía no registraste transacciones.')).toBeVisible()
+})

@@ -3,7 +3,12 @@ import {
   applyAddTransaction,
   applyRemoveTransaction,
   applyUpdateTransaction,
+  assertDolarShape,
+  CONVERSION_LEG_REMOVE,
+  CONVERSION_LEG_UPDATE,
   groupTransactions,
+  linkOf,
+  USDT_SWAP_LEG_REMOVE,
 } from '@/domain/transactions'
 import { DolarOption } from '@/types/dolar.types'
 import { TransactionType, type Transaction } from '@/types/transaction.types'
@@ -104,5 +109,37 @@ describe('resultados de trades', () => {
       kind: 'TRADE_RESULT',
       note: 'BTCUSDT long x10',
     })
+  })
+})
+
+describe('patas de operaciones enlazadas', () => {
+  const funded = groupTransactions([tx('b', TransactionType.BUY, 100, '2026-01-01')])
+  const leg = { ...tx('c', TransactionType.BUY, 50, '2026-01-02'), conversionId: 'conv' }
+  const withLeg = applyAddTransaction(funded, leg)
+
+  it('linkOf dice de qué es pata', () => {
+    expect(linkOf(leg)).toEqual({ kind: 'conversion', id: 'conv' })
+    expect(linkOf({ usdtSwapId: 'u' })).toEqual({ kind: 'usdtSwap', id: 'u' })
+    expect(linkOf({})).toBeNull()
+  })
+
+  it('una pata de conversión no se edita ni se borra sola', () => {
+    const { id, ...data } = leg
+    expect(() => applyUpdateTransaction(withLeg, 'c', data)).toThrow(CONVERSION_LEG_UPDATE)
+    expect(() => applyRemoveTransaction(withLeg, 'c')).toThrow(CONVERSION_LEG_REMOVE)
+  })
+
+  it('una pata de un intercambio USDT sigue con su mensaje', () => {
+    const usdt = groupTransactions([{ ...tx('u', TransactionType.BUY, 1, '2026-01-01', DolarOption.Cripto), usdtSwapId: 's' }])
+    expect(() => applyRemoveTransaction(usdt, 'u')).toThrow(USDT_SWAP_LEG_REMOVE)
+  })
+
+  it('como mucho un enlace, y un resultado de trade no es pata de una conversión', () => {
+    expect(() => assertDolarShape({ ...leg, usdtSwapId: 'u' })).toThrow(
+      'Una operación no puede ser parte de un intercambio y de una conversión.',
+    )
+    expect(() =>
+      assertDolarShape({ ...leg, dolarOption: DolarOption.Cripto, kind: 'TRADE_RESULT' }),
+    ).toThrow('Un resultado de trade no puede ser parte de una conversión.')
   })
 })

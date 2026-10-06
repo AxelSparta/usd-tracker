@@ -45,6 +45,7 @@ describe('mappers', () => {
       pesosAmount: new Prisma.Decimal('130325.5'),
       date,
       usdtSwapId: null,
+      conversionId: null,
       kind: null,
       note: null,
     })
@@ -148,5 +149,23 @@ describe('mappers', () => {
       note: null,
       conversionId: 'conv',
     })
+  })
+
+  it('dólar: conversionId ida y vuelta', () => {
+    const tx = toDolarTransaction({
+      ...meta,
+      id: 'd2',
+      dolarOption: 'blue',
+      type: 'BUY',
+      dollarsAmount: new Prisma.Decimal('1000'),
+      pesosAmount: new Prisma.Decimal('1560000'),
+      date,
+      usdtSwapId: null,
+      conversionId: 'conv',
+      kind: null,
+      note: null,
+    })
+    expect(tx.conversionId).toBe('conv')
+    expect(toDolarTransactionData(tx).conversionId).toBe('conv')
   })
 })

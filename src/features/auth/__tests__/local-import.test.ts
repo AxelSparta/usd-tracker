@@ -75,7 +75,7 @@ describe('local-import', () => {
     const newId = () => `00000000-0000-4000-8000-${String(++n).padStart(12, '0')}`
     const payload = toImportPayload(
       {
-        dolar: [dolar(UUID_A), dolar('viejo')],
+        dolar: [dolar(UUID_A), { ...dolar('viejo'), conversionId: 'conv-viejo' }],
         crypto: {
           transactions: [crypto('s1', 'bitcoin', 'swap'), crypto('s2', 'ethereum', 'swap')],
           coins: { bitcoin: btc, ethereum: eth },
@@ -92,6 +92,8 @@ describe('local-import', () => {
     const [p] = payload.pesos
     expect(p.id).toMatch(/^0{8}-0000-4000/)
     expect(p.conversionId).toMatch(/^0{8}-0000-4000/)
+    // Las dos patas de la conversión siguen enlazadas con el UUID nuevo
+    expect(payload.dolar[1].conversionId).toBe(p.conversionId)
     expect(new Set([payload.dolar[1].id, s1.id, s2.id, s1.swapId, p.id, p.conversionId]).size).toBe(6)
   })
 

@@ -147,3 +147,27 @@ export const createSync = <D extends object, S extends SyncFields<D> & D>(
 /** Para `partialize`: lo que se persiste son siempre los datos locales */
 export const localData = <D>(state: SyncFields<D>, current: D, empty: D): D =>
   state.source === 'cloud' ? (state.localSnapshot ?? empty) : current
+
+/** Un store con `applyExternal` (commit de un estado ya validado por otro módulo) */
+type ExternalTarget<D> = {
+  getState: () => { applyExternal: (next: D, remote: () => Promise<unknown>) => Promise<void> }
+}
+
+/** Un cambio para `commitAcross`: el store y su estado nuevo */
+export const write = <D>(store: ExternalTarget<D>, next: D) => (remote: () => Promise<unknown>) =>
+  store.getState().applyExternal(next, remote)
+
+/**
+ * Commit optimista en varios stores con **un** request: cada store aplica lo suyo al instante y,
+ * con sesión, todos esperan la misma llamada a la API (`remote` se ejecuta una sola vez). Si falla,
+ * cada store revierte lo suyo y el error se relanza para el toast.
+ */
+export const commitAcross = async (
+  writes: ((remote: () => Promise<unknown>) => Promise<void>)[],
+  remote: () => Promise<unknown>,
+) => {
+  let pending: Promise<unknown> | undefined
+  // `Promise.resolve`: aunque `remote` no devuelva una promesa, se llama una sola vez
+  const request = () => (pending ??= Promise.resolve().then(remote))
+  await Promise.all(writes.map((apply) => apply(request)))
+}

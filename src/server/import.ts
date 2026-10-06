@@ -6,6 +6,7 @@ import {
   coinApiSchema,
   cryptoTransactionFields,
 } from '@/features/crypto/validations'
+import { assertConversionsComplete } from '@/features/pesos/conversions'
 import { assertPesosShape, validatePesosTimeline } from '@/features/pesos/operations'
 import { createPesosMovementApiSchema } from '@/features/pesos/validations'
 import { assertUsdtSwapsComplete } from '@/features/usdt-swaps/operations'
@@ -33,7 +34,12 @@ const MAX_ITEMS = 5000
 export const importSchema = z
   .object({
     dolar: z
-      .array(createTransactionApiSchema.extend({ usdtSwapId: z.uuid('Id inválido').optional() }))
+      .array(
+        createTransactionApiSchema.extend({
+          usdtSwapId: z.uuid('Id inválido').optional(),
+          conversionId: z.uuid('Id inválido').optional(),
+        }),
+      )
       .max(MAX_ITEMS),
     crypto: z.object({
       transactions: z
@@ -47,9 +53,11 @@ export const importSchema = z
         .max(MAX_ITEMS),
       coins: z.record(z.string(), coinApiSchema),
     }),
-    // Opcional: un cliente anterior a la Fase 8 no lo manda.
-    // Sin `conversionId` hasta que existan las conversiones (8.2) y su regla de patas completas.
-    pesos: z.array(createPesosMovementApiSchema).max(MAX_ITEMS).default([]),
+    // Opcional: un cliente anterior a la Fase 8 no lo manda
+    pesos: z
+      .array(createPesosMovementApiSchema.extend({ conversionId: z.uuid('Id inválido').optional() }))
+      .max(MAX_ITEMS)
+      .default([]),
   })
   .refine(
     (d) => d.crypto.transactions.every((t) => d.crypto.coins[t.coinId]?.id === t.coinId),
@@ -95,6 +103,13 @@ export const importLocalData = (userId: string, input: ImportInput) =>
       assertUsdtSwapsComplete(
         [...existingDolar, ...newDolar],
         [...existingCrypto.transactions, ...newCrypto],
+      ),
+    )
+    // Lo mismo con las conversiones de pesos: una pata en cada módulo, con el mismo monto en ARS
+    applyOrReject(() =>
+      assertConversionsComplete(
+        [...existingDolar, ...newDolar],
+        [...existingPesos.movements, ...newPesos],
       ),
     )
     applyOrReject(() => validateAllGroups(groupTransactions([...existingDolar, ...newDolar])))

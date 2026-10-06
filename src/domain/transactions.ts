@@ -16,13 +16,44 @@ export const USDT_SWAP_LEG_UPDATE =
   'Los intercambios con USDT no se editan: borralo y cargalo de nuevo.'
 export const USDT_SWAP_LEG_REMOVE = 'Es un intercambio con USDT: borralo completo.'
 
-/** Un resultado de trade en USDT vive en el dólar cripto y no es parte de un intercambio */
+/** Las patas de una conversión pesos ↔ dólar solo se borran completas (`features/pesos`) */
+export const CONVERSION_LEG_UPDATE =
+  'Las conversiones de pesos no se editan: borrala y cargala de nuevo.'
+export const CONVERSION_LEG_REMOVE = 'Es una conversión de pesos: borrala completa.'
+
+/** Enlace de una operación del Dólar con otro módulo (D8): un id concreto por tipo de enlace */
+export type DolarLink =
+  | { kind: 'usdtSwap'; id: string }
+  | { kind: 'conversion'; id: string }
+
+/** De qué operación enlazada es pata, o `null` si es una operación propia del módulo */
+export const linkOf = (tx: Pick<Transaction, 'usdtSwapId' | 'conversionId'>): DolarLink | null =>
+  tx.usdtSwapId
+    ? { kind: 'usdtSwap', id: tx.usdtSwapId }
+    : tx.conversionId
+      ? { kind: 'conversion', id: tx.conversionId }
+      : null
+
+/** Mensaje al editar o borrar una pata desde el módulo Dólar */
+const legMessage = (link: DolarLink, action: 'update' | 'remove') =>
+  link.kind === 'usdtSwap'
+    ? action === 'update' ? USDT_SWAP_LEG_UPDATE : USDT_SWAP_LEG_REMOVE
+    : action === 'update' ? CONVERSION_LEG_UPDATE : CONVERSION_LEG_REMOVE
+
+/**
+ * Como mucho un enlace por operación; un resultado de trade en USDT vive en el dólar cripto
+ * y no es pata de nada.
+ */
 export const assertDolarShape = (tx: Omit<Transaction, 'id'>) => {
+  if (tx.usdtSwapId && tx.conversionId) {
+    throw new Error('Una operación no puede ser parte de un intercambio y de una conversión.')
+  }
   if (tx.kind !== TRADE_RESULT) return
   if (tx.dolarOption !== DolarOption.Cripto) {
     throw new Error('Los resultados de trades en USDT van en el dólar cripto.')
   }
   if (tx.usdtSwapId) throw new Error('Un resultado de trade no puede ser parte de un intercambio.')
+  if (tx.conversionId) throw new Error('Un resultado de trade no puede ser parte de una conversión.')
 }
 
 const findTransaction = (transactions: GroupedTransactions, transactionId: string) =>
@@ -72,9 +103,8 @@ export const applyUpdateTransaction = (
 ): GroupedTransactions | null => {
   const previousOption = findGroup(transactions, transactionId)
   if (!previousOption) return null
-  if (findTransaction(transactions, transactionId)?.usdtSwapId) {
-    throw new Error(USDT_SWAP_LEG_UPDATE)
-  }
+  const link = linkOf(findTransaction(transactions, transactionId)!)
+  if (link) throw new Error(legMessage(link, 'update'))
   assertDolarShape(tx)
 
   const updated: GroupedTransactions = {
@@ -103,9 +133,8 @@ export const applyRemoveTransaction = (
 ): GroupedTransactions | null => {
   const option = findGroup(transactions, transactionId)
   if (!option) return null
-  if (findTransaction(transactions, transactionId)?.usdtSwapId) {
-    throw new Error(USDT_SWAP_LEG_REMOVE)
-  }
+  const link = linkOf(findTransaction(transactions, transactionId)!)
+  if (link) throw new Error(legMessage(link, 'remove'))
 
   const group = sortTxs(
     (transactions[option] || []).filter((tx) => tx.id !== transactionId),
