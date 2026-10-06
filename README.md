@@ -55,7 +55,8 @@ pnpm dev           # http://localhost:3000
 ```
 
 Sin variables de entorno la app funciona en modo local: Clerk arranca en *keyless mode* y las rutas
-de datos en la nube responden error hasta que haya una base.
+de datos en la nube responden error hasta que haya una base. En CI no hay keyless mode (Clerk lo
+apaga en entornos automatizados): los E2E usan las claves de desarrollo de los secretos `E2E_CLERK_*`.
 
 | Comando | Qué hace |
 | --- | --- |
