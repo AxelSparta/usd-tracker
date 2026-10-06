@@ -4,12 +4,13 @@ Este archivo orienta a **cualquier asistente de código** (Cursor, Claude, Gemin
 
 ## Resumen
 
-Aplicación web (**Portfolio Tracker**, antes DolarTracker) orientada al mercado argentino, con **dos módulos independientes**:
+Aplicación web (**Portfolio Tracker**, antes DolarTracker) orientada al mercado argentino, con **tres módulos independientes**:
 
 - **Dólar:** compras y ventas de USD en ARS por tipo de dólar (DolarAPI), métricas en ARS.
 - **Cripto:** compras y ventas de cualquier moneda de CoinGecko en USD, métricas en USD y equivalente en ARS con el dólar cripto.
+- **Pesos:** saldo en ARS (ingresos y egresos), equivalente en USD al MEP venta y conversiones pesos ↔ cualquier dólar.
 
-No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `src/lib/`, y cripto lee la cotización del dólar cripto de `useDolarStore`. Sin sesión, modo **local-first** con persistencia en el navegador; con sesión (Clerk), los datos activos vienen de la nube (Neon + Prisma vía API) y lo local queda guardado aparte; al iniciar sesión se ofrece subirlo (ver "Modo remoto" y "Sincronización").
+No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `src/lib/`. Cripto lee la cotización del dólar cripto de `useDolarStore`, y Pesos importa el store y las funciones puras del Dólar para las conversiones (nunca al revés). Sin sesión, modo **local-first** con persistencia en el navegador; con sesión (Clerk), los datos activos vienen de la nube (Neon + Prisma vía API) y lo local queda guardado aparte; al iniciar sesión se ofrece subirlo (ver "Modo remoto" y "Sincronización").
 
 ## Funcionalidades implementadas (estado actual)
 
@@ -96,14 +97,14 @@ src/
 │   ├── cripto/nueva/page.tsx   # "/cripto/nueva" → NewCryptoTransaction (compra/venta o intercambio)
 │   ├── cripto/[coinId]/page.tsx # "/cripto/:coinId" → CryptoCoinDetail
 │   ├── pesos/page.tsx          # "/pesos" → PesosOverview (saldo, equivalente MEP, historial)
-│   ├── pesos/nueva/page.tsx    # "/pesos/nueva" → NewPesosMovement (ingreso/egreso)
+│   ├── pesos/nueva/page.tsx    # "/pesos/nueva" → NewPesosMovement (ingreso/egreso o conversión)
 │   ├── api/crypto/{prices,search}/route.ts  # proxy a CoinGecko (valida params, cachea)
 │   ├── api/dolar/transactions/[id]/         # CRUD del dólar (GET/POST, PATCH/DELETE)
 │   ├── api/crypto/{transactions/[id],swaps}/ # CRUD cripto + alta de intercambios
 │   ├── api/usdt-swaps/[id]/    # intercambios USDT ↔ cripto (POST, DELETE): las dos tablas a la vez
 │   ├── api/pesos/movements/[id]/ # CRUD de Pesos (GET/POST, PATCH/DELETE)
 │   ├── api/pesos/conversions/[id]/ # conversiones pesos ↔ dólar (POST, DELETE): las dos tablas a la vez
-│   ├── api/sync/import/route.ts # subida de datos locales (dólar + cripto) a la cuenta
+│   ├── api/sync/import/route.ts # subida de datos locales (dólar, cripto y pesos) a la cuenta
 │   ├── api/history/{dolar,crypto}/route.ts # precios diarios del último año (ArgentinaDatos / CoinGecko, cache 6 h)
 │   ├── not-found.tsx           # 404
 │   └── globals.css

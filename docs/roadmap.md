@@ -18,7 +18,7 @@ Qué falta hacer y en qué orden. Lo ya hecho, con sus decisiones, está en
 
 ## Estado actual (octubre 2026)
 
-La app está en producción (Vercel) con los dos módulos, login, nube y dashboard:
+La app está en producción (Vercel) con los módulos Dólar, Cripto y Pesos, login, nube y dashboard:
 
 - **Dólar:** compras y ventas de USD en ARS por tipo de dólar, métricas en ARS, cotizaciones de
   DolarAPI con backoff y fallback.
@@ -32,6 +32,8 @@ La app está en producción (Vercel) con los dos módulos, login, nube y dashboa
   y al revés, con las dos patas enlazadas y validadas en local y en la nube.
 - **Resultados de trades** (Fase 7b): ganancias y pérdidas de futuros, margin o bots en USDT o en
   cualquier moneda, dentro del PnL realizado.
+- **Pesos** (Fase 8): saldo en ARS (ingresos y egresos) con su equivalente al MEP venta, y
+  conversiones enlazadas pesos ↔ cualquier tipo de dólar. El dashboard suma el saldo.
 - **Calidad:** Vitest, Playwright (sin sesión y con sesión), CI en cada PR, migraciones en el deploy,
   logs JSON.
 
@@ -46,6 +48,7 @@ La app está en producción (Vercel) con los dos módulos, login, nube y dashboa
 | 4 ✅ | Módulo cripto | [historial](historial.md#fase-4--módulo-cripto-independiente-del-dólar-) |
 | 5 ✅ | Dashboard del portfolio | [historial](historial.md#fase-5--portfolio-tracker-) |
 | 7 ✅ | Intercambios USDT ↔ cripto (7a) y resultados de trades (7b) | [historial](historial.md#fase-7--intercambios-usdt-dólar-cripto--cripto-y-resultados-de-trades-) |
+| 8 ✅ | Pesos: saldo en ARS, conversiones pesos ↔ dólar y Pesos en el dashboard | [historial](historial.md#fase-8--pesos-y-conversiones-a-dólar-) |
 
 ### Deuda técnica y riesgos vigentes
 
@@ -68,7 +71,8 @@ La app está en producción (Vercel) con los dos módulos, login, nube y dashboa
   `Transaction` genérico ni `AssetKey`.
 - **Dependencias:** `domain` no importa nada de `features`, `app` ni `store`; los módulos no se
   importan entre sí (excepción acordada: cripto **lee** la cotización del dólar cripto de
-  `useDolarStore`). Los *composers* (`features/auth`, `features/portfolio` y, desde la Fase 7,
+  `useDolarStore`; desde la Fase 8, Pesos importa el store y las funciones puras del Dólar para las
+  conversiones, nunca al revés: `dólar ← pesos`). Los *composers* (`features/auth`, `features/portfolio` y, desde la Fase 7,
   `features/usdt-swaps`) leen los dos módulos y solo los importa `app/`. `server/` nunca se importa
   desde componentes cliente.
 - **APIs externas detrás de route handlers**: el navegador no llama a CoinGecko ni a ArgentinaDatos
@@ -125,12 +129,12 @@ Sin fase asignada; se planifica cuando haga falta.
 Fases 0–5 ✅
 Fase 6 (pendiente: retención de Neon, secretos E2E en CI, lo de "usuarios reales")
 Fase 7 ✅ (7a: intercambios USDT ↔ cripto · 7b: resultados de trades)
-Fase 8 (Pesos + conversiones a dólar, se fusiona sola) → Fases 9–10 (CEDEARs): ver docs/roadmap-cedears.md
+Fase 8 ✅ (Pesos + conversiones a dólar)
+Fases 9–10 (CEDEARs): ver docs/roadmap-cedears.md
 ```
 
-- Lo que sigue: la Fase 8 (Pesos, con conversiones a cualquier dólar), que se fusiona a `main` sola;
-  después CEDEARs (Fases 9–10, en CCL). Detalle en `docs/roadmap-cedears.md`. Más lo pendiente de la
-  Fase 6 y el backlog.
+- Lo que sigue: CEDEARs (Fases 9–10, en CCL), empezando por la 9.1 (precios de data912). Detalle en
+  `docs/roadmap-cedears.md`. Más lo pendiente de la Fase 6 y el backlog.
 
 ---
 
