@@ -7,7 +7,7 @@ import { Prisma } from '@/generated/prisma/client'
 
 type Row = Record<string, unknown> & { id: string; userId: string; date: Date }
 
-const DECIMAL_FIELDS = ['dollarsAmount', 'pesosAmount', 'quantity', 'priceUsd', 'feeAmount']
+const DECIMAL_FIELDS = ['dollarsAmount', 'pesosAmount', 'quantity', 'priceUsd', 'feeAmount', 'amount']
 
 const toRow = (data: Record<string, unknown>): Row => {
   const row: Record<string, unknown> = { createdAt: new Date(), updatedAt: new Date(), ...data }
@@ -75,6 +75,7 @@ export const createFakeDb = () => {
   const db = {
     dolarRows: [] as Row[],
     cryptoRows: [] as Row[],
+    pesosRows: [] as Row[],
     users,
     user: {
       upsert: async ({ where }: { where: { id: string } }) => {
@@ -87,6 +88,7 @@ export const createFakeDb = () => {
     ...db,
     dolarTransaction: table(db.dolarRows),
     cryptoTransaction: table(db.cryptoRows),
+    pesosMovement: table(db.pesosRows),
   }
 }
 

@@ -20,7 +20,8 @@ import {
 import { Input } from '@/components/ui/input'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
-import { useDolarCriptoRate } from '@/hooks/use-dolar-cripto-rate'
+import { useDolarRate } from '@/hooks/use-dolar-rate'
+import { DolarOption } from '@/types/dolar.types'
 import { formatAmountArInput, formatCurrency, numberToArInput, parseLocaleAmount } from '@/lib/locale-amount'
 import { TransactionType, type Transaction } from '@/types/transaction.types'
 import {
@@ -59,7 +60,7 @@ export default function TradeResultForm({ defaultValues, submitLabel, onSubmit }
   const isGain = type === TransactionType.BUY
 
   // Entran USDT → venta (lo que costaría comprarlos); salen → compra. Sin pisar lo que se escribe a mano
-  const { rate, note: rateNote } = useDolarCriptoRate(isGain ? 'sell' : 'buy', date)
+  const { rate, note: rateNote } = useDolarRate(DolarOption.Cripto, isGain ? 'sell' : 'buy', date)
   // Al editar, la cotización guardada cuenta como escrita a mano: no se reemplaza
   const autoRate = useRef('')
   useEffect(() => {

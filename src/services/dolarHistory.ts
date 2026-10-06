@@ -1,11 +1,12 @@
 import { format } from 'date-fns'
 import { requestJson } from '@/lib/http'
+import type { DolarOption } from '@/types/dolar.types'
 
 /**
- * Cotización histórica del dólar cripto (pesos por USDT) para valuar en ARS las operaciones de
- * USDT que no son compras ni ventas con pesos: intercambios USDT ↔ cripto y resultados de trades.
- * Punta: `buy` (el mercado paga `compra`) cuando salen USDT, `sell` (cuesta `venta`) cuando entran,
- * la misma que usaría una operación normal del módulo Dólar ese día.
+ * Cotización histórica de un tipo de dólar (pesos por USD), como referencia en los formularios:
+ * el dólar cripto para valuar intercambios USDT ↔ cripto y resultados de trades; cualquier tipo
+ * para las conversiones de pesos. Punta: `buy` (el mercado paga `compra`) cuando salen dólares,
+ * `sell` (cuesta `venta`) cuando entran, la misma que usaría una operación normal del Dólar.
  */
 
 export type DolarHistoryPoint = { date: string; buy: number; sell: number }
@@ -30,7 +31,10 @@ export const rateOn = (
   return found ? { rate: found[side], date: found.date } : null
 }
 
-/** Histórico del último año (`/api/history/dolar`, cacheado en el server) */
-export const fetchCriptoHistory = async () =>
-  (await requestJson<{ cripto?: DolarHistoryPoint[] }>('/api/history/dolar?casas=cripto')).cripto ??
-  []
+/** Histórico del último año de un tipo de dólar (`/api/history/dolar`, cacheado en el server) */
+export const fetchDolarHistory = async (option: DolarOption) =>
+  (
+    await requestJson<Partial<Record<DolarOption, DolarHistoryPoint[]>>>(
+      `/api/history/dolar?casas=${option}`,
+    )
+  )[option] ?? []

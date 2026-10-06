@@ -160,3 +160,49 @@ describe('trimLeadingGaps', () => {
     expect(trimLeadingGaps([points[0]], 'usd').points).toEqual([])
   })
 })
+
+describe('computeValueHistory con Pesos', () => {
+  const mep = [
+    { date: '2026-01-01', buy: 1450, sell: 1500 },
+    { date: '2026-01-03', buy: 1950, sell: 2000 },
+  ]
+  const pesos = (type: TransactionType, amount: number, date: string) => ({
+    id: date + type,
+    type,
+    amount,
+    date: local(date),
+  })
+
+  it('ARS = saldo; USD = saldo / MEP venta del día (con relleno)', () => {
+    const points = computeValueHistory({
+      dolarTxs: [],
+      cryptoTxs: [],
+      pesosMovements: [
+        pesos(TransactionType.BUY, 300_000, '2026-01-01'),
+        pesos(TransactionType.SELL, 100_000, '2026-01-02'),
+      ],
+      dolarPrices: { [DolarOption.Bolsa]: mep },
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-03',
+    })
+    expect(points).toEqual([
+      { date: '2026-01-01', ars: 300_000, usd: 200 },
+      { date: '2026-01-02', ars: 200_000, usd: 200_000 / 1500 },
+      { date: '2026-01-03', ars: 200_000, usd: 100 },
+    ])
+  })
+
+  it('sin MEP ese día, USD es null pero ARS sigue', () => {
+    const [point] = computeValueHistory({
+      dolarTxs: [],
+      cryptoTxs: [],
+      pesosMovements: [pesos(TransactionType.BUY, 1000, '2026-01-01')],
+      dolarPrices: {},
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-01',
+    })
+    expect(point).toEqual({ date: '2026-01-01', ars: 1000, usd: null })
+  })
+})

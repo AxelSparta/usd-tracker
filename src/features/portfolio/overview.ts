@@ -3,16 +3,18 @@ import type { DolarOption } from '@/types/dolar.types'
 import type { TransactionsDataMap } from '@/types/transaction.types'
 
 /**
- * Vista unificada del portfolio (Fase 5): suma los dos módulos sin mezclar sus métricas.
+ * Vista unificada del portfolio (Fase 5): suma los módulos sin mezclar sus métricas.
  *
- * - La composición se mide en **USD**: un dólar en mano vale 1 USD y una cripto vale su
- *   valor de mercado en USD. Así el reparto no depende de ninguna cotización en pesos.
+ * - La composición se mide en **USD**: un dólar en mano vale 1 USD, una cripto vale su
+ *   valor de mercado en USD y los pesos valen saldo / dólar MEP venta (Fase 8, D3). Así el
+ *   reparto no depende de cotizaciones en pesos, salvo para pasar los pesos a USD.
  * - Los valores en ARS usan la cotización de cada tipo de dólar (módulo dólar, como en
- *   `/dolar`) y el dólar cripto compra (módulo cripto, como en `/cripto`).
- * - Las ganancias quedan en la moneda de cada módulo (ARS para dólar, USD para cripto).
+ *   `/dolar`), el dólar cripto compra (módulo cripto, como en `/cripto`) y el saldo (pesos).
+ * - Las ganancias quedan en la moneda de cada módulo (ARS para dólar, USD para cripto);
+ *   Pesos no tiene (`pnl: null`).
  */
 
-export type PortfolioModule = 'dolar' | 'crypto'
+export type PortfolioModule = 'dolar' | 'crypto' | 'pesos'
 
 export type AssetAllocation = {
   /** Único entre módulos: `dolar:blue`, `crypto:bitcoin` */
@@ -36,8 +38,8 @@ export type AssetAllocation = {
 export type ModuleSummary = {
   valueUsd: number
   valueArs: number | null
-  /** Ganancia realizada + no realizada, en la moneda del módulo */
-  pnl: number
+  /** Ganancia realizada + no realizada, en la moneda del módulo; `null` si no aplica (Pesos) */
+  pnl: number | null
   /** Parte del total en USD, 0–1 */
   share: number
   assets: number
@@ -50,9 +52,11 @@ export type PortfolioOverview = {
   dolar: ModuleSummary
   /** `pnl` en USD */
   crypto: ModuleSummary
+  /** `pnl` siempre `null`: un saldo no tiene ganancia */
+  pesos: ModuleSummary
   /** Ordenados de mayor a menor valor */
   assets: AssetAllocation[]
-  /** Monedas en cartera sin precio de mercado (no suman al valor) */
+  /** Monedas en cartera sin precio de mercado (no suman al valor); "Pesos" sin cotización MEP */
   missingPrices: string[]
 }
 
@@ -62,7 +66,17 @@ type OverviewInput = {
   cryptoPositions: CryptoPosition[]
   /** Dólar cripto compra; `null` si todavía no hay cotización */
   cryptoArsRate: number | null
+  /** Saldo del módulo Pesos (ARS) */
+  pesosBalance?: number
+  /** Dólar MEP venta: pasa los pesos a USD; `null` si todavía no hay cotización */
+  mepRate?: number | null
 }
+
+/** Activo único del módulo Pesos */
+export const PESOS_ASSET_KEY = 'pesos:ars'
+
+// Restos de coma flotante en pesos (medio centavo)
+const PESOS_DUST = 0.005
 
 const sumOrNull = (values: (number | null)[]) =>
   values.some((v) => v === null)
@@ -74,6 +88,8 @@ export const computePortfolioOverview = ({
   dolarLabel,
   cryptoPositions,
   cryptoArsRate,
+  pesosBalance = 0,
+  mepRate = null,
 }: OverviewInput): PortfolioOverview => {
   const assets: Omit<AssetAllocation, 'share'>[] = []
   let dolarPnl = 0
@@ -119,13 +135,31 @@ export const computePortfolioOverview = ({
     })
   }
 
+  if (pesosBalance > PESOS_DUST) {
+    if (mepRate) {
+      assets.push({
+        key: PESOS_ASSET_KEY,
+        module: 'pesos',
+        label: 'Pesos',
+        symbol: null,
+        image: null,
+        href: '/pesos',
+        valueUsd: pesosBalance / mepRate,
+        valueArs: pesosBalance,
+        change24h: null,
+      })
+    } else {
+      missingPrices.push('Pesos (sin dólar MEP)')
+    }
+  }
+
   const totalUsd = assets.reduce((acc, a) => acc + a.valueUsd, 0)
   const share = (value: number) => (totalUsd > 0 ? value / totalUsd : 0)
   const withShare = assets
     .map((a) => ({ ...a, share: share(a.valueUsd) }))
     .sort((a, b) => b.valueUsd - a.valueUsd)
 
-  const summarize = (module: PortfolioModule, pnl: number): ModuleSummary => {
+  const summarize = (module: PortfolioModule, pnl: number | null): ModuleSummary => {
     const own = withShare.filter((a) => a.module === module)
     const valueUsd = own.reduce((acc, a) => acc + a.valueUsd, 0)
     return {
@@ -142,6 +176,7 @@ export const computePortfolioOverview = ({
     totalArs: sumOrNull(withShare.map((a) => a.valueArs)),
     dolar: summarize('dolar', dolarPnl),
     crypto: summarize('crypto', cryptoPnl),
+    pesos: summarize('pesos', null),
     assets: withShare,
     missingPrices,
   }

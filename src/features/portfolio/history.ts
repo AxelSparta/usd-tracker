@@ -1,6 +1,7 @@
 import { addDays, format, parse } from 'date-fns'
 import { toPositionLot } from '@/features/crypto/metrics'
 import type { CryptoTransaction } from '@/features/crypto/types'
+import type { PesosMovement } from '@/features/pesos/types'
 import { DolarOption } from '@/types/dolar.types'
 import { TransactionType, type Transaction } from '@/types/transaction.types'
 
@@ -10,7 +11,7 @@ import { TransactionType, type Transaction } from '@/types/transaction.types'
  * datos actuales, aunque se edite el pasado, y funciona igual en modo local y en la nube.
  *
  * Mismas convenciones que el dashboard: dólar a la cotización de venta de su tipo,
- * cripto en USD y a pesos con el dólar cripto compra. Días sin cotización (fines de
+ * cripto en USD y a pesos con el dólar cripto compra, pesos a USD con el MEP venta. Días sin cotización (fines de
  * semana, feriados) usan la última conocida. Si un activo en cartera todavía no tiene
  * precio ese día, el valor del día es `null`: no se inventa.
  */
@@ -26,6 +27,8 @@ export type ValuePoint = { date: DateKey; usd: number | null; ars: number | null
 export type HistoryInput = {
   dolarTxs: Transaction[]
   cryptoTxs: CryptoTransaction[]
+  /** Movimientos de Pesos (Fase 8); el saldo se pasa a USD con el MEP venta del día */
+  pesosMovements?: PesosMovement[]
   dolarPrices: Partial<Record<DolarOption, DolarPricePoint[]>>
   coinPrices: Record<string, CoinPricePoint[]>
   from: DateKey
@@ -66,10 +69,12 @@ type Delta = { date: DateKey; asset: string; quantity: number }
 // Mismo criterio de "polvo" que el motor (`computePosition`): restos de coma flotante
 const DOLAR_DUST = 0.0001
 const COIN_DUST = 1e-9
+const PESOS_DUST = 0.005
 
 export const computeValueHistory = ({
   dolarTxs,
   cryptoTxs,
+  pesosMovements = [],
   dolarPrices,
   coinPrices,
   from,
@@ -89,6 +94,11 @@ export const computeValueHistory = ({
       asset: `crypto:${tx.coinId}`,
       quantity: signed(tx.type, toPositionLot(tx).quantity),
     })),
+    ...pesosMovements.map((m) => ({
+      date: toDateKey(m.date),
+      asset: 'pesos:ars',
+      quantity: signed(m.type, m.amount),
+    })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   const holdings = new Map<string, number>()
@@ -105,6 +115,7 @@ export const computeValueHistory = ({
     let usd: number | null = 0
     let ars: number | null = 0
     const cryptoRate = priceAt(dolarPrices[DolarOption.Cripto], day)?.buy ?? null
+    const mepRate = priceAt(dolarPrices[DolarOption.Bolsa], day)?.sell ?? null
 
     for (const [asset, quantity] of holdings) {
       const [module, id] = asset.split(':')
@@ -113,6 +124,10 @@ export const computeValueHistory = ({
         const price = priceAt(dolarPrices[id as DolarOption], day)
         if (usd !== null) usd += quantity
         ars = ars === null || !price ? null : ars + quantity * price.sell
+      } else if (module === 'pesos') {
+        if (quantity <= PESOS_DUST) continue
+        if (ars !== null) ars += quantity
+        usd = usd === null || mepRate === null ? null : usd + quantity / mepRate
       } else {
         if (quantity <= COIN_DUST) continue
         const price = priceAt(coinPrices[id], day)

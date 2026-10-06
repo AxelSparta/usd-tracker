@@ -27,6 +27,11 @@ export type Transaction = {
    * de un intercambio USDT ↔ cripto (Fase 7a). No se edita ni se borra sola.
    */
   usdtSwapId?: string
+  /**
+   * Enlaza esta operación con el movimiento del módulo Pesos de una conversión pesos ↔ dólar
+   * (Fase 8.2). No se edita ni se borra sola. Como mucho un enlace por operación (`linkOf`).
+   */
+  conversionId?: string
   /** Resultado de trade en USDT (solo en el grupo `cripto`) */
   kind?: OperationKind
   /** Detalle libre, ej. "BTCUSDT long x10" */

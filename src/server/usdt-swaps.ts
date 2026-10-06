@@ -5,10 +5,9 @@ import {
   type UsdtSwapIds,
   type UsdtSwapInput,
 } from '@/features/usdt-swaps/operations'
-import { loadCryptoState } from './crypto-transactions'
-import { withUserTransaction, type DbTransaction } from './db'
-import { loadGroups } from './dolar-transactions'
+import { withUserTransaction } from './db'
 import { ApiError, applyOrReject } from './errors'
+import { loadLinkedState } from './linked-state'
 import { toCryptoTransactionData, toDolarTransactionData } from './mappers'
 
 /**
@@ -16,14 +15,11 @@ import { toCryptoTransactionData, toDolarTransactionData } from './mappers'
  * `Serializable`, validando las dos líneas temporales con las mismas funciones que los stores.
  */
 
-const loadLinkedState = async (db: DbTransaction, userId: string) => ({
-  dolar: await loadGroups(db, userId),
-  crypto: await loadCryptoState(db, userId),
-})
+const MODULES = ['dolar', 'crypto'] as const
 
 export const createUsdtSwap = (userId: string, swap: UsdtSwapInput, ids: UsdtSwapIds) =>
   withUserTransaction(userId, async (db) => {
-    const state = await loadLinkedState(db, userId)
+    const state = await loadLinkedState(db, userId, MODULES)
     applyOrReject(() => applyAddUsdtSwap(state, swap, ids))
 
     const [dolarLeg, cryptoLeg] = buildUsdtSwapLegs(swap, ids)
@@ -39,7 +35,7 @@ export const createUsdtSwap = (userId: string, swap: UsdtSwapInput, ids: UsdtSwa
 /** Devuelve los ids borrados (las dos patas) */
 export const removeUsdtSwap = (userId: string, usdtSwapId: string) =>
   withUserTransaction(userId, async (db) => {
-    const state = await loadLinkedState(db, userId)
+    const state = await loadLinkedState(db, userId, MODULES)
     const result = applyOrReject(() => applyRemoveUsdtSwap(state, usdtSwapId))
     if (!result) throw new ApiError(404, 'El intercambio no existe.')
 

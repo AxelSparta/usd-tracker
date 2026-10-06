@@ -70,9 +70,14 @@ describe('POST /api/sync/import', () => {
     expect(await first.json()).toEqual({
       dolar: { created: 2, skipped: 0 },
       crypto: { created: 1, skipped: 0 },
+      pesos: { created: 0, skipped: 0 },
     })
     const second = await (await POST(json(payload))).json()
-    expect(second).toEqual({ dolar: { created: 0, skipped: 2 }, crypto: { created: 0, skipped: 1 } })
+    expect(second).toEqual({
+      dolar: { created: 0, skipped: 2 },
+      crypto: { created: 0, skipped: 1 },
+      pesos: { created: 0, skipped: 0 },
+    })
     expect(db.dolarRows).toHaveLength(2)
 
     const { transactions } = await (await cryptoRoute.GET()).json()
@@ -171,6 +176,72 @@ describe('importación con resultados de trades', () => {
   it('422 si un resultado de trade no está en el dólar cripto', async () => {
     const response = await POST(
       json({ dolar: [{ ...gain, dolarOption: 'blue' }], crypto: { transactions: [], coins: {} } }),
+    )
+    expect(response.status).toBe(422)
+  })
+})
+
+describe('importación de pesos', () => {
+  const pesosMovement = (n: number, type: 'BUY' | 'SELL', amount: number, date: string) => ({
+    id: uuid(n),
+    type,
+    amount,
+    date,
+  })
+  const empty = { dolar: [], crypto: { transactions: [], coins: {} } }
+
+  it('sube los movimientos y es idempotente', async () => {
+    const body = {
+      ...empty,
+      pesos: [
+        { ...pesosMovement(30, 'BUY', 1000, '2026-01-01T03:00:00.000Z'), note: 'Sueldo' },
+        pesosMovement(31, 'SELL', 400, '2026-02-01T03:00:00.000Z'),
+      ],
+    }
+    expect((await (await POST(json(body))).json()).pesos).toEqual({ created: 2, skipped: 0 })
+    expect((await (await POST(json(body))).json()).pesos).toEqual({ created: 0, skipped: 2 })
+    expect(db.pesosRows.find((r) => r.id === uuid(30))?.note).toBe('Sueldo')
+  })
+
+  it('valida el saldo con lo que ya está en la nube', async () => {
+    await POST(json({ ...empty, pesos: [pesosMovement(30, 'BUY', 1000, '2026-01-01T03:00:00.000Z')] }))
+    const response = await POST(
+      json({ ...empty, pesos: [pesosMovement(31, 'SELL', 1500, '2026-02-01T03:00:00.000Z')] }),
+    )
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('No tenés pesos suficientes el 01/02/2026.')
+    expect(db.pesosRows).toHaveLength(1)
+  })
+
+  it('un cliente sin pesos (anterior a la Fase 8) sigue funcionando', async () => {
+    expect((await POST(json(empty))).status).toBe(200)
+  })
+})
+
+describe('importación con conversiones de pesos', () => {
+  const conversionId = uuid(42)
+  const income = { id: uuid(40), type: 'BUY', amount: 3_000_000, date: '2026-01-01T03:00:00.000Z' }
+  const pesosLeg = { id: uuid(41), type: 'SELL', amount: 1_560_000, date: '2026-02-01T03:00:00.000Z', conversionId }
+  const dolarLeg = { ...dolarTx(43, 'BUY', 1000, '2026-02-01T03:00:00.000Z'), pesosAmount: 1_560_000, conversionId }
+  const crypto = { transactions: [], coins: {} }
+
+  it('sube las dos patas enlazadas', async () => {
+    const response = await POST(json({ dolar: [dolarLeg], crypto, pesos: [income, pesosLeg] }))
+    expect(response.status).toBe(200)
+    expect(db.dolarRows[0].conversionId).toBe(conversionId)
+    expect(db.pesosRows.find((r) => r.id === uuid(41))?.conversionId).toBe(conversionId)
+  })
+
+  it('422 si llega una pata sin la otra', async () => {
+    const response = await POST(json({ dolar: [], crypto, pesos: [income, pesosLeg] }))
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('Hay una conversión de pesos incompleta.')
+    expect(db.pesosRows).toHaveLength(0)
+  })
+
+  it('422 si las patas no tienen el mismo monto en ARS', async () => {
+    const response = await POST(
+      json({ dolar: [{ ...dolarLeg, pesosAmount: 1 }], crypto, pesos: [income, pesosLeg] }),
     )
     expect(response.status).toBe(422)
   })

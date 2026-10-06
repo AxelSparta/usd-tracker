@@ -123,3 +123,51 @@ describe('toAllocationSegments', () => {
     expect(colorOf(after, 'crypto:eth')).toBe(colorOf(before, 'crypto:eth'))
   })
 })
+
+describe('computePortfolioOverview con Pesos', () => {
+  it('el saldo entra en ARS tal cual y en USD al MEP venta, sin ganancia', () => {
+    const overview = computePortfolioOverview({
+      ...base,
+      dolarData: { blue: dolarGroup({ totalUsd: 100, marketValuePesos: 156_000 }) },
+      cryptoPositions: [],
+      pesosBalance: 155_000,
+      mepRate: 1550,
+    })
+    expect(overview.pesos).toMatchObject({ valueUsd: 100, valueArs: 155_000, pnl: null, share: 0.5, assets: 1 })
+    expect(overview.totalArs).toBe(311_000)
+    expect(overview.assets.find((a) => a.key === 'pesos:ars')).toMatchObject({ href: '/pesos', label: 'Pesos' })
+  })
+
+  it('sin MEP no entra a la composición y se avisa', () => {
+    const overview = computePortfolioOverview({
+      ...base,
+      dolarData: {},
+      cryptoPositions: [],
+      pesosBalance: 1000,
+      mepRate: null,
+    })
+    expect(overview.assets).toEqual([])
+    expect(overview.missingPrices).toEqual(['Pesos (sin dólar MEP)'])
+  })
+
+  it('una conversión a la cotización de valuación no cambia el total en ARS', () => {
+    const before = computePortfolioOverview({
+      ...base,
+      dolarData: {},
+      cryptoPositions: [],
+      pesosBalance: 3_120_000,
+      mepRate: 1550,
+    })
+    // Pesos → blue a $1.560 (blue venta): salen 1.560.000 y entran 1.000 USD valuados a venta
+    const after = computePortfolioOverview({
+      ...base,
+      dolarData: { blue: dolarGroup({ totalUsd: 1000, marketValuePesos: 1_560_000 }) },
+      cryptoPositions: [],
+      pesosBalance: 1_560_000,
+      mepRate: 1550,
+    })
+    expect(after.totalArs).toBe(before.totalArs)
+    // En USD solo cambia por la diferencia entre el blue y el MEP
+    expect(after.totalUsd - before.totalUsd).toBeCloseTo(1000 - 1_560_000 / 1550)
+  })
+})

@@ -35,6 +35,7 @@ model User {
   createdAt          DateTime            @default(now())
   dolarTransactions  DolarTransaction[]
   cryptoTransactions CryptoTransaction[]
+  pesosMovements     PesosMovement[]
 }
 
 model DolarTransaction {
@@ -49,6 +50,8 @@ model DolarTransaction {
   date          DateTime
   /// Enlaza esta pata (grupo `cripto` = USDT) con la del módulo cripto de un intercambio USDT ↔ cripto
   usdtSwapId    String?         @db.Uuid
+  /// Enlaza esta pata con el movimiento de Pesos de una conversión pesos ↔ dólar
+  conversionId  String?         @db.Uuid
   kind          OperationKind?
   note          String?
   createdAt     DateTime        @default(now())
@@ -56,6 +59,7 @@ model DolarTransaction {
 
   @@index([userId, dolarOption, date])
   @@index([usdtSwapId])
+  @@index([conversionId])
 }
 
 model CryptoTransaction {
@@ -87,4 +91,22 @@ model CryptoTransaction {
   @@index([userId, coinId, date])
   @@index([swapId])
   @@index([usdtSwapId])
+}
+
+/// Saldo en pesos (Fase 8): BUY = ingreso, SELL = egreso
+model PesosMovement {
+  id           String          @id @db.Uuid
+  userId       String
+  user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  type         TransactionType
+  amount       Decimal
+  date         DateTime
+  note         String?
+  /// Enlaza esta pata con la del módulo dólar de una conversión pesos ↔ dólar
+  conversionId String?         @db.Uuid
+  createdAt    DateTime        @default(now())
+  updatedAt    DateTime        @updatedAt
+
+  @@index([userId, date])
+  @@index([conversionId])
 }

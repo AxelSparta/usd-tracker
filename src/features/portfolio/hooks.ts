@@ -5,6 +5,8 @@ import { useEffect, useMemo } from 'react'
 import { useCryptoStore } from '@/features/crypto/crypto.store'
 import { useCryptoPortfolio } from '@/features/crypto/hooks'
 import { useCryptoPricesStore } from '@/features/crypto/prices.store'
+import { computePesosBalance } from '@/features/pesos/operations'
+import { usePesosStore } from '@/features/pesos/pesos.store'
 import type { SyncStatus } from '@/lib/synced-store'
 import { useDolarStore } from '@/store/dolar.store'
 import { useTransactionStore, useTransactionsData } from '@/store/transaction.store'
@@ -13,27 +15,34 @@ import { computeValueHistory, toDateKey, trimLeadingGaps } from './history'
 import { historyKey, useHistoryStore } from './history.store'
 import { computePortfolioOverview } from './overview'
 
-/** Peor estado de los dos stores: error > cargando > listo */
-const combine = (a: SyncStatus, b: SyncStatus): SyncStatus =>
-  a === 'error' || b === 'error'
+/** Peor estado de los stores: error > cargando > listo */
+const combine = (...statuses: SyncStatus[]): SyncStatus =>
+  statuses.includes('error')
     ? 'error'
-    : a === 'ready' && b === 'ready'
+    : statuses.every((s) => s === 'ready')
       ? 'ready'
       : 'loading'
 
-/** Vista unificada de los dos módulos (derivada, no se persiste) */
+/** Vista unificada de los módulos (derivada, no se persiste) */
 export const usePortfolioOverview = () => {
   const dolarData = useTransactionsData()
   const dolarTransactions = useTransactionStore((s) => s.transactions)
   const dolarStatus = useTransactionStore((s) => s.status)
   const cryptoStatus = useCryptoStore((s) => s.status)
   const cryptoCount = useCryptoStore((s) => s.transactions.length)
+  const pesosStatus = usePesosStore((s) => s.status)
+  const pesosMovements = usePesosStore((s) => s.movements)
   const { positions } = useCryptoPortfolio()
   const allDolarData = useDolarStore((s) => s.allDolarData)
 
   const cryptoArsRate = allDolarData?.[DolarOption.Cripto]
     ? Number(allDolarData[DolarOption.Cripto].compra) || null
     : null
+  // Lo que cuesta pasar los pesos a dólares: MEP venta (D3)
+  const mepRate = allDolarData?.[DolarOption.Bolsa]
+    ? Number(allDolarData[DolarOption.Bolsa].venta) || null
+    : null
+  const pesosBalance = useMemo(() => computePesosBalance(pesosMovements), [pesosMovements])
 
   const overview = useMemo(
     () =>
@@ -43,15 +52,20 @@ export const usePortfolioOverview = () => {
         dolarLabel: (option) => `Dólar ${allDolarData?.[option]?.nombre ?? option}`,
         cryptoPositions: positions,
         cryptoArsRate,
+        pesosBalance,
+        mepRate,
       }),
-    [dolarData, allDolarData, positions, cryptoArsRate],
+    [dolarData, allDolarData, positions, cryptoArsRate, pesosBalance, mepRate],
   )
 
+  const hasPesos = pesosMovements.length > 0
   const hasOperations =
-    cryptoCount > 0 || Object.values(dolarTransactions).some((g) => g && g.length > 0)
+    cryptoCount > 0 ||
+    hasPesos ||
+    Object.values(dolarTransactions).some((g) => g && g.length > 0)
 
   const retry = () => {
-    for (const store of [useTransactionStore, useCryptoStore]) {
+    for (const store of [useTransactionStore, useCryptoStore, usePesosStore]) {
       if (store.getState().status === 'error') void store.getState().retryCloud()
     }
   }
@@ -59,8 +73,11 @@ export const usePortfolioOverview = () => {
   return {
     overview,
     cryptoArsRate,
+    mepRate,
+    pesosBalance,
     hasOperations,
-    status: combine(dolarStatus, cryptoStatus),
+    hasPesos,
+    status: combine(dolarStatus, cryptoStatus, pesosStatus),
     retry,
   }
 }
@@ -78,6 +95,7 @@ const RANGE_DAYS: Record<HistoryRange, number> = { '1M': 30, '3M': 91, '6M': 182
 export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) => {
   const dolarGroups = useTransactionStore((s) => s.transactions)
   const cryptoTxs = useCryptoStore((s) => s.transactions)
+  const pesosMovements = usePesosStore((s) => s.movements)
 
   const dolarTxs = useMemo(
     () => Object.values(dolarGroups).flatMap((g) => g ?? []),
@@ -87,8 +105,10 @@ export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) 
     const set = new Set<string>(dolarTxs.map((t) => t.dolarOption))
     // Cripto a pesos usa el dólar cripto
     if (cryptoTxs.length > 0) set.add(DolarOption.Cripto)
+    // Pesos a dólares usa el MEP
+    if (pesosMovements.length > 0) set.add(DolarOption.Bolsa)
     return [...set].sort()
-  }, [dolarTxs, cryptoTxs])
+  }, [dolarTxs, cryptoTxs, pesosMovements])
   const ids = useMemo(() => [...new Set(cryptoTxs.map((t) => t.coinId))].sort(), [cryptoTxs])
 
   const allDolarData = useDolarStore((s) => s.allDolarData)
@@ -97,7 +117,7 @@ export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) 
   const key = historyKey(casas, ids)
   const entry = useHistoryStore((s) => s.entries[key])
   const load = useHistoryStore((s) => s.load)
-  const hasTxs = dolarTxs.length + cryptoTxs.length > 0
+  const hasTxs = dolarTxs.length + cryptoTxs.length + pesosMovements.length > 0
 
   useEffect(() => {
     if (hasTxs) load(casas, ids)
@@ -107,7 +127,7 @@ export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) 
     if (entry?.status !== 'ready') return { points: [], gapUntil: null }
     const to = toDateKey(new Date())
     const rangeStart = toDateKey(subDays(new Date(), RANGE_DAYS[range]))
-    const firstTx = [...dolarTxs, ...cryptoTxs]
+    const firstTx = [...dolarTxs, ...cryptoTxs, ...pesosMovements]
       .map((t) => toDateKey(t.date))
       .reduce((min, d) => (d < min ? d : min), to)
     const from = firstTx > rangeStart ? firstTx : rangeStart
@@ -139,13 +159,14 @@ export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) 
     const points = computeValueHistory({
       dolarTxs,
       cryptoTxs,
+      pesosMovements,
       dolarPrices,
       coinPrices,
       from,
       to,
     })
     return trimLeadingGaps(points, currency)
-  }, [entry, range, currency, dolarTxs, cryptoTxs, casas, ids, allDolarData, livePrices])
+  }, [entry, range, currency, dolarTxs, cryptoTxs, pesosMovements, casas, ids, allDolarData, livePrices])
 
   return {
     ...result,

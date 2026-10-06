@@ -1,4 +1,5 @@
 import type { CryptoPortfolioState } from '@/features/crypto/operations'
+import type { PesosMovement } from '@/features/pesos/types'
 import type { Transaction } from '@/types/transaction.types'
 
 /**
@@ -9,19 +10,22 @@ import type { Transaction } from '@/types/transaction.types'
 export type LocalData = {
   dolar: Transaction[]
   crypto: CryptoPortfolioState
+  pesos: PesosMovement[]
 }
 
 export const EMPTY_LOCAL_DATA: LocalData = {
   dolar: [],
   crypto: { transactions: [], coins: {} },
+  pesos: [],
 }
 
 export const countLocalData = (data: LocalData) =>
-  data.dolar.length + data.crypto.transactions.length
+  data.dolar.length + data.crypto.transactions.length + data.pesos.length
 
 export const localDataIds = (data: LocalData): string[] => [
   ...data.dolar.map((t) => t.id),
   ...data.crypto.transactions.map((t) => t.id),
+  ...data.pesos.map((m) => m.id),
 ]
 
 /** Solo las operaciones cuyo id no está en `excluded` (y las monedas que usan) */
@@ -36,6 +40,7 @@ export const excludeIds = (data: LocalData, excluded: Set<string>): LocalData =>
         Object.entries(data.crypto.coins).filter(([id]) => coinIds.has(id)),
       ),
     },
+    pesos: data.pesos.filter((m) => !excluded.has(m.id)),
   }
 }
 
@@ -47,7 +52,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * Body para la API: la base guarda ids UUID. Si algún dato viejo tiene otro formato,
- * recibe un UUID nuevo (`swapId` y `usdtSwapId` se remapean igual, así el intercambio sigue enlazado).
+ * recibe un UUID nuevo (`swapId`, `usdtSwapId` y `conversionId` se remapean igual, así las patas
+ * siguen enlazadas).
  */
 export const toImportPayload = (
   data: LocalData,
@@ -64,6 +70,7 @@ export const toImportPayload = (
       ...t,
       id: fix(t.id),
       ...(t.usdtSwapId && { usdtSwapId: fix(t.usdtSwapId) }),
+      ...(t.conversionId && { conversionId: fix(t.conversionId) }),
     })),
     crypto: {
       transactions: data.crypto.transactions.map((t) => ({
@@ -74,5 +81,10 @@ export const toImportPayload = (
       })),
       coins: data.crypto.coins,
     },
+    pesos: data.pesos.map((m) => ({
+      ...m,
+      id: fix(m.id),
+      ...(m.conversionId && { conversionId: fix(m.conversionId) }),
+    })),
   }
 }

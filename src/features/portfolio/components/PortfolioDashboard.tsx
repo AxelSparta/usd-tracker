@@ -6,6 +6,7 @@ import SyncGate from '@/components/SyncGate'
 import { Skeleton } from '@/components/ui/skeleton'
 import { useCryptoPriceSync } from '@/features/crypto/hooks'
 import { formatCurrency } from '@/lib/locale-amount'
+import { cn } from '@/lib/utils'
 import { usePortfolioOverview } from '../hooks'
 import { toAllocationSegments } from '../overview'
 import AllocationBar from './AllocationBar'
@@ -39,7 +40,7 @@ function DashboardSkeleton() {
  */
 export default function PortfolioDashboard({ onboarding }: { onboarding: React.ReactNode }) {
   useCryptoPriceSync()
-  const { overview, hasOperations, status, retry } = usePortfolioOverview()
+  const { overview, hasOperations, hasPesos, pesosBalance, status, retry } = usePortfolioOverview()
 
   if (status !== 'ready') {
     return (
@@ -50,7 +51,7 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
   }
   if (!hasOperations) return onboarding
 
-  const { totalArs, totalUsd, dolar, crypto, assets, missingPrices } = overview
+  const { totalArs, totalUsd, dolar, crypto, pesos, assets, missingPrices } = overview
   const segments = toAllocationSegments(assets)
 
   return (
@@ -58,11 +59,18 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
       <header className='space-y-1'>
         <h1 className='text-2xl font-semibold tracking-tight'>Tu portfolio</h1>
         <p className='text-sm text-muted-foreground'>
-          Tus dólares y cripto valuados con las cotizaciones actuales.
+          {hasPesos ? 'Tus pesos, dólares y cripto' : 'Tus dólares y cripto'} valuados con las
+          cotizaciones actuales.
         </p>
       </header>
 
-      <section aria-label='Resumen' className='grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3'>
+      <section
+        aria-label='Resumen'
+        className={cn(
+          'grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3',
+          hasPesos && 'sm:grid-cols-2 lg:grid-cols-4',
+        )}
+      >
         <Stat
           label='Valor total'
           value={totalArs === null ? `US$${formatCurrency(totalUsd)}` : `$${formatCurrency(totalArs)}`}
@@ -73,16 +81,25 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
           label='Dólar'
           value={dolar.valueArs === null ? '—' : `$${formatCurrency(dolar.valueArs)}`}
           secondaryLabel='Ganancia'
-          secondaryValue={signed('$', dolar.pnl)}
-          secondaryClassName={pnlClass(dolar.pnl)}
+          secondaryValue={signed('$', dolar.pnl ?? 0)}
+          secondaryClassName={pnlClass(dolar.pnl ?? 0)}
         />
         <Stat
           label='Cripto'
           value={`US$${formatCurrency(crypto.valueUsd)}`}
           secondaryLabel='Ganancia'
-          secondaryValue={signed('US$', crypto.pnl)}
-          secondaryClassName={pnlClass(crypto.pnl)}
+          secondaryValue={signed('US$', crypto.pnl ?? 0)}
+          secondaryClassName={pnlClass(crypto.pnl ?? 0)}
         />
+        {/* Un saldo no tiene ganancia: se muestra su equivalente en dólares al MEP */}
+        {hasPesos && (
+          <Stat
+            label='Pesos'
+            value={`${pesosBalance < 0 ? '-' : ''}$${formatCurrency(Math.abs(pesosBalance))}`}
+            secondaryLabel='En dólares (MEP)'
+            secondaryValue={pesos.assets > 0 ? `US$${formatCurrency(pesos.valueUsd)}` : '—'}
+          />
+        )}
       </section>
 
       <ValueChart />

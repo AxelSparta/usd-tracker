@@ -3,12 +3,13 @@
 import { useAuth } from '@clerk/nextjs'
 import { useEffect } from 'react'
 import { useCryptoStore } from '@/features/crypto/crypto.store'
+import { usePesosStore } from '@/features/pesos/pesos.store'
 import { useTransactionStore } from '@/store/transaction.store'
 
 /** Si Clerk no termina de cargar (sin red, bloqueado), no dejar la app esperando */
 const AUTH_TIMEOUT_MS = 4000
 
-const stores = [useTransactionStore, useCryptoStore]
+const stores = [useTransactionStore, useCryptoStore, usePesosStore]
 
 /**
  * Elige el origen de datos de los stores según la sesión: con sesión, la nube

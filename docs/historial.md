@@ -468,6 +468,132 @@ moneda, con saldos y PnL correctos en los dos módulos, en local y en la nube.
 
 ---
 
+## Fase 8 — Pesos y conversiones a dólar ✅
+
+**Objetivo:** registrar los pesos del portafolio, ver el saldo (también en el dashboard) y
+convertirlos a cualquier tipo de dólar y de vuelta. Se **fusiona a `main` sola**, apenas esté
+verificada, sin esperar a CEDEARs.
+
+> Plan y decisiones (D1–D3, D8, D9) en [`roadmap-cedears.md`](roadmap-cedears.md#decisiones). Las más
+> relevantes acá: los pesos son un saldo sin PnL y pasan a USD con el **MEP venta** (D3); una
+> conversión son dos patas del mismo rango enlazadas por `conversionId`, que no se editan y se borran
+> juntas (D9); las patas guardan un id por tipo de enlace y `linkOf(tx)` centraliza la regla (D8).
+
+**Modelo** (`features/pesos/types.ts`):
+
+```ts
+type PesosMovement = {
+  id: string
+  type: TransactionType          // BUY = ingreso, SELL = egreso (sortTxs: ingresos primero el mismo día)
+  amount: number                 // ARS, > 0
+  date: Date | string
+  note?: string                  // "Sueldo", "Transferencia desde banco"
+  conversionId?: string          // pata de una conversión pesos ↔ dólar (D9)
+  // cedearId?: string           // pata de una operación de CEDEAR (D8); se agrega en la Fase 9
+}
+
+// Dólar (`types/transaction.types.ts`): `Transaction` suma `conversionId?: string`
+```
+
+### 8.1 Módulo Pesos
+
+- [x] Funciones puras (`features/pesos/operations.ts`): `applyAdd/Update/RemovePesosMovement`,
+      `validatePesosTimeline` (saldo nunca negativo con `findNegativeBalance`; mensaje "No tenés pesos
+      suficientes el dd/MM/yyyy."), `computePesosBalance` y `assertPesosShape`. Editar o borrar una
+      pata (`conversionId`) se rechaza (como `USDT_SWAP_LEG_UPDATE/REMOVE`). Tests en
+      `features/pesos/__tests__/`.
+- [x] Store `usePesosStore` (`pesos-storage`, `version: 1`, `partialize` con lo local), con
+      `createSync`, `whenReady`/`untilReady` en cada acción y `applyExternal`.
+- [x] Composers: conectarlo en `CloudSync` (lista `stores`), sumarlo a `useCloudStatus` (estado,
+      `pendingWrites`, `retry`) y a la importación: `LocalData.pesos`, `countLocalData`,
+      `localDataIds`, `excludeIds`, `toImportPayload` (remapea `conversionId`), `useLocalImport`
+      (`refreshCloud` de los tres stores), `importSchema` y `server/import.ts` (validar la línea de
+      pesos con lo existente + lo nuevo). `pesos` es opcional en el body (clientes viejos) y por ahora
+      **sin** `conversionId`: lo suma la 8.2 junto con `assertConversionsComplete`.
+- [x] Prisma: `PesosMovement` (`id` UUID del cliente, `userId`, `type`, `amount Decimal`, `date`,
+      `note?`, `conversionId String? @db.Uuid`, índices `[userId, date]` y `[conversionId]`) y la
+      relación en `User`; migración nueva (`20261005000000_pesos_movements`; la columna
+      `conversionId` del Dólar va en otra, en la 8.2). `mappers.ts`: ida y vuelta.
+- [x] API `/api/pesos/movements[/:id]` (GET/POST, PATCH/DELETE) con el patrón de siempre:
+      `requireUserId` → Zod (sin `conversionId`: los endpoints no crean patas) → servicio
+      `server/pesos-movements.ts` con ownership y validación de línea temporal → 401/400/404/409/422;
+      logs `pesos.*` sin montos. Tests en `src/server/__tests__/`.
+- [x] `operationLabel`: "Ingreso" / "Egreso" para Pesos con una función hermana,
+      `pesosMovementLabel`. El texto de las conversiones ("Compra de USD Blue" / "Venta de USD Blue"
+      vista desde Pesos) queda para la 8.2.
+- [x] UI: sección **Pesos** en `sections.ts` (`/pesos`, `/pesos/nueva`, ícono `Banknote`): saldo ARS,
+      equivalente USD (MEP venta), historial con edición/borrado y formulario ingreso/egreso con nota
+      (`SyncGate` en las vistas de datos). E2E local en `e2e/pesos.spec.ts`.
+
+### 8.2 Conversiones pesos ↔ dólar (D9)
+
+- [x] Dólar: `conversionId?` en `Transaction`. `transactions-storage` v3 → **v4** con `migrate`
+      (campo opcional: los datos viejos son válidos) + test con snapshot. Prisma: `conversionId
+      String? @db.Uuid` + `@@index([conversionId])` en `DolarTransaction` (migración propia,
+      `20261005120000_dolar_conversions`);
+      `mappers.ts` ida y vuelta.
+- [x] Reglas de forma con `linkOf(tx)` (D8): una operación del Dólar tiene como mucho un enlace
+      (`usdtSwapId` o `conversionId`) y una pata de conversión no es un resultado de trade.
+      `applyUpdateTransaction` / `applyRemoveTransaction` rechazan una pata de conversión ("Es una
+      conversión de pesos: borrala completa."). La API del Dólar devuelve 422 sola. Tests en
+      `src/domain/__tests__/`.
+- [x] Funciones puras (`features/pesos/conversions.ts`, store + server): `buildConversionLegs(input,
+      ids)` → `[pata pesos, pata dólar]` con el mismo monto en ARS; `applyAddConversion` (valida los
+      pesos en Pesos → dólar y los USD del grupo en Dólar → pesos; montos > 0) y
+      `applyRemoveConversion` (revalida las dos líneas); `assertConversionsComplete` para la
+      importación (cada `conversionId`: una pata en cada módulo, de tipos opuestos y con el mismo monto
+      en ARS; si no, 422, como `assertUsdtSwapsComplete`).
+- [x] Llevar `commitBoth` y `once` de `features/usdt-swaps/actions.ts` a `lib/synced-store.ts` como
+      `commitAcross([write(store, next), …], remote)`, para N stores. `usdt-swaps` lo usa sin cambiar de
+      comportamiento. Test: si falla el request, cada store revierte lo suyo.
+- [x] Server: `loadLinkedState` de `server/usdt-swaps.ts` pasa a un helper compartido que carga los
+      módulos pedidos (`dolar`, `crypto`, `pesos`; `cedears` en la Fase 9) dentro de la misma
+      `withUserTransaction`. `POST /api/pesos/conversions` (input + ids del cliente) y
+      `DELETE /api/pesos/conversions/:conversionId` escriben las dos tablas en una transacción
+      `Serializable` (`server/pesos-conversions.ts`); logs `pesosConversion.*`. Tests: atomicidad,
+      ownership, 422 por saldo, pata editada o borrada desde `/api/dolar` o `/api/pesos` → 422.
+- [x] Cotización de referencia: generalizar `fetchCriptoHistory` → `fetchDolarHistory(option)` y
+      `useDolarCriptoRate` → `useDolarRate(option, side, date)` (el de cripto pasa a ser un caso).
+- [x] UI: pestaña **Convertir** en `/pesos/nueva` (`?modo=conversion&dolar=<tipo>`): dirección,
+      tipo de dólar, fecha, monto ARS, monto USD, cotización de referencia y cotización implícita, y
+      el saldo disponible (pesos o USD de ese tipo). Atajo "Comprar con pesos" en `/dolar`. En `/dolar`
+      la pata se ve con un distintivo "Pesos" y sin editar; borrarla borra la conversión completa por
+      el contexto `use-pesos-conversion-links` (`hooks/`, provisto por `features/pesos` en
+      `app/providers.tsx`). El atajo abre `/pesos/nueva?modo=conversion` (sin tipo preseleccionado;
+      `&dolar=` funciona igual). Desde Pesos, la pata se ve como "Compra de USD Blue" con los USD y
+      la cotización implícita.
+
+### 8.3 Pesos en el dashboard (estaba en la Fase 10)
+
+- [x] `overview.ts`: módulo `pesos` (activo `pesos:ars`, drill-down a `/pesos`): `valueArs` = saldo,
+      `valueUsd` = saldo / MEP venta. Sin cotización MEP no entra a la composición y se avisa (como
+      `missingPrices`). Sin PnL: `ModuleSummary.pnl` admite `null` y la tarjeta no lo muestra.
+      La tarjeta "Pesos" del resumen aparece solo si hay movimientos (saldo + equivalente MEP).
+- [x] `history.ts`: saldo de pesos por día; ARS = saldo, USD = saldo / MEP venta de ese día
+      (`priceAt`). `useValueHistory` pide `bolsa` cuando hay pesos. Sin cotización → `null`.
+- [x] `usePortfolioOverview`: estado combinado de los tres stores, `hasOperations` y `retry` con Pesos.
+- [x] Verificar (test en `overview.test.ts`): una conversión no cambia el total en ARS si se hizo a la cotización de valuación, y en
+      USD solo cambia por la diferencia entre la cotización usada y el MEP (ej. pesos a blue).
+
+### 8.4 Cierre
+
+- [x] E2E: ingreso; egreso sin saldo (error); borrado que dejaría saldo negativo (error); conversión
+      pesos → blue (baja el saldo de pesos y aparece en `/dolar`); la pata no se edita desde `/dolar` y
+      borrarla ahí borra las dos; dólar → pesos; conversión sin saldo (error). Con sesión en
+      `e2e/sync.cloud.spec.ts`: alta, conversión e importación de lo local.
+- [x] `pnpm lint && pnpm typecheck && pnpm test && pnpm build` (311 tests), E2E `local` (15) y `cloud`
+      (7, contra la rama de desarrollo de Neon) y el flujo en `pnpm dev` con sesión: `/pesos`, pestaña
+      Convertir, patas en `/dolar` sin editar y Pesos en el dashboard, sin errores en la consola.
+- [x] Documentación: este detalle, `AGENTS.md` (módulo, storage `pesos-storage` y
+      `transactions-storage` v4, la excepción de dependencias de D2), `README.md` y `docs/roadmap.md`.
+- [x] PR a `main` (oct 2026).
+
+**Criterio de salida:** se cargan ingresos y egresos de pesos y se convierten a cualquier dólar y de
+vuelta, en local y en la nube; ningún saldo queda negativo; lo local se puede subir al iniciar sesión;
+el dashboard suma los pesos.
+
+---
+
 ## Hallazgos técnicos resueltos (auditoría inicial, sep 2026)
 
 | #   | Hallazgo | Resolución |
