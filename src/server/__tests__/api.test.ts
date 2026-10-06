@@ -27,6 +27,8 @@ const cryptoById = await import('@/app/api/crypto/transactions/[id]/route')
 const swaps = await import('@/app/api/crypto/swaps/route')
 const usdtSwaps = await import('@/app/api/usdt-swaps/route')
 const usdtSwapById = await import('@/app/api/usdt-swaps/[id]/route')
+const pesos = await import('@/app/api/pesos/movements/route')
+const pesosById = await import('@/app/api/pesos/movements/[id]/route')
 
 const json = (body: unknown) =>
   new Request('http://localhost/api', {
@@ -383,5 +385,89 @@ describe('resultados de trades', () => {
     const edited = await cryptoById.PATCH(json({ transaction: { ...rest, note: 'grid bot' }, coin: btc }), ctx(id))
     expect(edited.status).toBe(200)
     expect(await edited.json()).toMatchObject({ kind: 'TRADE_RESULT', note: 'grid bot' })
+  })
+})
+
+describe('/api/pesos/movements', () => {
+  const pesosMovement = (id: string, type: 'BUY' | 'SELL', amount: number, date: string, extra = {}) => ({
+    id,
+    type,
+    amount,
+    date,
+    ...extra,
+  })
+
+  it('401 sin sesión', async () => {
+    session.userId = null
+    expect((await pesos.GET()).status).toBe(401)
+  })
+
+  it('crea, lista con montos numéricos y registra el alta sin montos', async () => {
+    const created = await pesos.POST(
+      json(pesosMovement(ID.buy, 'BUY', 1_500_000.5, '2026-01-01T03:00:00.000Z', { note: 'Sueldo' })),
+    )
+    expect(created.status).toBe(201)
+    expect(await (await pesos.GET()).json()).toEqual({
+      movements: [
+        { id: ID.buy, type: 'BUY', amount: 1_500_000.5, date: '2026-01-01T03:00:00.000Z', note: 'Sueldo' },
+      ],
+    })
+    expect(log.logEvent).toHaveBeenCalledWith('pesos.created', { userId: 'user_a', type: 'BUY' })
+  })
+
+  it('400 con monto no positivo', async () => {
+    const response = await pesos.POST(json(pesosMovement(ID.buy, 'BUY', 0, '2026-01-01')))
+    expect(response.status).toBe(400)
+    expect((await response.json()).error).toBe('El monto debe ser mayor a cero')
+  })
+
+  it('422 con el mismo mensaje que en local si el saldo queda negativo', async () => {
+    const response = await pesos.POST(json(pesosMovement(ID.sell, 'SELL', 1, '2026-01-01T03:00:00.000Z')))
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('No tenés pesos suficientes el 01/01/2026.')
+    expect(db.pesosRows).toHaveLength(0)
+  })
+
+  it('edita (sin nota = la quita) y borra, revalidando la línea temporal', async () => {
+    await pesos.POST(json(pesosMovement(ID.buy, 'BUY', 1000, '2026-01-01T03:00:00.000Z', { note: 'x' })))
+    await pesos.POST(json(pesosMovement(ID.sell, 'SELL', 800, '2026-02-01T03:00:00.000Z')))
+
+    const { id, ...smaller } = pesosMovement(ID.buy, 'BUY', 500, '2026-01-01T03:00:00.000Z')
+    expect((await pesosById.PATCH(json(smaller), ctx(ID.buy))).status).toBe(422)
+
+    const { id: id2, ...bigger } = pesosMovement(ID.buy, 'BUY', 2000, '2026-01-01T03:00:00.000Z')
+    const updated = await pesosById.PATCH(json(bigger), ctx(ID.buy))
+    expect(updated.status).toBe(200)
+    expect(await updated.json()).toEqual({ ...bigger, id: ID.buy })
+
+    expect((await pesosById.DELETE(json({}), ctx(ID.buy))).status).toBe(422)
+    expect((await pesosById.DELETE(json({}), ctx(ID.sell))).status).toBe(204)
+    expect(db.pesosRows.map((r) => r.id)).toEqual([ID.buy])
+  })
+
+  it('la API del módulo no crea patas de conversión', async () => {
+    await pesos.POST(json(pesosMovement(ID.buy, 'BUY', 1000, '2026-01-01', { conversionId: ID.other })))
+    expect(db.pesosRows[0].conversionId).toBeNull()
+  })
+
+  it('una pata de conversión no se edita ni se borra sola', async () => {
+    await db.pesosMovement.create({
+      data: { id: ID.buy, userId: 'user_a', type: 'BUY', amount: 1000, date: new Date('2026-01-01'), note: null, conversionId: ID.other },
+    })
+    const { id, ...data } = pesosMovement(ID.buy, 'BUY', 2000, '2026-01-01')
+    expect((await pesosById.PATCH(json(data), ctx(ID.buy))).status).toBe(422)
+    const removed = await pesosById.DELETE(json({}), ctx(ID.buy))
+    expect(removed.status).toBe(422)
+    expect((await removed.json()).error).toBe('Es una conversión con dólares: borrala completa.')
+  })
+
+  it('un usuario no ve ni toca movimientos de otro (404)', async () => {
+    await pesos.POST(json(pesosMovement(ID.buy, 'BUY', 1000, '2026-01-01')))
+    session.userId = 'user_b'
+    expect(await (await pesos.GET()).json()).toEqual({ movements: [] })
+    const { id, ...data } = pesosMovement(ID.buy, 'BUY', 1, '2026-01-01')
+    expect((await pesosById.PATCH(json(data), ctx(ID.buy))).status).toBe(404)
+    expect((await pesosById.DELETE(json({}), ctx(ID.buy))).status).toBe(404)
+    expect((await pesos.POST(json(pesosMovement(ID.buy, 'BUY', 1, '2026-01-01')))).status).toBe(409)
   })
 })

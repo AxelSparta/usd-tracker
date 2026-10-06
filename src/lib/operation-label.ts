@@ -11,3 +11,9 @@ export const operationLabel = ({ type, kind }: { type: TransactionType; kind?: O
   }
   return { label: entering ? 'Compra' : 'Venta', positive: entering }
 }
+
+/** Movimiento de Pesos: `BUY` = ingreso, `SELL` = egreso */
+export const pesosMovementLabel = ({ type }: { type: TransactionType }) => {
+  const entering = type === TransactionType.BUY
+  return { label: entering ? 'Ingreso' : 'Egreso', positive: entering }
+}

@@ -165,31 +165,33 @@ type PesosMovement = {
 
 ### 8.1 Módulo Pesos
 
-- [ ] Funciones puras (`features/pesos/operations.ts`): `applyAdd/Update/RemovePesosMovement`,
+- [x] Funciones puras (`features/pesos/operations.ts`): `applyAdd/Update/RemovePesosMovement`,
       `validatePesosTimeline` (saldo nunca negativo con `findNegativeBalance`; mensaje "No tenés pesos
       suficientes el dd/MM/yyyy."), `computePesosBalance` y `assertPesosShape`. Editar o borrar una
       pata (`conversionId`) se rechaza (como `USDT_SWAP_LEG_UPDATE/REMOVE`). Tests en
       `features/pesos/__tests__/`.
-- [ ] Store `usePesosStore` (`pesos-storage`, `version: 1`, `partialize` con lo local), con
+- [x] Store `usePesosStore` (`pesos-storage`, `version: 1`, `partialize` con lo local), con
       `createSync`, `whenReady`/`untilReady` en cada acción y `applyExternal`.
-- [ ] Composers: conectarlo en `CloudSync` (lista `stores`), sumarlo a `useCloudStatus` (estado,
+- [x] Composers: conectarlo en `CloudSync` (lista `stores`), sumarlo a `useCloudStatus` (estado,
       `pendingWrites`, `retry`) y a la importación: `LocalData.pesos`, `countLocalData`,
       `localDataIds`, `excludeIds`, `toImportPayload` (remapea `conversionId`), `useLocalImport`
       (`refreshCloud` de los tres stores), `importSchema` y `server/import.ts` (validar la línea de
-      pesos con lo existente + lo nuevo).
-- [ ] Prisma: `PesosMovement` (`id` UUID del cliente, `userId`, `type`, `amount Decimal`, `date`,
+      pesos con lo existente + lo nuevo). `pesos` es opcional en el body (clientes viejos) y por ahora
+      **sin** `conversionId`: lo suma la 8.2 junto con `assertConversionsComplete`.
+- [x] Prisma: `PesosMovement` (`id` UUID del cliente, `userId`, `type`, `amount Decimal`, `date`,
       `note?`, `conversionId String? @db.Uuid`, índices `[userId, date]` y `[conversionId]`) y la
-      relación en `User`; migración nueva. `mappers.ts`: ida y vuelta.
-- [ ] API `/api/pesos/movements[/:id]` (GET/POST, PATCH/DELETE) con el patrón de siempre:
+      relación en `User`; migración nueva (`20261005000000_pesos_movements`; la columna
+      `conversionId` del Dólar va en otra, en la 8.2). `mappers.ts`: ida y vuelta.
+- [x] API `/api/pesos/movements[/:id]` (GET/POST, PATCH/DELETE) con el patrón de siempre:
       `requireUserId` → Zod (sin `conversionId`: los endpoints no crean patas) → servicio
       `server/pesos-movements.ts` con ownership y validación de línea temporal → 401/400/404/409/422;
       logs `pesos.*` sin montos. Tests en `src/server/__tests__/`.
-- [ ] `operationLabel`: "Ingreso" / "Egreso" para Pesos (o una función hermana si mezclar los dos
-      vocabularios la complica), y el texto de las conversiones ("Compra de USD Blue" / "Venta de USD
-      Blue" vista desde Pesos).
-- [ ] UI: sección **Pesos** en `sections.ts` (`/pesos`, `/pesos/nueva`, ícono `Banknote`): saldo ARS,
+- [x] `operationLabel`: "Ingreso" / "Egreso" para Pesos con una función hermana,
+      `pesosMovementLabel`. El texto de las conversiones ("Compra de USD Blue" / "Venta de USD Blue"
+      vista desde Pesos) queda para la 8.2.
+- [x] UI: sección **Pesos** en `sections.ts` (`/pesos`, `/pesos/nueva`, ícono `Banknote`): saldo ARS,
       equivalente USD (MEP venta), historial con edición/borrado y formulario ingreso/egreso con nota
-      (`SyncGate` en las vistas de datos).
+      (`SyncGate` en las vistas de datos). E2E local en `e2e/pesos.spec.ts`.
 
 ### 8.2 Conversiones pesos ↔ dólar (D9)
 

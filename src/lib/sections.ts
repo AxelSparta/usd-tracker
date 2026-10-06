@@ -1,4 +1,4 @@
-import { Bitcoin, DollarSign, type LucideIcon } from 'lucide-react'
+import { Banknote, Bitcoin, DollarSign, type LucideIcon } from 'lucide-react'
 
 export type SectionStatus = 'active' | 'soon'
 
@@ -15,6 +15,14 @@ export type Section = {
 // Fuente única de las secciones: la usan el sidebar y la home.
 // Agregar una sección nueva = agregar una entrada acá.
 export const sections: Section[] = [
+  {
+    href: '/pesos',
+    label: 'Pesos',
+    description: 'Ingresos y egresos de pesos: tu saldo en ARS y su equivalente en USD.',
+    icon: Banknote,
+    status: 'active',
+    newItem: { href: '/pesos/nueva', label: 'Nuevo movimiento' },
+  },
   {
     href: '/dolar',
     label: 'Dólar',

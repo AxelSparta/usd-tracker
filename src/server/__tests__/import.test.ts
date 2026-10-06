@@ -70,9 +70,14 @@ describe('POST /api/sync/import', () => {
     expect(await first.json()).toEqual({
       dolar: { created: 2, skipped: 0 },
       crypto: { created: 1, skipped: 0 },
+      pesos: { created: 0, skipped: 0 },
     })
     const second = await (await POST(json(payload))).json()
-    expect(second).toEqual({ dolar: { created: 0, skipped: 2 }, crypto: { created: 0, skipped: 1 } })
+    expect(second).toEqual({
+      dolar: { created: 0, skipped: 2 },
+      crypto: { created: 0, skipped: 1 },
+      pesos: { created: 0, skipped: 0 },
+    })
     expect(db.dolarRows).toHaveLength(2)
 
     const { transactions } = await (await cryptoRoute.GET()).json()
@@ -173,5 +178,42 @@ describe('importación con resultados de trades', () => {
       json({ dolar: [{ ...gain, dolarOption: 'blue' }], crypto: { transactions: [], coins: {} } }),
     )
     expect(response.status).toBe(422)
+  })
+})
+
+describe('importación de pesos', () => {
+  const pesosMovement = (n: number, type: 'BUY' | 'SELL', amount: number, date: string) => ({
+    id: uuid(n),
+    type,
+    amount,
+    date,
+  })
+  const empty = { dolar: [], crypto: { transactions: [], coins: {} } }
+
+  it('sube los movimientos y es idempotente', async () => {
+    const body = {
+      ...empty,
+      pesos: [
+        { ...pesosMovement(30, 'BUY', 1000, '2026-01-01T03:00:00.000Z'), note: 'Sueldo' },
+        pesosMovement(31, 'SELL', 400, '2026-02-01T03:00:00.000Z'),
+      ],
+    }
+    expect((await (await POST(json(body))).json()).pesos).toEqual({ created: 2, skipped: 0 })
+    expect((await (await POST(json(body))).json()).pesos).toEqual({ created: 0, skipped: 2 })
+    expect(db.pesosRows.find((r) => r.id === uuid(30))?.note).toBe('Sueldo')
+  })
+
+  it('valida el saldo con lo que ya está en la nube', async () => {
+    await POST(json({ ...empty, pesos: [pesosMovement(30, 'BUY', 1000, '2026-01-01T03:00:00.000Z')] }))
+    const response = await POST(
+      json({ ...empty, pesos: [pesosMovement(31, 'SELL', 1500, '2026-02-01T03:00:00.000Z')] }),
+    )
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe('No tenés pesos suficientes el 01/02/2026.')
+    expect(db.pesosRows).toHaveLength(1)
+  })
+
+  it('un cliente sin pesos (anterior a la Fase 8) sigue funcionando', async () => {
+    expect((await POST(json(empty))).status).toBe(200)
   })
 })

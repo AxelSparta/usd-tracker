@@ -6,6 +6,8 @@ import {
   toCryptoTransactionData,
   toDolarTransaction,
   toDolarTransactionData,
+  toPesosMovement,
+  toPesosMovementData,
 } from '@/server/mappers'
 import { DolarOption } from '@/types/dolar.types'
 import { TransactionType } from '@/types/transaction.types'
@@ -125,5 +127,26 @@ describe('mappers', () => {
     const crypto = toCryptoTransaction({ ...cryptoRow, kind: 'TRADE_RESULT', note: 'bot' })
     expect(crypto).toMatchObject({ kind: 'TRADE_RESULT', note: 'bot' })
     expect(toCryptoTransaction(cryptoRow)).not.toHaveProperty('kind')
+  })
+
+  it('pesos: ida y vuelta, sin campos opcionales nulos', () => {
+    const row = {
+      ...meta,
+      id: 'p1',
+      type: 'SELL' as const,
+      amount: new Prisma.Decimal('1500000.75'),
+      date,
+      note: null,
+      conversionId: 'conv',
+    }
+    const movement = toPesosMovement(row)
+    expect(movement).toEqual({ id: 'p1', type: TransactionType.SELL, amount: 1500000.75, date, conversionId: 'conv' })
+    expect(toPesosMovementData(movement)).toEqual({
+      type: 'SELL',
+      amount: 1500000.75,
+      date,
+      note: null,
+      conversionId: 'conv',
+    })
   })
 })

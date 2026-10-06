@@ -6,15 +6,19 @@ import {
   coinApiSchema,
   cryptoTransactionFields,
 } from '@/features/crypto/validations'
+import { assertPesosShape, validatePesosTimeline } from '@/features/pesos/operations'
+import { createPesosMovementApiSchema } from '@/features/pesos/validations'
 import { assertUsdtSwapsComplete } from '@/features/usdt-swaps/operations'
 import { createTransactionApiSchema } from '@/validations/transaction'
 import { loadCryptoState } from './crypto-transactions'
+import { loadPesosState } from './pesos-movements'
 import { withUserTransaction } from './db'
 import { ApiError, applyOrReject } from './errors'
 import {
   toCryptoTransactionData,
   toDolarTransaction,
   toDolarTransactionData,
+  toPesosMovementData,
 } from './mappers'
 
 /**
@@ -43,6 +47,9 @@ export const importSchema = z
         .max(MAX_ITEMS),
       coins: z.record(z.string(), coinApiSchema),
     }),
+    // Opcional: un cliente anterior a la Fase 8 no lo manda.
+    // Sin `conversionId` hasta que existan las conversiones (8.2) y su regla de patas completas.
+    pesos: z.array(createPesosMovementApiSchema).max(MAX_ITEMS).default([]),
   })
   .refine(
     (d) => d.crypto.transactions.every((t) => d.crypto.coins[t.coinId]?.id === t.coinId),
@@ -54,6 +61,7 @@ export type ImportInput = z.output<typeof importSchema>
 export type ImportResult = {
   dolar: { created: number; skipped: number }
   crypto: { created: number; skipped: number }
+  pesos: { created: number; skipped: number }
 }
 
 export const importLocalData = (userId: string, input: ImportInput) =>
@@ -62,13 +70,16 @@ export const importLocalData = (userId: string, input: ImportInput) =>
       await db.dolarTransaction.findMany({ where: { userId } })
     ).map(toDolarTransaction)
     const existingCrypto = await loadCryptoState(db, userId)
+    const existingPesos = await loadPesosState(db, userId)
     const known = new Set([
       ...existingDolar.map((t) => t.id),
       ...existingCrypto.transactions.map((t) => t.id),
+      ...existingPesos.movements.map((m) => m.id),
     ])
 
     const newDolar = input.dolar.filter((t) => !known.has(t.id))
     const newCrypto = input.crypto.transactions.filter((t) => !known.has(t.id))
+    const newPesos = input.pesos.filter((m) => !known.has(m.id))
     // Metadatos: los de la nube pisan a los locales
     const coins: Record<string, Coin> = { ...input.crypto.coins, ...existingCrypto.coins }
 
@@ -77,6 +88,7 @@ export const importLocalData = (userId: string, input: ImportInput) =>
     applyOrReject(() => {
       newDolar.forEach(assertDolarShape)
       newCrypto.forEach(assertCryptoShape)
+      newPesos.forEach(assertPesosShape)
     })
     // Cada intercambio USDT necesita sus dos patas (una sola dejaría un saldo sin contraparte)
     applyOrReject(() =>
@@ -92,10 +104,12 @@ export const importLocalData = (userId: string, input: ImportInput) =>
         coins,
       }),
     )
-    if (newDolar.length + newCrypto.length === 0) {
+    applyOrReject(() => validatePesosTimeline([...existingPesos.movements, ...newPesos]))
+    if (newDolar.length + newCrypto.length + newPesos.length === 0) {
       return {
         dolar: { created: 0, skipped: input.dolar.length },
         crypto: { created: 0, skipped: input.crypto.transactions.length },
+        pesos: { created: 0, skipped: input.pesos.length },
       }
     }
 
@@ -112,6 +126,10 @@ export const importLocalData = (userId: string, input: ImportInput) =>
       }),
       skipDuplicates: true,
     })
+    const pesos = await db.pesosMovement.createMany({
+      data: newPesos.map((m) => ({ id: m.id, userId, ...toPesosMovementData(m) })),
+      skipDuplicates: true,
+    })
 
     return {
       dolar: { created: dolar.count, skipped: input.dolar.length - dolar.count },
@@ -119,5 +137,6 @@ export const importLocalData = (userId: string, input: ImportInput) =>
         created: crypto.count,
         skipped: input.crypto.transactions.length - crypto.count,
       },
+      pesos: { created: pesos.count, skipped: input.pesos.length - pesos.count },
     }
   })
