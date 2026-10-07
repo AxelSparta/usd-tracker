@@ -135,8 +135,9 @@ Fase 8 ✅ (Pesos + conversiones a dólar)
 Fases 9–10 (CEDEARs): ver docs/roadmap-cedears.md
 ```
 
-- Lo que sigue: CEDEARs (Fases 9–10, en CCL), empezando por la 9.1 (precios de data912). Detalle en
-  `docs/roadmap-cedears.md`. Más lo pendiente de la Fase 6 y el backlog.
+- Lo que sigue: CEDEARs (Fases 9–10, en CCL). La 9.1 (precios de data912) está hecha; sigue la 9.0
+  (patas de CEDEARs en Pesos y Dólar); data912 queda como fuente también del histórico (P3). Detalle
+  en `docs/roadmap-cedears.md`. Más lo pendiente de la Fase 6 y el backlog.
 
 ---
 
