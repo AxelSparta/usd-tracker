@@ -17,6 +17,10 @@ export const BTC = {
 
 export const ETH = { id: 'ethereum', symbol: 'ETH', name: 'Ethereum', image: null }
 
+/** CEDEARs (data912 vía nuestras rutas `/api/cedears/*`) */
+export const AAPL = { ticker: 'AAPL', name: 'Apple' }
+export const BANK_OF_AMERICA = { ticker: 'BA.C', name: 'Bank of America' }
+
 /** Serie diaria plana del último año (para el gráfico de evolución) */
 const dailySeries = <T>(value: (date: string) => T) => {
   const points: T[] = []
@@ -44,6 +48,20 @@ export const mockApis = async (page: Page) => {
   )
   await page.route('**/api/history/crypto**', (route) =>
     route.fulfill({ json: { bitcoin: dailySeries((date) => ({ date, usd: 60_000 })) } }),
+  )
+  await page.route('**/api/cedears/search**', (route) =>
+    route.fulfill({ json: [AAPL, BANK_OF_AMERICA] }),
+  )
+  await page.route('**/api/cedears/prices**', (route) =>
+    route.fulfill({
+      json: {
+        AAPL: { priceArs: 26_000, change24h: 0.5, updatedAt: Date.now() },
+        'BA.C': { priceArs: 21_000, change24h: -0.2, updatedAt: Date.now() },
+      },
+    }),
+  )
+  await page.route('**/api/history/cedears**', (route) =>
+    route.fulfill({ json: { AAPL: dailySeries((date) => ({ date, ars: 26_000 })) } }),
   )
 }
 

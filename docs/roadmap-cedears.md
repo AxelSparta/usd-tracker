@@ -59,7 +59,7 @@ mismo nivel que **Dólar** y **Cripto**:
     volumen y a veces con precio 0 o de días atrás.
   - `GET /historical/cedears/{ticker}`: OHLC diario (`date`, `o`, `h`, `l`, `c`, `v`, más `dr` y
     `sa`) desde 2012 (AAPL: 3374 ruedas), sin el tope de 365 días de CoinGecko.
-  - Se declara educativa/hobby y **no es tiempo real** (cache de ~2 h en Cloudflare). Va detrás de un
+  - Se declara educativa/hobby y **no es tiempo real** (`max-age=30`; en la revisión 2 se habían medido ~2 h). Va detrás de un
     route handler, como CoinGecko, para poder cambiarla (IOL, BYMA) sin tocar el cliente.
 - **Un commit optimista en más de dos stores** (Pesos + Dólar en la Fase 8; CEDEARs + Pesos + Dólar
   en la 9) y una forma de rechazar cambios a una pata desde su propio módulo.
@@ -156,37 +156,59 @@ Cerrada en oct 2026; el detalle (modelo, tareas 8.1–8.4 y verificación) está
 **Objetivo:** comprar y vender CEDEARs con pesos o dólares CCL, ver posiciones y PnL en ARS y USD
 (con CCL venta como tipo de cambio, D4 y D5).
 
-### 9.1 Precios (server) — se puede hacer en paralelo a la Fase 8
+### 9.1 Precios (server) ✅ (oct 2026)
 
-- [ ] `src/server/cedears.ts`: cliente de data912 con schemas Zod de respuesta.
-  - `getCedearPanel()` → `{ ticker, priceArs, change24h, volume }[]` desde `/live/arg_cedears`,
-    `next.revalidate` 5 min. Solo tickers base y su precio en ARS (`c`; `0` = sin precio). El panel no
-    trae fecha: la API informa cuándo se obtuvo.
-  - **Separar variantes** (verificado con el panel real, oct 2026). Lo que no sirve:
+- [x] `src/server/cedears.ts`: cliente de data912 con schemas Zod de respuesta.
+  - `getCedearPanel()` → `{ rows: { ticker, name, priceArs, change24h, volume }[], updatedAt }` desde
+    `/live/arg_cedears`, `next.revalidate` 5 min. Solo tickers base; `c = 0` → `priceArs: null`.
+    `updatedAt` sale del header `Date` de data912, que el Data Cache de Next guarda con la respuesta.
+  - **Separar variantes** (`isUsdVariant` / `baseRows` en `features/cedears/catalog.ts`). Lo que no
+    sirve:
     - "termina en `C`/`D`": hay tickers base así (`C` Citigroup, `ELPC` Copel, `BA.C` Bank of America).
     - "existe el símbolo sin la última letra": `BAC` es Boeing (`BA`) en CCL, y Bank of America es
       `BA.C`, con variantes `BA.CC` y `BA.CD`. Hay variantes con punto (`C.D`, `B.C`, `CAR.D`).
     - "precio base / variante ≈ CCL ± 30 %": las variantes tienen precios en 0 (`BMYC`, `PSXC`) o
       viejos (`ELPCD` +40 %, `NGC` y `YELPD` −31 %).
+    - la regla del plan ("existe su base y `base.c / fila.c > 100` o `fila.c = 0`", más una lista de
+      exclusión): falla con `BBDCD` (junto a `BBDC`, otra variante: razón ≈ 1) y la lista se
+      desactualiza.
 
-    Regla: una fila es variante si termina en `C`/`D` (o `.C`/`.D`), existe su base (el símbolo sin ese
-    sufijo) y `base.c / fila.c > 100` o `fila.c = 0`. Con el panel de oct 2026 deja ~12 huérfanas en
-    USD cuyo base tiene otro ticker (`GOGLC`, `PETRC`/`PETRD`, `VAL3C`/`VAL3D`, `ALAC`/`ALAD`, `AKOBD`
-    de `AKO.B`): lista de exclusión en `features/cedears/catalog.ts`. Test con un snapshot del panel
-    real (`AAPL`, `AAPLC`, `BA`, `BAC`, `BA.C`, `BA.CC`, `C`, `C.D`, `BB`, `BBD`, `ELPC`, `BMYC`).
-  - `getCedearHistory(ticker, from)` desde `/historical/cedears/{ticker}` (cierre `c`), revalidate 6 h.
-  - Tickers con punto (`BA.C`): validación `^[A-Z0-9]+(\.[A-Z0-9]+)?$` y probar el path en la URL.
-- [ ] `GET /api/cedears/prices?tickers=` (precio ARS, variación, cuándo se obtuvo),
-      `GET /api/cedears/search?q=` (solo tickers base; sin `q`, los más operados por volumen) y
-      `GET /api/history/cedears?ticker=` (último año, como el resto del gráfico).
-- [ ] Nombres: el panel solo trae tickers. Catálogo estático `features/cedears/catalog.ts` con el nombre
-      del subyacente para los más comunes (AAPL → Apple) y la lista de exclusión; el resto se muestra
-      solo con el ticker.
-- [ ] **Cambios de ratio:** en el histórico de AAPL (3374 ruedas) no hay saltos diarios > 40 %, lo que
-      sugiere que viene ajustado. Confirmarlo con un CEDEAR con cambio de ratio conocido. Si no viene
-      ajustado, el gráfico lo muestra tal cual con una nota; ajustar posiciones por cambio de ratio
-      queda fuera de alcance.
-- [ ] Tests de los schemas con respuestas guardadas; simular data912 en `e2e/fixtures.ts`.
+    **Regla implementada:** una fila que termina en `C`/`D` (o `.C`/`.D`) es variante si vale menos
+    de 100, o si existe su base y la base vale más de 100 veces lo que ella. El corte por precio cubre
+    las huérfanas (`GOGLC`, `AKOBD`, `PETRC`…) sin lista: en pesos, el CEDEAR más barato con
+    operaciones vale 354; la razón cubre las variantes de más de US$ 100 (`MUD` 222, `HWMC` 239). Con
+    el panel de oct 2026: 406 CEDEARs en ARS y 618 variantes. Test con un snapshot real
+    (`features/cedears/__tests__/panel-2026-10.json`).
+  - `getCedearHistory(ticker, from)` desde `/historical/cedears/{ticker}` (cierre `c`, sin ceros),
+    revalidate 6 h. Un ticker sin histórico responde **200** con `{ "Error": "..." }` (no 404) →
+    `null`.
+  - Tickers con punto (`BA.C`): `CEDEAR_TICKER = ^[A-Z0-9]{1,10}(\.[A-Z0-9]{1,4})?$`; el path
+    `/historical/cedears/BA.C` funciona.
+- [x] `GET /api/cedears/prices?tickers=` → `CedearPriceMap` (precio ARS, variación, `updatedAt`),
+      `GET /api/cedears/search?q=` → `Cedear[]` (prefijo del ticker o nombre del catálogo; el ticker
+      exacto primero y después por **monto operado**, `volumen × precio`: la cantidad favorece a los
+      baratos; sin `q`, los más operados) y `GET /api/history/cedears?tickers=` (varios, como
+      `/api/history/crypto`: el dashboard los pide juntos; último año; sin histórico → se omite).
+- [x] Nombres: catálogo estático (79 tickers, los más operados) en `features/cedears/catalog.ts`
+      (`cedearName`); el resto se muestra solo con el ticker. Sin lista de exclusión.
+- [x] **Cambios de ratio: el histórico NO viene ajustado.** Saltos que coinciden con cambios de ratio
+      conocidos: AMD ×0,052, MSFT / META / MCD ×0,34 (17/11/2022), NFLX ×0,097 (17/11/2025, después
+      del split 10:1), SPY ×0,335 (29/5/2026). Que AAPL no tenga saltos no alcanzaba para concluir nada. Además, el 3 y 4/8/2023 hay
+      un dato erróneo en casi todos (cae y vuelve al día siguiente). Ver "Hallazgos de la 9.1".
+- [x] Tests de los schemas y las rutas con respuestas guardadas (`src/server/__tests__/cedears.test.ts`,
+      `features/cedears/__tests__/catalog.test.ts`); rutas simuladas en `e2e/fixtures.ts` (`AAPL`,
+      `BA.C`).
+
+**Hallazgos de la 9.1** (afectan a la Fase 10 y a P3):
+
+- **Histórico incompleto:** de los 45 CEDEARs más operados (oct 2026), 24 no tienen histórico en
+  data912, entre ellos NU, ORCL, UBER, TSM, GLD, VIST, IBIT y MRVL (tampoco en
+  `/historical/stocks`). Para esos, la evolución del valor no tiene precio: `null`, nunca inventado.
+- **Ratios sin ajustar:** el día de un cambio de ratio, el cierre salta (÷20, ÷3, ÷10). La posición
+  del usuario (cantidad de CEDEARs) también cambia ese día en la realidad, pero la app no lo sabe:
+  la valuación **en vivo** es correcta (cantidad actual × precio actual), pero el gráfico hacia atrás
+  y el costo promedio quedan desfasados para quien tenía el CEDEAR antes del cambio.
+- **Cache:** el panel responde con `cache-control: max-age=30`, no las ~2 h que se habían medido.
 
 ### 9.0 Patas de CEDEARs en Pesos y Dólar (prerrequisito de 9.2)
 
@@ -289,7 +311,8 @@ saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consist
 - [ ] `features/portfolio/overview.ts`: módulo `cedears`. Composición en USD: valor ARS / CCL venta
       (D5). Resumen por módulo con su ganancia (CEDEARs en USD).
 - [ ] `history.ts`: CEDEARs por día × cierre histórico ARS / CCL venta histórico (`contadoconliqui`).
-      Sin precio → `null`, como hoy.
+      Sin precio → `null`, como hoy. Con data912 (P3): muchos tickers no tienen histórico y el que hay
+      no está ajustado por ratio → nota en el gráfico.
 - [ ] Verificar que una compra de CEDEAR no cambie el total el día de la compra (sale de Pesos o CCL y
       entra en CEDEARs al mismo CCL), como se verificó con los intercambios USDT.
 - [ ] Colores: la paleta categórica sigue al activo (no hace falta otra); la tabla de composición hace
@@ -316,8 +339,10 @@ saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consist
 
 ## Preguntas abiertas
 
-- **P3:** ¿data912 alcanza como fuente (demora, sin SLA) o preferís una con cuenta (IOL)? El route
-  handler permite cambiarla después.
+- ~~P3~~ Resuelta (oct 2026, con los hallazgos de la 9.1): se sigue con **data912**, también para el
+  histórico. Los CEDEARs sin histórico quedan sin precio en la evolución (`null`) y el gráfico avisa
+  que el histórico no está ajustado por cambios de ratio. El route handler permite cambiar de fuente
+  después sin tocar el cliente.
 - ~~P1~~ Resuelta: los pesos pasan a USD con el **MEP venta** (D3), en `/pesos` y en el dashboard.
 - ~~P2~~ Resuelta: los pesos se convierten a cualquier dólar con conversiones enlazadas (D9, Fase 8).
 - ~~P4~~ Resuelta: Pesos se fusiona sola, apenas esté lista.
@@ -327,7 +352,7 @@ saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consist
 ```
 Fase 7 ✅ (usdtSwapId, applyExternal, whenReady)
    └─> Fase 8 ✅ (Pesos + conversiones + dashboard) ──> PR a main
-          │                                     9.1 (precios data912) ← en paralelo, no depende de nada
+          │                                     9.1 ✅ (precios data912)
           └─> 9.0 (patas con cedearId) ──────────┘
                  └─> 9.2–9.4 (CEDEARs)
                         └─> Fase 10 (CEDEARs en el portfolio)

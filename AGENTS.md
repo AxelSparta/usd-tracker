@@ -65,7 +65,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 | Feedback         | Sonner (toasts)                                                             |
 | Iconos           | `lucide-react`, `react-icons` si hace falta marca                           |
 | Fechas           | `date-fns`, `dayjs`, `react-day-picker`                                     |
-| Datos externos   | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key; [CoinGecko](https://www.coingecko.com/en/api) vía `src/server/coingecko.ts` — key opcional; [ArgentinaDatos](https://argentinadatos.com) (histórico del dólar) vía `src/server/argentinadatos.ts` — sin key |
+| Datos externos   | [DolarAPI](https://dolarapi.com) (`src/services/dolarApi.ts`) — sin API key; [CoinGecko](https://www.coingecko.com/en/api) vía `src/server/coingecko.ts` — key opcional; [ArgentinaDatos](https://argentinadatos.com) (histórico del dólar) vía `src/server/argentinadatos.ts` — sin key; [data912](https://data912.com) (CEDEARs: panel en vivo e histórico) vía `src/server/cedears.ts` — sin key |
 | Combobox         | `cmdk` (shadcn `ui/command`)                                                |
 | Gráficos         | `recharts` 3 (+ `react-is` 19, que pide con React 19)                        |
 | Tests            | Vitest (unit, `src/**/*.test.ts`) + Playwright (E2E, `e2e/`)                 |
@@ -105,7 +105,8 @@ src/
 │   ├── api/pesos/movements/[id]/ # CRUD de Pesos (GET/POST, PATCH/DELETE)
 │   ├── api/pesos/conversions/[id]/ # conversiones pesos ↔ dólar (POST, DELETE): las dos tablas a la vez
 │   ├── api/sync/import/route.ts # subida de datos locales (dólar, cripto y pesos) a la cuenta
-│   ├── api/history/{dolar,crypto}/route.ts # precios diarios del último año (ArgentinaDatos / CoinGecko, cache 6 h)
+│   ├── api/history/{dolar,crypto,cedears}/route.ts # precios diarios del último año (ArgentinaDatos / CoinGecko / data912, cache 6 h)
+│   ├── api/cedears/{prices,search}/route.ts # proxy a data912 (Fase 9.1): precio ARS por ticker, buscador
 │   ├── not-found.tsx           # 404
 │   └── globals.css
 ├── components/                 # piezas de la app (AppSidebar, UserMenu, ThemeSwitch, Stat, SyncGate,
@@ -133,6 +134,9 @@ src/
 │   ├── history.store.ts        # cache de sesión de los precios históricos (sin persist)
 │   ├── hooks.ts                # usePortfolioOverview, useValueHistory
 │   └── components/             # PortfolioDashboard, ValueChart, AllocationBar, AssetTable, colors
+├── features/cedears/           # módulo CEDEARs (Fase 9; por ahora solo 9.1: precios) + __tests__/
+│   ├── types.ts                # Cedear, CedearPrice/PriceMap, CedearHistoryPoint
+│   └── catalog.ts              # puro: CEDEAR_TICKER, isUsdVariant/baseRows (variantes USD del panel), cedearName
 ├── features/usdt-swaps/        # USDT del dólar cripto ↔ cripto: intercambios (7a) y alta de resultados de trades (7b)
 │   ├── operations.ts           # puro (store + server): buildUsdtSwapLegs, applyAdd/RemoveUsdtSwap, assertUsdtSwapsComplete
 │   ├── validations.ts          # usdtSwapApiSchema (API) y swapFormSchema (form)
@@ -165,6 +169,7 @@ src/
 ├── server/                     # solo server (route handlers) + __tests__/ (API con base en memoria)
 │   ├── coingecko.ts            # cliente CoinGecko + schemas Zod de respuesta (incluye getCoinHistory)
 │   ├── argentinadatos.ts       # cotizaciones históricas del dólar (sin API key)
+│   ├── cedears.ts              # cliente data912: getCedearPanel (solo tickers en ARS), getCedearHistory
 │   ├── db.ts                   # getDb (PrismaClient + PrismaNeon, lazy), withUserTransaction
 │   ├── auth.ts, errors.ts      # requireUserId; ApiError, parseBody, parseIdParam, errorResponse
 │   ├── log.ts                  # logEvent / logError (JSON a stdout, lo guarda Vercel)
@@ -196,8 +201,9 @@ src/
 
 - Alias: `@/*` → `src/*` (ver `tsconfig.json`).
 - Dirección de dependencias: `components → store → (domain, services, lib, types)`; `domain → types` únicamente. `domain`, `validations` y `types` **nunca** importan stores ni React. `types/transaction.types.ts` define el modelo de dominio y no importa `validations`.
-- `features/crypto` puede usar `domain`, `lib`, `types`, `components/ui`, `hooks` y leer `useDolarStore` (solo el dólar cripto); el módulo dólar **no** importa nada de `features/crypto`. `features/pesos` puede importar `domain`, `lib`, `types`, `components/ui`, `hooks`, `useDolarStore` y el store del Dólar (`useTransactionStore`, para las conversiones): D2, `dólar ← pesos`. Nunca al revés: el Dólar ve las patas de conversión por `usePesosConversionLinks`. `features/auth` (sincronización), `features/portfolio` (dashboard) y `features/usdt-swaps` (intercambios USDT) componen los dos módulos: pueden leer sus stores, hooks y componentes, y ningún módulo los importa (solo `app/`). Cuando un módulo necesita algo de un composer, lo recibe por un contexto neutro de `src/hooks/` (ej. `useUsdtSwapLinks`, provisto en `app/providers.tsx`) o por props desde `app/` (ej. `swapForm`). `server/` solo se importa desde route handlers (y puede usar `domain`, `types`, `validations` y las piezas puras de `features/crypto` — `operations`, `metrics`, `types` — de `features/pesos` — `operations`, `conversions`, `validations`, `types` — y de `features/usdt-swaps` — `operations`, `validations`).
-- El navegador nunca llama a CoinGecko directo: siempre vía `/api/crypto/*` (key en el server, Data Cache con `next.revalidate`, respuestas validadas con Zod).
+- `features/crypto` puede usar `domain`, `lib`, `types`, `components/ui`, `hooks` y leer `useDolarStore` (solo el dólar cripto); el módulo dólar **no** importa nada de `features/crypto`. `features/pesos` puede importar `domain`, `lib`, `types`, `components/ui`, `hooks`, `useDolarStore` y el store del Dólar (`useTransactionStore`, para las conversiones): D2, `dólar ← pesos`. Nunca al revés: el Dólar ve las patas de conversión por `usePesosConversionLinks`. `features/auth` (sincronización), `features/portfolio` (dashboard) y `features/usdt-swaps` (intercambios USDT) componen los dos módulos: pueden leer sus stores, hooks y componentes, y ningún módulo los importa (solo `app/`). Cuando un módulo necesita algo de un composer, lo recibe por un contexto neutro de `src/hooks/` (ej. `useUsdtSwapLinks`, provisto en `app/providers.tsx`) o por props desde `app/` (ej. `swapForm`). `server/` solo se importa desde route handlers (y puede usar `domain`, `types`, `validations` y las piezas puras de `features/crypto` — `operations`, `metrics`, `types` — de `features/pesos` — `operations`, `conversions`, `validations`, `types` — de `features/usdt-swaps` — `operations`, `validations` — y de `features/cedears` — `catalog`, `types`).
+- El navegador nunca llama a CoinGecko directo: siempre vía `/api/crypto/*` (key en el server, Data Cache con `next.revalidate`, respuestas validadas con Zod). Lo mismo con data912: vía `/api/cedears/*` y `/api/history/cedears`.
+- **data912** (Fase 9.1): el panel trae ~1020 filas, CEDEARs en ARS (`AAPL`) y sus variantes en USD (`AAPLC` CCL, `AAPLD` MEP); `baseRows` deja solo los de ARS (regla y casos en `catalog.ts`). Un ticker sin histórico responde **200** con `{ "Error": ... }`. El histórico **no** está ajustado por cambios de ratio y falta para muchos CEDEARs populares (`docs/roadmap-cedears.md`, 9.1).
 - Mover el dólar a `src/features/dolar` no tiene fase asignada (deuda técnica en `docs/roadmap.md`): **no** hacerlo a medias; si se decide, se planifica como fase propia.
 
 ## Comportamiento importante del estado
