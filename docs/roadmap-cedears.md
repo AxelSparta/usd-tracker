@@ -272,7 +272,7 @@ type CedearTransaction = {
     usa para saber qué filas escribir; al editar, la pata conserva su id aunque cambie de módulo.
 - [x] **Efecto en el módulo Dólar:** pagar un CEDEAR con CCL es una **venta** de USD CCL, así que
       realiza en ARS la ganancia cambiaria de esos dólares (igual que USDT → cripto en la Fase 7a). La
-      UI del Dólar lo explica en la fila de la pata (9.4). En la 9.2 sale solo: la pata es una venta
+      UI del Dólar lo explica en la fila de la pata (9.4, `title` del distintivo "CEDEAR · …"). En la 9.2 sale solo: la pata es una venta
       normal del grupo `contadoconliqui`.
 - [x] Persistencia → **9.3**: `cedears-storage` (`version: 1`) y `cedears-prices-storage`
       (`version: 1`, último precio como fallback). Se mueve porque `createSync` necesita la API
@@ -305,28 +305,30 @@ type CedearTransaction = {
       (producción la aplica el deploy; la de E2E cloud y la de desarrollo, con `pnpm db:deploy`): sin
       la tabla, `GET /api/cedears/transactions` da 500 y el store queda en error.
 
-### 9.4 UI
+### 9.4 UI ✅ (oct 2026)
 
-- [ ] Sección **CEDEARs** en `sections.ts` (`/cedears`, `/cedears/nueva`, `/cedears/[ticker]`, ícono
+- [x] Sección **CEDEARs** en `sections.ts` (`/cedears`, `/cedears/nueva`, `/cedears/[ticker]`, ícono
       `ChartLine`; `LineChart` es el alias viejo de lucide).
-- [ ] Formulario: buscador de ticker (combobox como `CoinCombobox`), compra/venta, cantidad,
+- [x] Formulario: buscador de ticker (combobox como `CoinCombobox`), compra/venta, cantidad,
       **pagado con** Pesos / Dólares CCL (con el saldo disponible de cada uno), CCL del día
       (`useDolarRate('contadoconliqui', 'sell', date)`, editable), precio autocompletado (en ARS, el
       último del ticker base o su cierre de ese día; en CCL, ese precio / CCL del formulario), comisión
       y fecha. Muestra el total que sale o entra de Pesos / CCL. Acciones con `await` y `whenReady`,
-      como el resto.
-- [ ] Vista `/cedears`: resumen (valor ARS y USD, costo, PnL realizado y no realizado en las dos
+      como el resto. Si hoy no alcanza el saldo, links a "Registrar un ingreso de pesos" o "Convertir
+      pesos a CCL" (D7); navegan fuera del formulario, así que lo cargado se pierde.
+      Al cambiar la moneda, el precio cargado se convierte con el CCL del formulario.
+- [x] Vista `/cedears`: resumen (valor ARS y USD, costo, PnL realizado y no realizado en las dos
       monedas con selector ARS/USD), posiciones e historial con edición y borrado; aviso "precios con
       demora" (D5) y cuándo se obtuvo el último precio.
-- [ ] Detalle `/cedears/[ticker]`: operaciones filtradas y métricas del CEDEAR.
-- [ ] Refresco de precios cada 5 min solo con la sección montada, con backoff ante fallos
+- [x] Detalle `/cedears/[ticker]`: operaciones filtradas y métricas del CEDEAR.
+- [x] Refresco de precios cada 5 min solo con la sección montada, con backoff ante fallos
       (`lib/backoff.ts`), como cripto.
-- [ ] En `/pesos` y `/dolar`, las patas se ven como "CEDEAR · compra 10 AAPL" con link al detalle y sin
+- [x] En `/pesos` y `/dolar`, las patas se ven como "CEDEAR · compra 10 AAPL" con link al detalle y sin
       editar ni borrar: contexto `use-cedear-legs` en `hooks/` (como `use-usdt-swap-links`), provisto
       por `features/cedears`.
-- [ ] E2E: ingreso de pesos → compra de CEDEAR con pesos → venta; conversión de pesos a CCL → compra con
+- [x] E2E (`e2e/cedears.spec.ts`): ingreso de pesos → compra de CEDEAR con pesos → venta; conversión de pesos a CCL → compra con
       CCL; error por falta de saldo; borrar la compra devuelve el saldo; la pata no se puede borrar desde
-      `/pesos` ni desde `/dolar`.
+      `/pesos` ni desde `/dolar`. Además, editar la cantidad actualiza la pata.
 
 **Criterio de salida:** se puede comprar y vender cualquier CEDEAR con pesos o dólares CCL, y los
 saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consistentes en local y en la nube.
@@ -381,7 +383,7 @@ Fase 7 ✅ (usdtSwapId, applyExternal, whenReady)
    └─> Fase 8 ✅ (Pesos + conversiones + dashboard) ──> PR a main
           │                                     9.1 ✅ (precios data912)
           └─> 9.0 ✅ (patas con cedearId) ───────┘
-                 └─> 9.2 ✅ (modelo y cálculos) ─> 9.3 ✅ (API, stores) ─> 9.4 (UI)
+                 └─> 9.2 ✅ (modelo y cálculos) ─> 9.3 ✅ (API, stores) ─> 9.4 ✅ (UI)
                         └─> Fase 10 (CEDEARs en el portfolio)
 ```
 

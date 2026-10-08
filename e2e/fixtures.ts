@@ -6,6 +6,7 @@ export const DOLARES = [
   { casa: 'blue', nombre: 'Blue', compra: 1540, venta: 1560 },
   { casa: 'bolsa', nombre: 'Bolsa', compra: 1543.6, venta: 1551.9 },
   { casa: 'cripto', nombre: 'Cripto', compra: 1500, venta: 1520 },
+  { casa: 'contadoconliqui', nombre: 'Contado con liquidación', compra: 1580, venta: 1600 },
 ].map((d) => ({ ...d, moneda: 'USD', fechaActualizacion: '2026-10-02T12:00:00.000Z' }))
 
 export const BTC = {

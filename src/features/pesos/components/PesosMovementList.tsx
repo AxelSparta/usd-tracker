@@ -2,11 +2,12 @@
 
 import Link from 'next/link'
 import { useMemo } from 'react'
-import { ArrowLeftRight, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, ChartLine, Trash2 } from 'lucide-react'
 import { toast } from 'sonner'
 import { Button } from '@/components/ui/button'
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover'
 import { sortTxs } from '@/domain/timeline'
+import { useCedearLegs } from '@/hooks/use-cedear-legs'
 import { DOLAR_LABELS } from '@/lib/dolar-labels'
 import { formatCurrency } from '@/lib/locale-amount'
 import { pesosMovementLabel } from '@/lib/operation-label'
@@ -22,6 +23,7 @@ export default function PesosMovementList() {
   const movements = usePesosStore((s) => s.movements)
   const removeMovement = usePesosStore((s) => s.removeMovement)
   const dolarGroups = useTransactionStore((s) => s.transactions)
+  const cedearLegs = useCedearLegs()
 
   // Pata del Dólar de cada conversión (Pesos puede leer el store del Dólar, D2)
   const dolarLegs = useMemo(() => {
@@ -70,6 +72,7 @@ export default function PesosMovementList() {
           <tbody className='divide-y tabular-nums'>
             {sorted.map((movement) => {
               const dolarLeg = movement.conversionId ? dolarLegs.get(movement.conversionId) : undefined
+              const cedear = movement.cedearId ? cedearLegs.describe(movement.cedearId) : null
               const operation = pesosMovementLabel(
                 movement,
                 movement.conversionId
@@ -105,41 +108,55 @@ export default function PesosMovementList() {
                         {formatCurrency(dolarLeg.pesosAmount / dolarLeg.dollarsAmount)}
                       </Link>
                     )}
+                    {cedear && (
+                      <Link
+                        href={cedear.href}
+                        className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline'
+                      >
+                        <ChartLine className='size-3' aria-hidden />
+                        CEDEAR · {cedear.label}
+                      </Link>
+                    )}
                   </td>
                   <td className='whitespace-nowrap px-4 py-3 text-right font-medium'>
                     {operation.positive ? '' : '-'}${formatCurrency(movement.amount)}
                   </td>
                   <td className='px-2 py-1'>
                     <div className='flex justify-end'>
-                      {/* Las patas de una conversión se borran completas (8.2) */}
-                      {!movement.conversionId && <EditPesosMovementDialog movement={movement} />}
-                      <Popover>
-                        <PopoverTrigger asChild>
-                          <Button
-                            variant='ghost'
-                            size='icon'
-                            className='size-8 text-muted-foreground hover:text-destructive'
-                            aria-label='Eliminar movimiento'
-                          >
-                            <Trash2 />
-                          </Button>
-                        </PopoverTrigger>
-                        <PopoverContent align='end' className='w-56 p-3'>
-                          <p className='mb-3 text-sm'>
-                            {movement.conversionId
-                              ? '¿Eliminar la conversión completa (pesos y dólares)?'
-                              : '¿Eliminar este movimiento?'}
-                          </p>
-                          <Button
-                            className='w-full'
-                            variant='destructive'
-                            size='sm'
-                            onClick={() => handleDelete(movement)}
-                          >
-                            Confirmar
-                          </Button>
-                        </PopoverContent>
-                      </Popover>
+                      {/* Las patas de un CEDEAR se editan y se borran desde CEDEARs (D6) */}
+                      {!movement.cedearId && (
+                        <>
+                          {/* Las patas de una conversión se borran completas (8.2) */}
+                          {!movement.conversionId && <EditPesosMovementDialog movement={movement} />}
+                          <Popover>
+                            <PopoverTrigger asChild>
+                              <Button
+                                variant='ghost'
+                                size='icon'
+                                className='size-8 text-muted-foreground hover:text-destructive'
+                                aria-label='Eliminar movimiento'
+                              >
+                                <Trash2 />
+                              </Button>
+                            </PopoverTrigger>
+                            <PopoverContent align='end' className='w-56 p-3'>
+                              <p className='mb-3 text-sm'>
+                                {movement.conversionId
+                                  ? '¿Eliminar la conversión completa (pesos y dólares)?'
+                                  : '¿Eliminar este movimiento?'}
+                              </p>
+                              <Button
+                                className='w-full'
+                                variant='destructive'
+                                size='sm'
+                                onClick={() => handleDelete(movement)}
+                              >
+                                Confirmar
+                              </Button>
+                            </PopoverContent>
+                          </Popover>
+                        </>
+                      )}
                     </div>
                   </td>
                 </tr>

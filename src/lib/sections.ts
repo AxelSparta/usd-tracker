@@ -1,4 +1,4 @@
-import { Banknote, Bitcoin, DollarSign, type LucideIcon } from 'lucide-react'
+import { Banknote, Bitcoin, ChartLine, DollarSign, type LucideIcon } from 'lucide-react'
 
 export type SectionStatus = 'active' | 'soon'
 
@@ -40,5 +40,14 @@ export const sections: Section[] = [
     icon: Bitcoin,
     status: 'active',
     newItem: { href: '/cripto/nueva', label: 'Nueva operación' },
+  },
+  {
+    href: '/cedears',
+    label: 'CEDEARs',
+    description:
+      'Compras y ventas de CEDEARs con pesos o dólares CCL, con su resultado en ARS y USD.',
+    icon: ChartLine,
+    status: 'active',
+    newItem: { href: '/cedears/nueva', label: 'Nueva operación' },
   },
 ]
