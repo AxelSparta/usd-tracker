@@ -31,6 +31,8 @@ const pesos = await import('@/app/api/pesos/movements/route')
 const pesosById = await import('@/app/api/pesos/movements/[id]/route')
 const conversions = await import('@/app/api/pesos/conversions/route')
 const conversionById = await import('@/app/api/pesos/conversions/[id]/route')
+const cedears = await import('@/app/api/cedears/transactions/route')
+const cedearById = await import('@/app/api/cedears/transactions/[id]/route')
 
 const json = (body: unknown) =>
   new Request('http://localhost/api', {
@@ -620,5 +622,141 @@ describe('patas de CEDEARs (Fase 9.0)', () => {
     expect(db.pesosRows[0].cedearId).toBeNull()
     await dolar.POST(json({ ...dolarTx(ID.sell, 'BUY', 1, date.toISOString()), dolarOption: 'contadoconliqui', cedearId: ID.other }))
     expect(db.dolarRows[0].cedearId).toBeNull()
+  })
+})
+
+describe('/api/cedears/transactions (Fase 9.3)', () => {
+  const C = {
+    buy: '00000000-0000-4000-8000-0000000000d1',
+    buyLeg: '00000000-0000-4000-8000-0000000000d2',
+    sell: '00000000-0000-4000-8000-0000000000d3',
+    sellLeg: '00000000-0000-4000-8000-0000000000d4',
+  }
+  const income = { id: ID.buy, type: 'BUY', amount: 1_000_000, date: '2026-01-01T03:00:00.000Z' }
+  const cclBuy = {
+    ...dolarTx(ID.other, 'BUY', 1000, '2026-01-01T03:00:00.000Z'),
+    dolarOption: 'contadoconliqui',
+  }
+  const buy = {
+    ticker: 'aapl',
+    type: 'BUY',
+    quantity: 10,
+    price: 20_000,
+    currency: 'ARS',
+    fxRate: 1250,
+    fee: 1000,
+    date: '2026-02-01T03:00:00.000Z',
+  }
+
+  beforeEach(async () => {
+    await pesos.POST(json(income))
+    await dolar.POST(json(cclBuy))
+  })
+
+  it('crea la operación y su egreso de pesos en una sola escritura', async () => {
+    const response = await cedears.POST(json({ ...buy, id: C.buy, legId: C.buyLeg }))
+    expect(response.status).toBe(201)
+    const created = await response.json()
+    expect(created.transaction).toMatchObject({ id: C.buy, ticker: 'AAPL', quantity: 10, fee: 1000 })
+    expect(created.leg).toMatchObject({ module: 'pesos', leg: { id: C.buyLeg, type: 'SELL', amount: 201_000 } })
+
+    expect((await (await cedears.GET()).json()).transactions).toHaveLength(1)
+    const { movements } = await (await pesos.GET()).json()
+    expect(movements.find((m: { id: string }) => m.id === C.buyLeg)).toMatchObject({
+      type: 'SELL',
+      amount: 201_000,
+      cedearId: C.buy,
+    })
+    expect(log.logEvent).toHaveBeenCalledWith('cedear.created', {
+      userId: 'user_a',
+      id: C.buy,
+      type: 'BUY',
+      currency: 'ARS',
+    })
+  })
+
+  it('con CCL, la pata es una venta de USD CCL', async () => {
+    const body = { ...buy, currency: 'CCL', price: 16, fee: 2, id: C.buy, legId: C.buyLeg }
+    expect((await cedears.POST(json(body))).status).toBe(201)
+    const leg = db.dolarRows.find((r) => r.id === C.buyLeg)
+    expect(leg).toMatchObject({ type: 'SELL', dolarOption: 'contadoconliqui', cedearId: C.buy })
+    expect(Number(leg?.dollarsAmount)).toBe(162)
+    expect(Number(leg?.pesosAmount)).toBe(162 * 1250)
+  })
+
+  it('400 con cantidad no entera o ticker inválido', async () => {
+    const fraction = await cedears.POST(json({ ...buy, quantity: 1.5, id: C.buy, legId: C.buyLeg }))
+    expect(fraction.status).toBe(400)
+    expect((await fraction.json()).error).toBe('La cantidad debe ser un número entero de CEDEARs')
+    expect((await cedears.POST(json({ ...buy, ticker: 'AA PL', id: C.buy, legId: C.buyLeg }))).status).toBe(400)
+  })
+
+  it('422 sin pesos, sin USD CCL o sin unidades, y no escribe nada', async () => {
+    const noPesos = await cedears.POST(json({ ...buy, price: 200_000, id: C.buy, legId: C.buyLeg }))
+    expect(noPesos.status).toBe(422)
+    expect((await noPesos.json()).error).toBe('No tenés pesos suficientes el 01/02/2026.')
+
+    const noCcl = await cedears.POST(json({ ...buy, currency: 'CCL', price: 200, id: C.buy, legId: C.buyLeg }))
+    expect(noCcl.status).toBe(422)
+    expect((await noCcl.json()).error).toBe('No tenés suficientes USD CCL el 01/02/2026.')
+
+    const noUnits = await cedears.POST(json({ ...buy, type: 'SELL', id: C.sell, legId: C.sellLeg }))
+    expect(noUnits.status).toBe(422)
+    expect((await noUnits.json()).error).toBe('No tenés suficientes AAPL el 01/02/2026.')
+
+    expect(db.cedearRows).toHaveLength(0)
+    expect(db.pesosRows).toHaveLength(1)
+    expect(db.dolarRows).toHaveLength(1)
+  })
+
+  it('al editar de ARS a CCL la pata se mueve de tabla con el mismo id', async () => {
+    await cedears.POST(json({ ...buy, id: C.buy, legId: C.buyLeg }))
+    const response = await cedearById.PATCH(json({ ...buy, currency: 'CCL', price: 16, fee: 0 }), ctx(C.buy))
+    expect(response.status).toBe(200)
+    expect((await response.json()).leg).toMatchObject({ module: 'dolar', leg: { id: C.buyLeg } })
+    expect(db.pesosRows.map((r) => r.id)).toEqual([ID.buy])
+    expect(db.dolarRows.find((r) => r.id === C.buyLeg)).toMatchObject({ type: 'SELL', cedearId: C.buy })
+    expect(Number(db.cedearRows[0].price)).toBe(16)
+
+    // Y de vuelta, con otra cantidad: la pata se actualiza en Pesos
+    await cedearById.PATCH(json({ ...buy, quantity: 5 }), ctx(C.buy))
+    expect(db.dolarRows.map((r) => r.id)).toEqual([ID.other])
+    expect(Number(db.pesosRows.find((r) => r.id === C.buyLeg)?.amount)).toBe(101_000)
+  })
+
+  it('no se borra la compra si sus CEDEARs ya se vendieron; borrar la venta devuelve los pesos', async () => {
+    await cedears.POST(json({ ...buy, id: C.buy, legId: C.buyLeg }))
+    await cedears.POST(json({ ...buy, type: 'SELL', quantity: 4, fee: 0, date: '2026-03-01T03:00:00.000Z', id: C.sell, legId: C.sellLeg }))
+
+    const blocked = await cedearById.DELETE(json({}), ctx(C.buy))
+    expect(blocked.status).toBe(422)
+    expect((await blocked.json()).error).toBe(
+      'No se puede eliminar: la venta de AAPL del 01/03/2026 quedaría sin CEDEARs.',
+    )
+
+    expect((await cedearById.DELETE(json({}), ctx(C.sell))).status).toBe(204)
+    expect(db.cedearRows.map((r) => r.id)).toEqual([C.buy])
+    expect(db.pesosRows.map((r) => r.id).sort()).toEqual([ID.buy, C.buyLeg].sort())
+  })
+
+  it('la pata no se edita ni se borra desde /api/pesos', async () => {
+    await cedears.POST(json({ ...buy, id: C.buy, legId: C.buyLeg }))
+    expect((await pesosById.DELETE(json({}), ctx(C.buyLeg))).status).toBe(422)
+    expect(db.pesosRows).toHaveLength(2)
+  })
+
+  it('ownership: otro usuario no la ve, no la edita ni la borra (404)', async () => {
+    await cedears.POST(json({ ...buy, id: C.buy, legId: C.buyLeg }))
+    session.userId = 'user_b'
+    expect((await (await cedears.GET()).json()).transactions).toEqual([])
+    expect((await cedearById.PATCH(json(buy), ctx(C.buy))).status).toBe(404)
+    expect((await cedearById.DELETE(json({}), ctx(C.buy))).status).toBe(404)
+    expect(db.cedearRows).toHaveLength(1)
+  })
+
+  it('409 si el id ya existe', async () => {
+    await cedears.POST(json({ ...buy, id: C.buy, legId: C.buyLeg }))
+    const response = await cedears.POST(json({ ...buy, id: C.buy, legId: C.sellLeg }))
+    expect(response.status).toBe(409)
   })
 })

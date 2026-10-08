@@ -4,7 +4,7 @@ import { importLocalData, importSchema } from '@/server/import'
 import { logEvent } from '@/server/log'
 
 /**
- * POST /api/sync/import `{ dolar, crypto: { transactions, coins }, pesos? }` → `ImportResult`.
+ * POST /api/sync/import `{ dolar, crypto: { transactions, coins }, pesos?, cedears? }` → `ImportResult`.
  * Sube las operaciones locales; las que ya existen en la nube se saltean (la nube manda).
  */
 export async function POST(request: Request) {
@@ -20,6 +20,8 @@ export async function POST(request: Request) {
       cryptoSkipped: result.crypto.skipped,
       pesosCreated: result.pesos.created,
       pesosSkipped: result.pesos.skipped,
+      cedearsCreated: result.cedears.created,
+      cedearsSkipped: result.cedears.skipped,
     })
     return Response.json(result)
   } catch (error) {

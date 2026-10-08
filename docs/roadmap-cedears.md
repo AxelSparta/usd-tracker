@@ -274,7 +274,7 @@ type CedearTransaction = {
       realiza en ARS la ganancia cambiaria de esos dólares (igual que USDT → cripto en la Fase 7a). La
       UI del Dólar lo explica en la fila de la pata (9.4). En la 9.2 sale solo: la pata es una venta
       normal del grupo `contadoconliqui`.
-- [ ] Persistencia → **9.3**: `cedears-storage` (`version: 1`) y `cedears-prices-storage`
+- [x] Persistencia → **9.3**: `cedears-storage` (`version: 1`) y `cedears-prices-storage`
       (`version: 1`, último precio como fallback). Se mueve porque `createSync` necesita la API
       (`fetchCloud`) para el modo nube.
 - [x] Prisma: `CedearTransaction` (`ticker`, `type`, `quantity Decimal`, `price Decimal`,
@@ -282,16 +282,28 @@ type CedearTransaction = {
       `[userId, ticker, date]`); migración `20261008120000_cedear_transactions`. Mappers
       `toCedearTransaction` / `toCedearTransactionData`.
 
-### 9.3 API
+### 9.3 API y stores ✅ (oct 2026)
 
-- [ ] `/api/cedears/transactions[/:id]`: cada escritura carga los estados de CEDEARs + Pesos + Dólar
-      del usuario (loader compartido), aplica la función pura y escribe la operación **y su pata** en
-      la misma `withUserTransaction` (`Serializable`). Mismos códigos (401/400/404/409/422); ids del
-      cliente (operación y pata). Logs `cedear.*` sin montos.
-- [ ] Import: `importSchema` con CEDEARs y `assertCedearLegsComplete` con las operaciones reales
-      (hoy recibe `[]`). Loader compartido (`loadLinkedState`) con `cedears`.
-- [ ] Tests en `src/server/__tests__/` (atomicidad, ownership, 422 por saldo de pesos / CCL / unidades,
-      edición que cambia de ARS a CCL, borrado, pata editada desde `/api/dolar` o `/api/pesos` → 422).
+- [x] `/api/cedears/transactions[/:id]` (`server/cedear-transactions.ts`): cada escritura carga los
+      estados de CEDEARs + Pesos + Dólar del usuario, aplica la función pura y escribe la operación
+      **y su pata** en la misma `withUserTransaction` (`Serializable`). Mismos códigos
+      (401/400/404/409/422); ids del cliente (`id` y `legId`). Al editar con cambio de moneda, la pata
+      se borra de una tabla y se crea en la otra con el mismo id. Logs `cedear.*` sin montos.
+      CEDEARs se carga aparte y no en `loadLinkedState` (ciclo de imports con el servicio).
+- [x] Import: `cedears` en `importSchema` (opcional, `default([])`), `assertCedearShape`,
+      `assertCedearLegsComplete` con las operaciones reales y `validateCedearTimelines`.
+- [x] Tests en `src/server/__tests__/` (pata en Pesos y en CCL, 400 por cantidad no entera, 422 por
+      saldo de pesos / CCL / unidades sin escribir nada, edición ARS ↔ CCL, borrado bloqueado y
+      permitido, pata borrada desde `/api/pesos` → 422, ownership, 409; importación idempotente,
+      sin pata y con unidades negativas).
+- [x] Cliente: `cedearsApi` y `fetchCedearPrices` (`api.ts`), `useCedearsStore` (`cedears-storage`,
+      v1, solo `applyExternal`), `actions.ts` (alta/edición/borrado en los tres stores con
+      `commitAcross` y un solo request; solo escribe en los stores que cambian) y
+      `useCedearPricesStore` (`cedears-prices-storage`, v1). `CloudSync`, `SyncBadge` e importación
+      local incluyen CEDEARs.
+- **Antes de usar la nube:** aplicar la migración `20261008120000_cedear_transactions` en cada base
+      (producción la aplica el deploy; la de E2E cloud y la de desarrollo, con `pnpm db:deploy`): sin
+      la tabla, `GET /api/cedears/transactions` da 500 y el store queda en error.
 
 ### 9.4 UI
 
@@ -369,7 +381,7 @@ Fase 7 ✅ (usdtSwapId, applyExternal, whenReady)
    └─> Fase 8 ✅ (Pesos + conversiones + dashboard) ──> PR a main
           │                                     9.1 ✅ (precios data912)
           └─> 9.0 ✅ (patas con cedearId) ───────┘
-                 └─> 9.2 ✅ (modelo y cálculos) ─> 9.3–9.4 (API, stores, UI)
+                 └─> 9.2 ✅ (modelo y cálculos) ─> 9.3 ✅ (API, stores) ─> 9.4 (UI)
                         └─> Fase 10 (CEDEARs en el portfolio)
 ```
 
