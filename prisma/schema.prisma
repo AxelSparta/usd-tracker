@@ -24,6 +24,12 @@ enum FeeCurrency {
 }
 
 /// Variante de operación; null = compra/venta normal
+/// Con qué se paga o se cobra un CEDEAR: ARS → pata en Pesos; CCL → pata en el Dólar CCL
+enum CedearCurrency {
+  ARS
+  CCL
+}
+
 enum OperationKind {
   /// Resultado de un trade acreditado en la moneda (BUY = ganancia, SELL = pérdida)
   TRADE_RESULT
@@ -36,6 +42,7 @@ model User {
   dolarTransactions  DolarTransaction[]
   cryptoTransactions CryptoTransaction[]
   pesosMovements     PesosMovement[]
+  cedearTransactions CedearTransaction[]
 }
 
 model DolarTransaction {
@@ -115,4 +122,28 @@ model PesosMovement {
   @@index([userId, date])
   @@index([conversionId])
   @@index([cedearId])
+}
+
+/// Compra o venta de CEDEARs; su pata (Pesos o Dólar CCL) guarda este id en `cedearId`
+model CedearTransaction {
+  id        String          @id @db.Uuid
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Ticker base en BYMA ('AAPL', 'BA.C'); validado con Zod en la API
+  ticker    String
+  type      TransactionType
+  /// CEDEARs enteros (Decimal como el resto de las cantidades)
+  quantity  Decimal
+  /// Por CEDEAR, en `currency`
+  price     Decimal
+  currency  CedearCurrency
+  /// ARS por USD CCL ese día
+  fxRate    Decimal
+  /// Comisión + derechos, en `currency`
+  fee       Decimal?
+  date      DateTime
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId, ticker, date])
 }

@@ -1,8 +1,10 @@
 import type {
+  CedearTransaction as CedearTransactionRow,
   CryptoTransaction as CryptoTransactionRow,
   DolarTransaction as DolarTransactionRow,
   PesosMovement as PesosMovementRow,
 } from '@/generated/prisma/client'
+import type { CedearTransaction } from '@/features/cedears/types'
 import type { Coin, CryptoTransaction } from '@/features/crypto/types'
 import type { PesosMovement } from '@/features/pesos/types'
 import type { DolarOption } from '@/types/dolar.types'
@@ -103,4 +105,27 @@ export const toPesosMovementData = (movement: Omit<PesosMovement, 'id'>) => ({
   note: movement.note ?? null,
   conversionId: movement.conversionId ?? null,
   cedearId: movement.cedearId ?? null,
+})
+
+export const toCedearTransaction = (row: CedearTransactionRow): CedearTransaction => ({
+  id: row.id,
+  ticker: row.ticker,
+  type: row.type as TransactionType,
+  quantity: row.quantity.toNumber(),
+  price: row.price.toNumber(),
+  currency: row.currency,
+  fxRate: row.fxRate.toNumber(),
+  ...(row.fee !== null && { fee: row.fee.toNumber() }),
+  date: row.date,
+})
+
+export const toCedearTransactionData = (tx: Omit<CedearTransaction, 'id'>) => ({
+  ticker: tx.ticker,
+  type: tx.type,
+  quantity: tx.quantity,
+  price: tx.price,
+  currency: tx.currency,
+  fxRate: tx.fxRate,
+  fee: tx.fee ?? null,
+  date: new Date(tx.date),
 })

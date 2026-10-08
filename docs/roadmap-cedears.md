@@ -234,7 +234,7 @@ Cerrada en oct 2026; el detalle (modelo, tareas 8.1–8.4 y verificación) está
 - La UI de las patas en `/pesos` y `/dolar` (sin editar ni borrar, con link a CEDEARs) queda en la
   9.4: hasta entonces no hay forma de crearlas.
 
-### 9.2 Modelo y cálculos
+### 9.2 Modelo y cálculos ✅ (oct 2026)
 
 ```ts
 type CedearTransaction = {
@@ -250,13 +250,14 @@ type CedearTransaction = {
 }
 ```
 
-- [ ] `features/cedears/metrics.ts`: `toArsLot`, `toUsdLot` (con la comisión: encarece la compra,
+- [x] `features/cedears/metrics.ts`: `toArsLot`, `toUsdLot` (con la comisión: encarece la compra,
       reduce lo cobrado en la venta) y `computeCedearPositions(txs, prices, cclSell)` → por ticker:
       cantidad, costo promedio ARS y USD, costo, valor de mercado ARS/USD (D5), PnL realizado y no
       realizado en las dos monedas. Rótulo "Costo", no "Invertido" (mismo criterio que la Fase 7b).
       Tests en `features/cedears/__tests__/` (incluido: comprar y valuar el mismo día con el mismo CCL
-      da PnL 0 en las dos monedas).
-- [ ] `features/cedears/operations.ts` (puro, store + server):
+      da PnL 0 en las dos monedas). Además `cedearTotal` / `cedearAmounts` (total con comisión, en las
+      dos monedas) y `summarizeCedears`; sin CCL, el valor USD es `null` y `hasMissingPrices` avisa.
+- [x] `features/cedears/operations.ts` (puro, store + server):
   - `buildFundingLeg(tx, legId)` → con ARS: egreso de Pesos por `price × quantity + fee` en la compra,
     o ingreso por `price × quantity − fee` en la venta. Con CCL: venta (compra de CEDEAR) o compra
     (venta de CEDEAR) en el grupo `contadoconliqui` del Dólar por el monto USD, con `pesosAmount` =
@@ -265,15 +266,21 @@ type CedearTransaction = {
     CEDEAR (sin vender más de lo que hay), el saldo de pesos o de USD CCL, y devuelve los tres estados.
     Al editar con cambio de `currency`, la pata se mueve de módulo y se revalidan los dos. Mensajes en
     español ("No tenés pesos suficientes el dd/MM/yyyy.").
-  - Cantidad entera: validación en Zod y en las funciones puras.
-- [ ] **Efecto en el módulo Dólar:** pagar un CEDEAR con CCL es una **venta** de USD CCL, así que
+  - Cantidad entera: en las funciones puras (`assertCedearShape`, que también rechaza una comisión
+    mayor al total de la venta); el schema Zod va con la API (9.3).
+  - Devuelven además la pata nueva y la anterior (`FundingLeg`: `pesos` o `dolar`), que el server
+    usa para saber qué filas escribir; al editar, la pata conserva su id aunque cambie de módulo.
+- [x] **Efecto en el módulo Dólar:** pagar un CEDEAR con CCL es una **venta** de USD CCL, así que
       realiza en ARS la ganancia cambiaria de esos dólares (igual que USDT → cripto en la Fase 7a). La
-      UI del Dólar lo explica en la fila de la pata.
-- [ ] Persistencia: `cedears-storage` (`version: 1`) y `cedears-prices-storage` (`version: 1`, último
-      precio como fallback).
-- [ ] Prisma: `CedearTransaction` (`ticker`, `type`, `quantity Decimal`, `price Decimal`,
+      UI del Dólar lo explica en la fila de la pata (9.4). En la 9.2 sale solo: la pata es una venta
+      normal del grupo `contadoconliqui`.
+- [ ] Persistencia → **9.3**: `cedears-storage` (`version: 1`) y `cedears-prices-storage`
+      (`version: 1`, último precio como fallback). Se mueve porque `createSync` necesita la API
+      (`fetchCloud`) para el modo nube.
+- [x] Prisma: `CedearTransaction` (`ticker`, `type`, `quantity Decimal`, `price Decimal`,
       `currency` enum `ARS | CCL`, `fxRate Decimal`, `fee Decimal?`, `date`, índice
-      `[userId, ticker, date]`); migración.
+      `[userId, ticker, date]`); migración `20261008120000_cedear_transactions`. Mappers
+      `toCedearTransaction` / `toCedearTransactionData`.
 
 ### 9.3 API
 
@@ -362,7 +369,7 @@ Fase 7 ✅ (usdtSwapId, applyExternal, whenReady)
    └─> Fase 8 ✅ (Pesos + conversiones + dashboard) ──> PR a main
           │                                     9.1 ✅ (precios data912)
           └─> 9.0 ✅ (patas con cedearId) ───────┘
-                 └─> 9.2–9.4 (CEDEARs)
+                 └─> 9.2 ✅ (modelo y cálculos) ─> 9.3–9.4 (API, stores, UI)
                         └─> Fase 10 (CEDEARs en el portfolio)
 ```
 

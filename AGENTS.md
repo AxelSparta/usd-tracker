@@ -33,7 +33,8 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 - Navegación con sidebar (shadcn `ui/sidebar`, colapsable a íconos, drawer en mobile): Inicio, Pesos (`/pesos`, `/pesos/nueva`), Dólar (`/dolar`, `/dolar/nueva`) y Cripto (`/cripto`, `/cripto/nueva`). `/new-transaction` redirige a `/dolar/nueva` (`next.config.ts`).
 - **Módulo Pesos** (Fase 8.1, `src/features/pesos/`): saldo en ARS del portafolio. Movimiento = `type` (`BUY` = ingreso, `SELL` = egreso), `amount` (ARS > 0), `date`, `note?`, `conversionId?` (pata de una conversión pesos ↔ dólar, 8.2: no se edita ni se borra sola) y `cedearId?` (pata de una operación de CEDEAR, 9.0). Sin PnL. Saldo nunca negativo (`validatePesosTimeline`, al agregar, editar y borrar). En `/pesos`: saldo, equivalente en USD con el **dólar MEP venta** (`bolsa`), ingresos, egresos e historial con edición y borrado; alta en `/pesos/nueva`. Etiquetas con `pesosMovementLabel`. En el dashboard (8.3) el saldo es el activo `pesos:ars` (ARS = saldo, USD = saldo / MEP venta; sin MEP no entra a la composición y se avisa), con su tarjeta en el resumen (sin ganancia: `ModuleSummary.pnl` es `null`); el histórico lo pasa a USD con el MEP venta de cada día.
 - **Conversiones pesos ↔ dólar** (Fase 8.2, `features/pesos/conversions.ts`): dos operaciones enlazadas por `conversionId`, un movimiento de Pesos y una compra o venta del Dólar (cualquier tipo) con el mismo monto en ARS; para el Dólar es una compra/venta normal. Se cargan los dos montos; la cotización del día (`useDolarRate`: venta si se compran dólares, compra si se venden) es referencia y completa uno desde el otro. No se editan; se borran juntas (`applyRemoveConversion` revalida las dos líneas) desde `/pesos` o `/dolar` (contexto `usePesosConversionLinks`). `linkOf(tx)` (`domain/transactions.ts`) dice si una operación del Dólar es pata (`usdtSwap`, `conversion` o `cedear`); como mucho un enlace por operación. Pestaña **Convertir** en `/pesos/nueva` (`?modo=conversion&dolar=<tipo>`); atajo "Comprar con pesos" en `/dolar`. Escritura en los dos stores con `commitAcross` (`lib/synced-store.ts`) y un solo request.
-- **Patas de CEDEARs** (Fase 9.0, preparación de la 9.2): `cedearId?` en `Transaction` (solo grupo `contadoconliqui`, no resultado de trade) y en `PesosMovement` guarda el id de la operación de CEDEAR dueña (D8). Dólar y Pesos rechazan editarlas o borrarlas (`CEDEAR_LEG_CHANGE`) y sus APIs no las crean. La importación valida con `assertCedearLegsComplete` (`features/cedears/operations.ts`), que por ahora recibe `[]` operaciones (no hay tabla de CEDEARs hasta la 9.2/9.3): una pata sola se rechaza.
+- **Patas de CEDEARs** (Fase 9.0, preparación de la 9.2): `cedearId?` en `Transaction` (solo grupo `contadoconliqui`, no resultado de trade) y en `PesosMovement` guarda el id de la operación de CEDEAR dueña (D8). Dólar y Pesos rechazan editarlas o borrarlas (`CEDEAR_LEG_CHANGE`) y sus APIs no las crean. La importación valida con `assertCedearLegsComplete` (`features/cedears/operations.ts`), que por ahora recibe `[]` operaciones (la API y la importación de CEDEARs llegan en la 9.3): una pata sola se rechaza.
+- **Modelo de CEDEARs** (Fase 9.2, sin API ni UI todavía): `CedearTransaction` = `ticker`, `type`, `quantity` (entera), `price` y `fee?` en `currency` (`ARS` | `CCL`), `fxRate` (ARS por USD CCL del día, D4) y `date`; tabla `CedearTransaction` en Prisma. `applyAdd/Update/RemoveCedearTransaction({ cedears, pesos, dolar }, …)` escriben la operación y su pata juntas (con ARS, egreso/ingreso de Pesos; con CCL, venta/compra en `contadoconliqui`) y validan unidades y saldos; al editar, la pata conserva su id y puede cambiar de módulo. Posiciones en ARS y USD con el mismo motor (`toArsLot`, `toUsdLot`), valuadas a precio ARS × cantidad y / CCL venta (D5).
 - **Módulo cripto** (`src/features/crypto/`):
   - operación = `coinId` (id de CoinGecko), `type`, `quantity`, `priceUsd`, `date`, `fee?` (`{ amount, currency: 'USD' | 'COIN' }`) y `swapId?`; metadatos de cada moneda (`Coin`) guardados aparte en el store
   - comisiones: `toPositionLot` (`metrics.ts`) las aplica al lote del motor y al saldo de la línea temporal (en USD ajustan el monto; en la moneda, las unidades)
@@ -79,7 +80,7 @@ No comparten modelo, store ni formulario; solo piezas puras de `src/domain/` y `
 
 ```
 prisma/
-├── schema.prisma               # User, DolarTransaction, CryptoTransaction, PesosMovement (montos Decimal, ids UUID del cliente)
+├── schema.prisma               # User, DolarTransaction, CryptoTransaction, PesosMovement, CedearTransaction (montos Decimal, ids UUID del cliente)
 └── migrations/                 # SQL versionado; aplicar con `pnpm db:deploy`
 prisma.config.ts                # Prisma 7: schema, migraciones y URL (DIRECT_URL ?? DATABASE_URL) para el CLI
 scripts/vercel-build.mjs        # build de Vercel: `prisma migrate deploy` solo en producción + `next build`
@@ -135,10 +136,12 @@ src/
 │   ├── history.store.ts        # cache de sesión de los precios históricos (sin persist)
 │   ├── hooks.ts                # usePortfolioOverview, useValueHistory
 │   └── components/             # PortfolioDashboard, ValueChart, AllocationBar, AssetTable, colors
-├── features/cedears/           # módulo CEDEARs (Fase 9; por ahora 9.1 precios y 9.0 regla de patas) + __tests__/
-│   ├── types.ts                # Cedear, CedearPrice/PriceMap, CedearHistoryPoint, CedearLegOwner
+├── features/cedears/           # módulo CEDEARs (Fase 9; por ahora 9.1 precios, 9.0 patas y 9.2 modelo) + __tests__/
+│   ├── types.ts                # Cedear, CedearPrice/PriceMap, CedearHistoryPoint, CedearTransaction, CedearPosition
 │   ├── catalog.ts              # puro: CEDEAR_TICKER, isUsdVariant/baseRows (variantes USD del panel), cedearName
-│   └── operations.ts           # puro: assertCedearLegsComplete (una pata por operación, para la importación)
+│   ├── metrics.ts              # puro: cedearTotal/cedearAmounts, toArsLot/toUsdLot, computeCedearPositions, summarizeCedears
+│   └── operations.ts           # puro (store + server): buildFundingLeg, applyAdd/Update/RemoveCedearTransaction
+│                               #   (operación + pata en Pesos o Dólar CCL), assertCedearLegsComplete
 ├── features/usdt-swaps/        # USDT del dólar cripto ↔ cripto: intercambios (7a) y alta de resultados de trades (7b)
 │   ├── operations.ts           # puro (store + server): buildUsdtSwapLegs, applyAdd/RemoveUsdtSwap, assertUsdtSwapsComplete
 │   ├── validations.ts          # usdtSwapApiSchema (API) y swapFormSchema (form)
