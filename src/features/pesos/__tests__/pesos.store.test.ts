@@ -11,7 +11,7 @@ const api = vi.hoisted(() => ({
 }))
 vi.mock('@/features/pesos/api', () => ({ pesosApi: api }))
 
-const { persistedPesos, usePesosStore } = await import('@/features/pesos/pesos.store')
+const { migratePesosStorage, persistedPesos, usePesosStore } = await import('@/features/pesos/pesos.store')
 
 const income = (id: string, amount: number): PesosMovement => ({
   id,
@@ -81,5 +81,22 @@ describe('usePesosStore en la nube', () => {
   it('al cerrar sesión vuelve lo local', () => {
     store().disconnectCloud()
     expect(store().movements).toEqual(local.movements)
+  })
+})
+
+describe('migratePesosStorage', () => {
+  it('v1 → v2 conserva los movimientos y las conversiones (cedearId es opcional)', () => {
+    // Forma real de `pesos-storage` v1 (fechas ya serializadas)
+    const v1 = {
+      movements: [
+        { id: 'a', type: 'BUY', amount: 2_000_000, date: '2026-10-01T03:00:00.000Z', note: 'Sueldo' },
+        { id: 'b', type: 'SELL', amount: 1_520_000, date: '2026-10-05T03:00:00.000Z', conversionId: 'conv' },
+      ],
+    }
+    expect(migratePesosStorage(v1)).toEqual(v1)
+  })
+
+  it('tolera estado vacío', () => {
+    expect(migratePesosStorage(undefined)).toEqual({ movements: [] })
   })
 })

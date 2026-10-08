@@ -576,3 +576,49 @@ describe('/api/pesos/conversions', () => {
     expect(db.dolarRows).toHaveLength(1)
   })
 })
+
+describe('patas de CEDEARs (Fase 9.0)', () => {
+  const CEDEAR_LEG = 'Es parte de una operación de CEDEAR: modificala desde CEDEARs.'
+  const date = new Date('2026-01-01T03:00:00.000Z')
+
+  it('una pata de pesos no se edita ni se borra desde /api/pesos', async () => {
+    await db.pesosMovement.create({
+      data: { id: ID.buy, userId: 'user_a', type: 'BUY', amount: 1000, date, note: null, conversionId: null, cedearId: ID.other },
+    })
+    const body = { type: 'BUY', amount: 2000, date: date.toISOString() }
+    const updated = await pesosById.PATCH(json(body), ctx(ID.buy))
+    expect(updated.status).toBe(422)
+    expect((await updated.json()).error).toBe(CEDEAR_LEG)
+    expect((await pesosById.DELETE(json({}), ctx(ID.buy))).status).toBe(422)
+    expect(db.pesosRows).toHaveLength(1)
+  })
+
+  it('una pata de CCL no se edita ni se borra desde /api/dolar', async () => {
+    await db.dolarTransaction.create({
+      data: {
+        ...dolarTx(ID.buy, 'BUY', 100, date.toISOString()),
+        date,
+        dolarOption: 'contadoconliqui',
+        userId: 'user_a',
+        usdtSwapId: null,
+        conversionId: null,
+        cedearId: ID.other,
+        kind: null,
+        note: null,
+      },
+    })
+    const { id, ...body } = { ...dolarTx(ID.buy, 'BUY', 50, date.toISOString()), dolarOption: 'contadoconliqui' }
+    const updated = await dolarById.PATCH(json(body), ctx(ID.buy))
+    expect(updated.status).toBe(422)
+    expect((await updated.json()).error).toBe(CEDEAR_LEG)
+    expect((await dolarById.DELETE(json({}), ctx(ID.buy))).status).toBe(422)
+    expect(db.dolarRows).toHaveLength(1)
+  })
+
+  it('las APIs de los módulos no crean patas de CEDEAR', async () => {
+    await pesos.POST(json({ id: ID.buy, type: 'BUY', amount: 1000, date: date.toISOString(), cedearId: ID.other }))
+    expect(db.pesosRows[0].cedearId).toBeNull()
+    await dolar.POST(json({ ...dolarTx(ID.sell, 'BUY', 1, date.toISOString()), dolarOption: 'contadoconliqui', cedearId: ID.other }))
+    expect(db.dolarRows[0].cedearId).toBeNull()
+  })
+})

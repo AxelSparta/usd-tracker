@@ -89,6 +89,21 @@ describe('migrateTransactionsStorage', () => {
     }
     expect(migrateTransactionsStorage(v3, 3)).toEqual(v3)
   })
+
+  it('v4 → v5 conserva las conversiones de pesos (cedearId es opcional)', () => {
+    const v4 = {
+      transactions: {
+        cripto: [
+          { id: 'a', type: 'BUY', pesosAmount: 1_450_000, dollarsAmount: 1000, date: '2026-09-15T03:00:00.000Z', dolarOption: 'cripto' },
+          { id: 'b', type: 'SELL', pesosAmount: 900_000, dollarsAmount: 600, date: '2026-09-20T03:00:00.000Z', dolarOption: 'cripto', usdtSwapId: 'u' },
+        ],
+        contadoconliqui: [
+          { id: 'c', type: 'BUY', pesosAmount: 1_520_000, dollarsAmount: 1000, date: '2026-10-05T03:00:00.000Z', dolarOption: 'contadoconliqui', conversionId: 'conv' },
+        ],
+      },
+    }
+    expect(migrateTransactionsStorage(v4, 4)).toEqual(v4)
+  })
 })
 
 const day = (iso: string) => new Date(`${iso}T00:00:00`)

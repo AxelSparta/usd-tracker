@@ -6,6 +6,7 @@ import {
   coinApiSchema,
   cryptoTransactionFields,
 } from '@/features/crypto/validations'
+import { assertCedearLegsComplete } from '@/features/cedears/operations'
 import { assertConversionsComplete } from '@/features/pesos/conversions'
 import { assertPesosShape, validatePesosTimeline } from '@/features/pesos/operations'
 import { createPesosMovementApiSchema } from '@/features/pesos/validations'
@@ -38,6 +39,7 @@ export const importSchema = z
         createTransactionApiSchema.extend({
           usdtSwapId: z.uuid('Id inválido').optional(),
           conversionId: z.uuid('Id inválido').optional(),
+          cedearId: z.uuid('Id inválido').optional(),
         }),
       )
       .max(MAX_ITEMS),
@@ -55,7 +57,12 @@ export const importSchema = z
     }),
     // Opcional: un cliente anterior a la Fase 8 no lo manda
     pesos: z
-      .array(createPesosMovementApiSchema.extend({ conversionId: z.uuid('Id inválido').optional() }))
+      .array(
+        createPesosMovementApiSchema.extend({
+          conversionId: z.uuid('Id inválido').optional(),
+          cedearId: z.uuid('Id inválido').optional(),
+        }),
+      )
       .max(MAX_ITEMS)
       .default([]),
   })
@@ -108,6 +115,15 @@ export const importLocalData = (userId: string, input: ImportInput) =>
     // Lo mismo con las conversiones de pesos: una pata en cada módulo, con el mismo monto en ARS
     applyOrReject(() =>
       assertConversionsComplete(
+        [...existingDolar, ...newDolar],
+        [...existingPesos.movements, ...newPesos],
+      ),
+    )
+    // Cada pata de CEDEAR apunta a su operación (las operaciones de CEDEARs se suman en la 9.3:
+    // hasta entonces no hay ninguna, así que una pata sola se rechaza)
+    applyOrReject(() =>
+      assertCedearLegsComplete(
+        [],
         [...existingDolar, ...newDolar],
         [...existingPesos.movements, ...newPesos],
       ),

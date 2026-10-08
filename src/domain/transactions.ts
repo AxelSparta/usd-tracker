@@ -21,32 +21,48 @@ export const CONVERSION_LEG_UPDATE =
   'Las conversiones de pesos no se editan: borrala y cargala de nuevo.'
 export const CONVERSION_LEG_REMOVE = 'Es una conversión de pesos: borrala completa.'
 
+/** Las patas de una operación de CEDEAR se modifican desde su dueña (`features/cedears`, D6) */
+export const CEDEAR_LEG_CHANGE = 'Es parte de una operación de CEDEAR: modificala desde CEDEARs.'
+
 /** Enlace de una operación del Dólar con otro módulo (D8): un id concreto por tipo de enlace */
 export type DolarLink =
   | { kind: 'usdtSwap'; id: string }
   | { kind: 'conversion'; id: string }
+  | { kind: 'cedear'; id: string }
+
+type LinkFields = Pick<Transaction, 'usdtSwapId' | 'conversionId' | 'cedearId'>
+
+const links = (tx: LinkFields): DolarLink[] => [
+  ...(tx.usdtSwapId ? [{ kind: 'usdtSwap' as const, id: tx.usdtSwapId }] : []),
+  ...(tx.conversionId ? [{ kind: 'conversion' as const, id: tx.conversionId }] : []),
+  ...(tx.cedearId ? [{ kind: 'cedear' as const, id: tx.cedearId }] : []),
+]
 
 /** De qué operación enlazada es pata, o `null` si es una operación propia del módulo */
-export const linkOf = (tx: Pick<Transaction, 'usdtSwapId' | 'conversionId'>): DolarLink | null =>
-  tx.usdtSwapId
-    ? { kind: 'usdtSwap', id: tx.usdtSwapId }
-    : tx.conversionId
-      ? { kind: 'conversion', id: tx.conversionId }
-      : null
+export const linkOf = (tx: LinkFields): DolarLink | null => links(tx)[0] ?? null
 
 /** Mensaje al editar o borrar una pata desde el módulo Dólar */
-const legMessage = (link: DolarLink, action: 'update' | 'remove') =>
-  link.kind === 'usdtSwap'
-    ? action === 'update' ? USDT_SWAP_LEG_UPDATE : USDT_SWAP_LEG_REMOVE
-    : action === 'update' ? CONVERSION_LEG_UPDATE : CONVERSION_LEG_REMOVE
+const legMessage = (link: DolarLink, action: 'update' | 'remove') => {
+  switch (link.kind) {
+    case 'usdtSwap':
+      return action === 'update' ? USDT_SWAP_LEG_UPDATE : USDT_SWAP_LEG_REMOVE
+    case 'conversion':
+      return action === 'update' ? CONVERSION_LEG_UPDATE : CONVERSION_LEG_REMOVE
+    case 'cedear':
+      return CEDEAR_LEG_CHANGE
+  }
+}
 
 /**
- * Como mucho un enlace por operación; un resultado de trade en USDT vive en el dólar cripto
- * y no es pata de nada.
+ * Como mucho un enlace por operación; una pata de CEDEAR va en el CCL; un resultado de trade en
+ * USDT vive en el dólar cripto y no es pata de nada.
  */
 export const assertDolarShape = (tx: Omit<Transaction, 'id'>) => {
-  if (tx.usdtSwapId && tx.conversionId) {
-    throw new Error('Una operación no puede ser parte de un intercambio y de una conversión.')
+  if (links(tx).length > 1) {
+    throw new Error('Una operación no puede ser parte de dos operaciones enlazadas.')
+  }
+  if (tx.cedearId && tx.dolarOption !== DolarOption.ContadoConLiqui) {
+    throw new Error('Los CEDEARs se pagan con dólares CCL.')
   }
   if (tx.kind !== TRADE_RESULT) return
   if (tx.dolarOption !== DolarOption.Cripto) {

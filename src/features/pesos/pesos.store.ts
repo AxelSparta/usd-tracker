@@ -83,6 +83,15 @@ const storeApi: StateCreator<PesosStoreState> = (set, get, api) => {
   }
 }
 
+/**
+ * v1 → v2: se agregó `cedearId` (opcional), así que los datos viejos ya son válidos.
+ * Sin `migrate`, Zustand descartaría lo guardado al subir `version`.
+ */
+export const migratePesosStorage = (persistedState: unknown): PesosState => {
+  const state = (persistedState ?? {}) as Partial<PesosState>
+  return { movements: state.movements ?? [] }
+}
+
 /** `partialize`: con sesión, los datos activos son de la nube; se persiste la copia local */
 export const persistedPesos = (state: PesosStoreState): PesosState =>
   localData(state, pick(state), EMPTY)
@@ -90,7 +99,8 @@ export const persistedPesos = (state: PesosStoreState): PesosState =>
 export const usePesosStore = create<PesosStoreState>()(
   persist(storeApi, {
     name: 'pesos-storage',
-    version: 1,
+    version: 2,
     partialize: persistedPesos,
+    migrate: migratePesosStorage,
   }),
 )

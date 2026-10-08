@@ -3,6 +3,8 @@ import {
   applyAddPesosMovement,
   applyRemovePesosMovement,
   applyUpdatePesosMovement,
+  assertPesosShape,
+  CEDEAR_LEG_CHANGE,
   computePesosBalance,
   CONVERSION_LEG_REMOVE,
   CONVERSION_LEG_UPDATE,
@@ -121,6 +123,31 @@ describe('applyRemovePesosMovement', () => {
     const leg = movement('c1', TransactionType.BUY, 10, '2026-01-01', { conversionId: 'conv' })
     expect(() => applyRemovePesosMovement({ movements: [leg] }, 'c1')).toThrow(
       CONVERSION_LEG_REMOVE,
+    )
+  })
+})
+
+describe('patas de CEDEARs en Pesos (Fase 9.0)', () => {
+  const leg = movement('c1', TransactionType.SELL, 300_000, '2026-01-15', { cedearId: 'op' })
+  const withLeg = { movements: [income, leg] }
+
+  it('no se edita ni se borra desde Pesos', () => {
+    const { id, ...data } = leg
+    expect(() => applyUpdatePesosMovement(withLeg, id, { ...data, amount: 1 })).toThrow(CEDEAR_LEG_CHANGE)
+    expect(() => applyRemovePesosMovement(withLeg, id)).toThrow(CEDEAR_LEG_CHANGE)
+  })
+
+  it('cuenta para el saldo como cualquier egreso', () => {
+    expect(computePesosBalance(withLeg.movements)).toBe(700_000)
+    expect(() =>
+      applyAddPesosMovement(withLeg, movement('e2', TransactionType.SELL, 800_000, '2026-01-20')),
+    ).toThrow('No tenés pesos suficientes el 20/01/2026.')
+  })
+
+  it('como mucho un enlace por movimiento', () => {
+    expect(() => assertPesosShape(leg)).not.toThrow()
+    expect(() => assertPesosShape({ ...leg, conversionId: 'conv' })).toThrow(
+      'Un movimiento no puede ser parte de una conversión y de un CEDEAR.',
     )
   })
 })

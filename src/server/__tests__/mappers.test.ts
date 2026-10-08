@@ -46,6 +46,7 @@ describe('mappers', () => {
       date,
       usdtSwapId: null,
       conversionId: null,
+      cedearId: null,
       kind: null,
       note: null,
     })
@@ -139,6 +140,7 @@ describe('mappers', () => {
       date,
       note: null,
       conversionId: 'conv',
+      cedearId: null,
     }
     const movement = toPesosMovement(row)
     expect(movement).toEqual({ id: 'p1', type: TransactionType.SELL, amount: 1500000.75, date, conversionId: 'conv' })
@@ -148,6 +150,7 @@ describe('mappers', () => {
       date,
       note: null,
       conversionId: 'conv',
+      cedearId: null,
     })
   })
 
@@ -162,10 +165,44 @@ describe('mappers', () => {
       date,
       usdtSwapId: null,
       conversionId: 'conv',
+      cedearId: null,
       kind: null,
       note: null,
     })
     expect(tx.conversionId).toBe('conv')
     expect(toDolarTransactionData(tx).conversionId).toBe('conv')
+  })
+
+  it('cedearId ida y vuelta en el dólar y en pesos; null se omite', () => {
+    const dolarData = toDolarTransactionData({
+      type: TransactionType.SELL,
+      dollarsAmount: 100,
+      pesosAmount: 152_000,
+      date,
+      dolarOption: DolarOption.ContadoConLiqui,
+      cedearId: 'op',
+    })
+    expect(dolarData).toMatchObject({ cedearId: 'op', conversionId: null })
+    const dolar = toDolarTransaction({
+      ...meta,
+      ...dolarData,
+      id: 'd3',
+      dollarsAmount: new Prisma.Decimal(100),
+      pesosAmount: new Prisma.Decimal(152_000),
+    })
+    expect(dolar.cedearId).toBe('op')
+
+    const movement = toPesosMovement({
+      ...meta,
+      id: 'p2',
+      type: 'SELL',
+      amount: new Prisma.Decimal(300_000),
+      date,
+      note: null,
+      conversionId: null,
+      cedearId: 'op',
+    })
+    expect(movement).not.toHaveProperty('conversionId')
+    expect(toPesosMovementData(movement)).toMatchObject({ cedearId: 'op', conversionId: null })
   })
 })

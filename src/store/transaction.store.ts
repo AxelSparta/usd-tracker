@@ -109,7 +109,8 @@ const storeApi: StateCreator<State> = (set, get, api) => {
 /**
  * v0 → v1: se deja de persistir `transactionsData` (ahora se deriva con
  * `useTransactionsData`). `transactions` no cambia de forma.
- * v1 → v2: se agregó `usdtSwapId`; v2 → v3: `kind` y `note`; v3 → v4: `conversionId`.
+ * v1 → v2: se agregó `usdtSwapId`; v2 → v3: `kind` y `note`; v3 → v4: `conversionId`;
+ * v4 → v5: `cedearId`.
  * Todos opcionales, así que los datos viejos ya son válidos.
  */
 export const migrateTransactionsStorage = (
@@ -130,7 +131,7 @@ export const persistedTransactions = (state: State): DolarData =>
 export const useTransactionStore = create<State>()(
   persist(storeApi, {
     name: 'transactions-storage',
-    version: 4,
+    version: 5,
     partialize: persistedTransactions,
     migrate: migrateTransactionsStorage,
   }),

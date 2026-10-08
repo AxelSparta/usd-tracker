@@ -23,6 +23,7 @@ export const toDolarTransaction = (row: DolarTransactionRow): Transaction => ({
   dolarOption: row.dolarOption as DolarOption,
   ...(row.usdtSwapId !== null && { usdtSwapId: row.usdtSwapId }),
   ...(row.conversionId !== null && { conversionId: row.conversionId }),
+  ...(row.cedearId !== null && { cedearId: row.cedearId }),
   ...(row.kind !== null && { kind: row.kind }),
   ...(row.note !== null && { note: row.note }),
 })
@@ -35,6 +36,7 @@ export const toDolarTransactionData = (tx: Omit<Transaction, 'id'>) => ({
   dolarOption: tx.dolarOption,
   usdtSwapId: tx.usdtSwapId ?? null,
   conversionId: tx.conversionId ?? null,
+  cedearId: tx.cedearId ?? null,
   kind: tx.kind ?? null,
   note: tx.note ?? null,
 })
@@ -91,6 +93,7 @@ export const toPesosMovement = (row: PesosMovementRow): PesosMovement => ({
   date: row.date,
   ...(row.note !== null && { note: row.note }),
   ...(row.conversionId !== null && { conversionId: row.conversionId }),
+  ...(row.cedearId !== null && { cedearId: row.cedearId }),
 })
 
 export const toPesosMovementData = (movement: Omit<PesosMovement, 'id'>) => ({
@@ -99,4 +102,5 @@ export const toPesosMovementData = (movement: Omit<PesosMovement, 'id'>) => ({
   date: new Date(movement.date),
   note: movement.note ?? null,
   conversionId: movement.conversionId ?? null,
+  cedearId: movement.cedearId ?? null,
 })

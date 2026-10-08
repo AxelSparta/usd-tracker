@@ -52,6 +52,8 @@ model DolarTransaction {
   usdtSwapId    String?         @db.Uuid
   /// Enlaza esta pata con el movimiento de Pesos de una conversión pesos ↔ dólar
   conversionId  String?         @db.Uuid
+  /// Pata (grupo `contadoconliqui`) de una operación de CEDEAR: guarda el id de la operación
+  cedearId      String?         @db.Uuid
   kind          OperationKind?
   note          String?
   createdAt     DateTime        @default(now())
@@ -60,6 +62,7 @@ model DolarTransaction {
   @@index([userId, dolarOption, date])
   @@index([usdtSwapId])
   @@index([conversionId])
+  @@index([cedearId])
 }
 
 model CryptoTransaction {
@@ -104,9 +107,12 @@ model PesosMovement {
   note         String?
   /// Enlaza esta pata con la del módulo dólar de una conversión pesos ↔ dólar
   conversionId String?         @db.Uuid
+  /// Pata de una operación de CEDEAR pagada o cobrada en pesos: guarda el id de la operación
+  cedearId     String?         @db.Uuid
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
   @@index([userId, date])
   @@index([conversionId])
+  @@index([cedearId])
 }

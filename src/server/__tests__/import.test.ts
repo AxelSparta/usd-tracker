@@ -246,3 +246,27 @@ describe('importación con conversiones de pesos', () => {
     expect(response.status).toBe(422)
   })
 })
+
+describe('importación con patas de CEDEARs (Fase 9.0)', () => {
+  const crypto = { transactions: [], coins: {} }
+  const income = { id: uuid(50), type: 'BUY', amount: 3_000_000, date: '2026-01-01T03:00:00.000Z' }
+
+  it('422 si llega una pata de pesos sin su operación de CEDEAR', async () => {
+    const leg = { id: uuid(51), type: 'SELL', amount: 300_000, date: '2026-02-01T03:00:00.000Z', cedearId: uuid(52) }
+    const response = await POST(json({ dolar: [], crypto, pesos: [income, leg] }))
+    expect(response.status).toBe(422)
+    expect((await response.json()).error).toBe(
+      'Hay una operación de CEDEAR sin su pata de pesos o de dólares CCL.',
+    )
+    expect(db.pesosRows).toHaveLength(0)
+  })
+
+  it('422 si llega una pata del Dólar sin su operación (o fuera del CCL)', async () => {
+    const buy = { ...dolarTx(53, 'BUY', 1000, '2026-01-01T03:00:00.000Z'), dolarOption: 'contadoconliqui' }
+    const leg = { ...buy, ...dolarTx(54, 'SELL', 100, '2026-02-01T03:00:00.000Z'), dolarOption: 'contadoconliqui', cedearId: uuid(55) }
+    expect((await POST(json({ dolar: [buy, leg], crypto, pesos: [] }))).status).toBe(422)
+    const blue = await POST(json({ dolar: [{ ...leg, dolarOption: 'blue' }], crypto, pesos: [] }))
+    expect((await blue.json()).error).toBe('Los CEDEARs se pagan con dólares CCL.')
+    expect(db.dolarRows).toHaveLength(0)
+  })
+})

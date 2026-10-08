@@ -52,8 +52,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * Body para la API: la base guarda ids UUID. Si algún dato viejo tiene otro formato,
- * recibe un UUID nuevo (`swapId`, `usdtSwapId` y `conversionId` se remapean igual, así las patas
- * siguen enlazadas).
+ * recibe un UUID nuevo (`swapId`, `usdtSwapId`, `conversionId` y `cedearId` se remapean igual, así
+ * las patas siguen enlazadas).
  */
 export const toImportPayload = (
   data: LocalData,
@@ -71,6 +71,7 @@ export const toImportPayload = (
       id: fix(t.id),
       ...(t.usdtSwapId && { usdtSwapId: fix(t.usdtSwapId) }),
       ...(t.conversionId && { conversionId: fix(t.conversionId) }),
+      ...(t.cedearId && { cedearId: fix(t.cedearId) }),
     })),
     crypto: {
       transactions: data.crypto.transactions.map((t) => ({
@@ -85,6 +86,7 @@ export const toImportPayload = (
       ...m,
       id: fix(m.id),
       ...(m.conversionId && { conversionId: fix(m.conversionId) }),
+      ...(m.cedearId && { cedearId: fix(m.cedearId) }),
     })),
   }
 }

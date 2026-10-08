@@ -15,6 +15,8 @@ export type PesosMovement = {
   note?: string
   /** Pata de una conversión pesos ↔ dólar (8.2): no se edita ni se borra sola */
   conversionId?: string
+  /** Pata de una operación de CEDEAR pagada o cobrada en pesos (Fase 9): se modifica desde CEDEARs */
+  cedearId?: string
 }
 
 export type PesosState = {

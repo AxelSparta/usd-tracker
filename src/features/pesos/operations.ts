@@ -14,6 +14,9 @@ export const CONVERSION_LEG_UPDATE =
   'Las conversiones no se editan: borrala y cargala de nuevo.'
 export const CONVERSION_LEG_REMOVE = 'Es una conversión con dólares: borrala completa.'
 
+/** Las patas de una operación de CEDEAR se modifican desde su dueña (`features/cedears`, D6) */
+export const CEDEAR_LEG_CHANGE = 'Es parte de una operación de CEDEAR: modificala desde CEDEARs.'
+
 const formatDate = (date: Date | string) => format(new Date(date), 'dd/MM/yyyy')
 
 /** Saldo en ARS después de todos los movimientos */
@@ -32,10 +35,16 @@ export const validatePesosTimeline = (
   if (offending) throw new Error(message(formatDate(offending.date)))
 }
 
-/** Montos positivos (la API ya lo valida; la importación y el store pasan por acá) */
+/**
+ * Montos positivos (la API ya lo valida; la importación y el store pasan por acá) y como mucho
+ * un enlace por movimiento.
+ */
 export const assertPesosShape = (movement: Omit<PesosMovement, 'id'>) => {
   if (!Number.isFinite(movement.amount) || movement.amount <= 0) {
     throw new Error('El monto debe ser mayor a cero.')
+  }
+  if (movement.conversionId && movement.cedearId) {
+    throw new Error('Un movimiento no puede ser parte de una conversión y de un CEDEAR.')
   }
 }
 
@@ -58,6 +67,7 @@ export const applyUpdatePesosMovement = (
   const previous = movements.find((m) => m.id === movementId)
   if (!previous) return null
   if (previous.conversionId) throw new Error(CONVERSION_LEG_UPDATE)
+  if (previous.cedearId) throw new Error(CEDEAR_LEG_CHANGE)
   assertPesosShape(movement)
 
   const next = sortTxs(
@@ -75,6 +85,7 @@ export const applyRemovePesosMovement = (
   const target = movements.find((m) => m.id === movementId)
   if (!target) return null
   if (target.conversionId) throw new Error(CONVERSION_LEG_REMOVE)
+  if (target.cedearId) throw new Error(CEDEAR_LEG_CHANGE)
 
   const next = movements.filter((m) => m.id !== movementId)
   validatePesosTimeline(

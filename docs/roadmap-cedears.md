@@ -210,22 +210,29 @@ Cerrada en oct 2026; el detalle (modelo, tareas 8.1–8.4 y verificación) está
   y el costo promedio quedan desfasados para quien tenía el CEDEAR antes del cambio.
 - **Cache:** el panel responde con `cache-control: max-age=30`, no las ~2 h que se habían medido.
 
-### 9.0 Patas de CEDEARs en Pesos y Dólar (prerrequisito de 9.2)
+### 9.0 Patas de CEDEARs en Pesos y Dólar ✅ (oct 2026)
 
-- [ ] `cedearId?: string` en `Transaction` (Dólar) y `PesosMovement`. `transactions-storage` v4 → **v5**
-      y `pesos-storage` v1 → **v2**, con `migrate` (campo opcional: los datos viejos son válidos) +
-      tests con snapshot.
-- [ ] Prisma: `cedearId String? @db.Uuid` + `@@index([cedearId])` en `DolarTransaction` y
-      `PesosMovement`; migración nueva. `mappers.ts` ida y vuelta.
-- [ ] Reglas de forma (`linkOf`, `assertDolarShape`, `assertPesosShape`): como mucho un enlace por
-      operación; en el Dólar, una pata de CEDEAR solo va en `contadoconliqui` y no es un resultado de trade.
-- [ ] Las funciones puras de Dólar y Pesos rechazan editar o borrar una pata con `cedearId`:
-      "Es parte de una operación de CEDEAR: modificala desde CEDEARs." Tests en `src/domain/__tests__/`
-      y `features/pesos/__tests__/`. Las APIs devuelven 422 solas.
-- [ ] `commitAcross` (Fase 8) con tres stores; el loader compartido del server suma `cedears`.
-- [ ] Importación: `assertCedearLegsComplete`. Cada operación tiene exactamente una pata en el módulo
-      que corresponde (ARS → Pesos; CCL → Dólar `contadoconliqui`), y cada `cedearId` apunta a una
-      operación. Si no, se rechaza (422), como los intercambios USDT y las conversiones.
+- [x] `cedearId?: string` en `Transaction` (Dólar) y `PesosMovement`. `transactions-storage` v4 → **v5**
+      y `pesos-storage` v1 → **v2** (`migratePesosStorage`, que antes no tenía `migrate`); campo
+      opcional, así que los datos viejos son válidos. Tests con snapshot de v4 y v1.
+- [x] Prisma: `cedearId String? @db.Uuid` + `@@index([cedearId])` en `DolarTransaction` y
+      `PesosMovement` (migración `20261008000000_cedear_legs`). `mappers.ts` ida y vuelta.
+- [x] Reglas de forma: `linkOf` suma `{ kind: 'cedear' }`; `assertDolarShape` acepta como mucho un
+      enlace ("Una operación no puede ser parte de dos operaciones enlazadas.") y la pata de CEDEAR
+      solo en `contadoconliqui` (un resultado de trade ya queda afuera: va en el dólar cripto);
+      `assertPesosShape` rechaza `conversionId` + `cedearId`.
+- [x] Las funciones puras de Dólar y Pesos rechazan editar o borrar una pata con `cedearId`
+      (`CEDEAR_LEG_CHANGE`: "Es parte de una operación de CEDEAR: modificala desde CEDEARs."). Las
+      APIs devuelven 422 solas (tests en `server/__tests__/api.test.ts`) y no crean patas: sus
+      schemas no aceptan `cedearId`.
+- [x] `commitAcross` ya aceptaba N stores: test con tres (`lib/__tests__/commit-across.test.ts`).
+      El loader compartido del server suma `cedears` en la **9.3**, cuando exista la tabla.
+- [x] Importación: `assertCedearLegsComplete(cedears, dolar, pesos)` en `features/cedears/operations.ts`
+      (exactamente una pata por operación, en el módulo de su moneda y del tipo contrario; cada
+      `cedearId` apunta a una operación) y `cedearId` en `importSchema`. Hasta la 9.3 se llama con
+      `[]` operaciones: una pata sola se rechaza (422). `toImportPayload` remapea `cedearId`.
+- La UI de las patas en `/pesos` y `/dolar` (sin editar ni borrar, con link a CEDEARs) queda en la
+  9.4: hasta entonces no hay forma de crearlas.
 
 ### 9.2 Modelo y cálculos
 
@@ -274,7 +281,8 @@ type CedearTransaction = {
       del usuario (loader compartido), aplica la función pura y escribe la operación **y su pata** en
       la misma `withUserTransaction` (`Serializable`). Mismos códigos (401/400/404/409/422); ids del
       cliente (operación y pata). Logs `cedear.*` sin montos.
-- [ ] Import: `importSchema` con CEDEARs (y la regla de patas de 9.0).
+- [ ] Import: `importSchema` con CEDEARs y `assertCedearLegsComplete` con las operaciones reales
+      (hoy recibe `[]`). Loader compartido (`loadLinkedState`) con `cedears`.
 - [ ] Tests en `src/server/__tests__/` (atomicidad, ownership, 422 por saldo de pesos / CCL / unidades,
       edición que cambia de ARS a CCL, borrado, pata editada desde `/api/dolar` o `/api/pesos` → 422).
 
@@ -353,7 +361,7 @@ saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consist
 Fase 7 ✅ (usdtSwapId, applyExternal, whenReady)
    └─> Fase 8 ✅ (Pesos + conversiones + dashboard) ──> PR a main
           │                                     9.1 ✅ (precios data912)
-          └─> 9.0 (patas con cedearId) ──────────┘
+          └─> 9.0 ✅ (patas con cedearId) ───────┘
                  └─> 9.2–9.4 (CEDEARs)
                         └─> Fase 10 (CEDEARs en el portfolio)
 ```
