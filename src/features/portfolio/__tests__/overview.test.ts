@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import type { CedearPosition } from '@/features/cedears/types'
 import type { CryptoPosition } from '@/features/crypto/types'
 import {
   computePortfolioOverview,
@@ -169,5 +170,68 @@ describe('computePortfolioOverview con Pesos', () => {
     expect(after.totalArs).toBe(before.totalArs)
     // En USD solo cambia por la diferencia entre el blue y el MEP
     expect(after.totalUsd - before.totalUsd).toBeCloseTo(1000 - 1_560_000 / 1550)
+  })
+})
+
+describe('CEDEARs en el portfolio (Fase 10)', () => {
+  const cedear = (ticker: string, extra: Partial<CedearPosition> = {}): CedearPosition => ({
+    ticker,
+    quantity: 10,
+    costArs: 250_000,
+    costUsd: 160,
+    averageCostArs: 25_000,
+    averageCostUsd: 16,
+    realizedPnlArs: 0,
+    realizedPnlUsd: 5,
+    priceArs: 26_000,
+    change24h: 0.5,
+    marketValueArs: 260_000,
+    marketValueUsd: 162.5,
+    unrealizedPnlArs: 10_000,
+    unrealizedPnlUsd: 2.5,
+    ...extra,
+  })
+
+  it('suma al total y a la composición en USD (ARS / CCL), con ganancia en USD', () => {
+    const overview = computePortfolioOverview({
+      ...base,
+      dolarData: { blue: dolarGroup({ totalUsd: 162.5, marketValuePesos: 250_000 }) },
+      cryptoPositions: [],
+      cedearPositions: [cedear('AAPL')],
+    })
+
+    expect(overview.totalUsd).toBe(325)
+    expect(overview.totalArs).toBe(510_000)
+    expect(overview.cedears).toMatchObject({
+      valueUsd: 162.5,
+      valueArs: 260_000,
+      pnl: 7.5,
+      share: 0.5,
+      assets: 1,
+    })
+    expect(overview.assets.find((a) => a.module === 'cedears')).toMatchObject({
+      key: 'cedear:AAPL',
+      label: 'Apple',
+      symbol: 'AAPL',
+      href: '/cedears/AAPL',
+      change24h: 0.5,
+    })
+  })
+
+  it('sin precio o sin CCL no entra a la composición y se avisa; cerrada solo aporta su realizado', () => {
+    const overview = computePortfolioOverview({
+      ...base,
+      dolarData: {},
+      cryptoPositions: [],
+      cedearPositions: [
+        cedear('MELI', { priceArs: null, marketValueArs: null, marketValueUsd: null, unrealizedPnlArs: null, unrealizedPnlUsd: null }),
+        cedear('KO', { marketValueUsd: null, unrealizedPnlUsd: null }),
+        cedear('BA.C', { quantity: 0, marketValueArs: 0, marketValueUsd: 0, unrealizedPnlUsd: 0, realizedPnlUsd: 12 }),
+      ],
+    })
+
+    expect(overview.assets).toEqual([])
+    expect(overview.missingPrices).toEqual(['MELI', 'KO (sin CCL)'])
+    expect(overview.cedears.pnl).toBe(5 + 5 + 12)
   })
 })

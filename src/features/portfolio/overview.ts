@@ -1,3 +1,5 @@
+import { cedearName } from '@/features/cedears/catalog'
+import type { CedearPosition } from '@/features/cedears/types'
 import type { CryptoPosition } from '@/features/crypto/types'
 import type { DolarOption } from '@/types/dolar.types'
 import type { TransactionsDataMap } from '@/types/transaction.types'
@@ -6,22 +8,24 @@ import type { TransactionsDataMap } from '@/types/transaction.types'
  * Vista unificada del portfolio (Fase 5): suma los módulos sin mezclar sus métricas.
  *
  * - La composición se mide en **USD**: un dólar en mano vale 1 USD, una cripto vale su
- *   valor de mercado en USD y los pesos valen saldo / dólar MEP venta (Fase 8, D3). Así el
- *   reparto no depende de cotizaciones en pesos, salvo para pasar los pesos a USD.
+ *   valor de mercado en USD, los pesos valen saldo / dólar MEP venta (Fase 8, D3) y un CEDEAR,
+ *   su valor en pesos / CCL venta (Fase 10, D5). Así el reparto no depende de cotizaciones en
+ *   pesos, salvo para pasar los pesos y los CEDEARs a USD.
  * - Los valores en ARS usan la cotización de cada tipo de dólar (módulo dólar, como en
- *   `/dolar`), el dólar cripto compra (módulo cripto, como en `/cripto`) y el saldo (pesos).
- * - Las ganancias quedan en la moneda de cada módulo (ARS para dólar, USD para cripto);
- *   Pesos no tiene (`pnl: null`).
+ *   `/dolar`), el dólar cripto compra (módulo cripto, como en `/cripto`), el saldo (pesos) y
+ *   precio × cantidad (CEDEARs).
+ * - Las ganancias quedan en la moneda de cada módulo (ARS para dólar, USD para cripto y
+ *   CEDEARs); Pesos no tiene (`pnl: null`).
  */
 
-export type PortfolioModule = 'dolar' | 'crypto' | 'pesos'
+export type PortfolioModule = 'dolar' | 'crypto' | 'pesos' | 'cedears'
 
 export type AssetAllocation = {
   /** Único entre módulos: `dolar:blue`, `crypto:bitcoin` */
   key: string
   module: PortfolioModule
   label: string
-  /** Símbolo de la moneda (solo cripto) */
+  /** Símbolo de la moneda (cripto) o ticker (CEDEARs) */
   symbol: string | null
   image: string | null
   /** Drill-down al detalle del activo */
@@ -29,7 +33,7 @@ export type AssetAllocation = {
   valueUsd: number
   /** `null` si falta la cotización para pasarlo a pesos */
   valueArs: number | null
-  /** Variación 24 h en % (solo cripto) */
+  /** Variación 24 h en % (cripto) o del día (CEDEARs) */
   change24h: number | null
   /** Parte del total en USD, 0–1 */
   share: number
@@ -54,6 +58,8 @@ export type PortfolioOverview = {
   crypto: ModuleSummary
   /** `pnl` siempre `null`: un saldo no tiene ganancia */
   pesos: ModuleSummary
+  /** `pnl` en USD (el que importa en un activo dolarizado, D4) */
+  cedears: ModuleSummary
   /** Ordenados de mayor a menor valor */
   assets: AssetAllocation[]
   /** Monedas en cartera sin precio de mercado (no suman al valor); "Pesos" sin cotización MEP */
@@ -70,6 +76,8 @@ type OverviewInput = {
   pesosBalance?: number
   /** Dólar MEP venta: pasa los pesos a USD; `null` si todavía no hay cotización */
   mepRate?: number | null
+  /** Posiciones de CEDEARs, ya valuadas en ARS y en USD (CCL venta) por `computeCedearPositions` */
+  cedearPositions?: CedearPosition[]
 }
 
 /** Activo único del módulo Pesos */
@@ -90,10 +98,12 @@ export const computePortfolioOverview = ({
   cryptoArsRate,
   pesosBalance = 0,
   mepRate = null,
+  cedearPositions = [],
 }: OverviewInput): PortfolioOverview => {
   const assets: Omit<AssetAllocation, 'share'>[] = []
   let dolarPnl = 0
   let cryptoPnl = 0
+  let cedearsPnl = 0
   const missingPrices: string[] = []
 
   for (const [option, data] of Object.entries(dolarData) as [
@@ -153,6 +163,29 @@ export const computePortfolioOverview = ({
     }
   }
 
+  for (const position of cedearPositions) {
+    cedearsPnl += position.realizedPnlUsd + (position.unrealizedPnlUsd ?? 0)
+    if (position.quantity <= 0) continue
+    // Sin precio o sin CCL no hay valor en USD: no entra a la composición (D5, nunca inventado)
+    if (position.marketValueUsd === null) {
+      missingPrices.push(
+        position.marketValueArs === null ? position.ticker : `${position.ticker} (sin CCL)`,
+      )
+      continue
+    }
+    assets.push({
+      key: `cedear:${position.ticker}`,
+      module: 'cedears',
+      label: cedearName(position.ticker) ?? position.ticker,
+      symbol: position.ticker,
+      image: null,
+      href: `/cedears/${encodeURIComponent(position.ticker)}`,
+      valueUsd: position.marketValueUsd,
+      valueArs: position.marketValueArs,
+      change24h: position.change24h,
+    })
+  }
+
   const totalUsd = assets.reduce((acc, a) => acc + a.valueUsd, 0)
   const share = (value: number) => (totalUsd > 0 ? value / totalUsd : 0)
   const withShare = assets
@@ -177,6 +210,7 @@ export const computePortfolioOverview = ({
     dolar: summarize('dolar', dolarPnl),
     crypto: summarize('crypto', cryptoPnl),
     pesos: summarize('pesos', null),
+    cedears: summarize('cedears', cedearsPnl),
     assets: withShare,
     missingPrices,
   }

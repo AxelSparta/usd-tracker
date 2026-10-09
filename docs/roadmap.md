@@ -18,7 +18,7 @@ Qué falta hacer y en qué orden. Lo ya hecho, con sus decisiones, está en
 
 ## Estado actual (octubre 2026)
 
-La app está en producción (Vercel) con los módulos Dólar, Cripto y Pesos, login, nube y dashboard:
+La app está en producción (Vercel) con los módulos Dólar, Cripto, Pesos y CEDEARs, login, nube y dashboard:
 
 - **Dólar:** compras y ventas de USD en ARS por tipo de dólar, métricas en ARS, cotizaciones de
   DolarAPI con backoff y fallback.
@@ -34,6 +34,9 @@ La app está en producción (Vercel) con los módulos Dólar, Cripto y Pesos, lo
   cualquier moneda, dentro del PnL realizado.
 - **Pesos** (Fase 8): saldo en ARS (ingresos y egresos) con su equivalente al MEP venta, y
   conversiones enlazadas pesos ↔ cualquier tipo de dólar. El dashboard suma el saldo.
+- **CEDEARs** (Fases 9–10): compras y ventas pagadas con pesos o dólares CCL (la pata mueve el saldo
+  de Pesos o del Dólar CCL), posiciones y PnL en ARS y USD al CCL venta, precios de data912 y
+  CEDEARs en el dashboard.
 - **Calidad:** Vitest, Playwright (sin sesión y con sesión), CI en cada PR, migraciones en el deploy,
   logs JSON.
 
@@ -49,6 +52,8 @@ La app está en producción (Vercel) con los módulos Dólar, Cripto y Pesos, lo
 | 5 ✅ | Dashboard del portfolio | [historial](historial.md#fase-5--portfolio-tracker-) |
 | 7 ✅ | Intercambios USDT ↔ cripto (7a) y resultados de trades (7b) | [historial](historial.md#fase-7--intercambios-usdt-dólar-cripto--cripto-y-resultados-de-trades-) |
 | 8 ✅ | Pesos: saldo en ARS, conversiones pesos ↔ dólar y Pesos en el dashboard | [historial](historial.md#fase-8--pesos-y-conversiones-a-dólar-) |
+| 9 ✅ | CEDEARs: precios (data912), patas en Pesos / Dólar CCL, modelo, API, stores y UI | [historial](historial.md#fase-9--módulo-cedears-) |
+| 10 ✅ | CEDEARs en el dashboard (total, composición y evolución) | [historial](historial.md#fase-10--cedears-en-el-portfolio-) |
 
 ### Deuda técnica y riesgos vigentes
 
@@ -132,12 +137,11 @@ Fases 0–5 ✅
 Fase 6 (pendiente: retención de Neon, secretos E2E en CI, lo de "usuarios reales")
 Fase 7 ✅ (7a: intercambios USDT ↔ cripto · 7b: resultados de trades)
 Fase 8 ✅ (Pesos + conversiones a dólar)
-Fases 9–10 (CEDEARs): ver docs/roadmap-cedears.md
+Fases 9–10 ✅ (CEDEARs; plan y decisiones en docs/roadmap-cedears.md)
 ```
 
-- Lo que sigue: CEDEARs (Fases 9–10, en CCL). La 9.1 (precios de data912) está hecha; sigue la 9.0
-  (patas de CEDEARs en Pesos y Dólar); data912 queda como fuente también del histórico (P3). Detalle
-  en `docs/roadmap-cedears.md`. Más lo pendiente de la Fase 6 y el backlog.
+- Lo que sigue: lo pendiente de la Fase 6, el backlog y los "posibles siguientes pasos" de
+  `docs/roadmap-cedears.md` (CEDEARs en MEP, dividendos, cambios de ratio, editar conversiones).
 
 ---
 

@@ -4,6 +4,7 @@ import DolarPrice from '@/components/DolarPrice'
 import { Stat, pnlClass } from '@/components/Stat'
 import SyncGate from '@/components/SyncGate'
 import { Skeleton } from '@/components/ui/skeleton'
+import { useCedearPriceSync } from '@/features/cedears/hooks'
 import { useCryptoPriceSync } from '@/features/crypto/hooks'
 import { formatCurrency } from '@/lib/locale-amount'
 import { cn } from '@/lib/utils'
@@ -12,6 +13,8 @@ import { toAllocationSegments } from '../overview'
 import AllocationBar from './AllocationBar'
 import AssetTable from './AssetTable'
 import ValueChart from './ValueChart'
+
+const listFormat = new Intl.ListFormat('es', { type: 'conjunction' })
 
 const signed = (prefix: string, n: number) =>
   `${n < 0 ? '-' : n > 0 ? '+' : ''}${prefix}${formatCurrency(Math.abs(n))}`
@@ -40,7 +43,9 @@ function DashboardSkeleton() {
  */
 export default function PortfolioDashboard({ onboarding }: { onboarding: React.ReactNode }) {
   useCryptoPriceSync()
-  const { overview, hasOperations, hasPesos, pesosBalance, status, retry } = usePortfolioOverview()
+  useCedearPriceSync()
+  const { overview, hasOperations, hasPesos, hasCedears, pesosBalance, status, retry } =
+    usePortfolioOverview()
 
   if (status !== 'ready') {
     return (
@@ -51,24 +56,34 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
   }
   if (!hasOperations) return onboarding
 
-  const { totalArs, totalUsd, dolar, crypto, pesos, assets, missingPrices } = overview
+  const { totalArs, totalUsd, dolar, crypto, pesos, cedears, assets, missingPrices } = overview
   const segments = toAllocationSegments(assets)
+  const tiles = 3 + Number(hasPesos) + Number(hasCedears)
+  const held = [
+    hasPesos && 'pesos',
+    'dólares',
+    hasCedears && 'CEDEARs',
+    'cripto',
+  ].filter((part): part is string => !!part)
 
   return (
     <div className='space-y-12'>
       <header className='space-y-1'>
         <h1 className='text-2xl font-semibold tracking-tight'>Tu portfolio</h1>
         <p className='text-sm text-muted-foreground'>
-          {hasPesos ? 'Tus pesos, dólares y cripto' : 'Tus dólares y cripto'} valuados con las
-          cotizaciones actuales.
+          Tus {listFormat.format(held)} valuados con las cotizaciones actuales.
         </p>
       </header>
 
       <section
         aria-label='Resumen'
         className={cn(
-          'grid gap-px overflow-hidden rounded-lg border bg-border sm:grid-cols-3',
-          hasPesos && 'sm:grid-cols-2 lg:grid-cols-4',
+          'grid gap-px overflow-hidden rounded-lg border bg-border',
+          tiles === 3 && 'sm:grid-cols-3',
+          tiles === 4 && 'sm:grid-cols-2 lg:grid-cols-4',
+          // Con cinco, el total ocupa la primera fila en tablet
+          tiles === 5 &&
+            'sm:grid-cols-2 sm:[&>*:first-child]:col-span-2 lg:grid-cols-5 lg:[&>*:first-child]:col-span-1',
         )}
       >
         <Stat
@@ -98,6 +113,15 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
             value={`${pesosBalance < 0 ? '-' : ''}$${formatCurrency(Math.abs(pesosBalance))}`}
             secondaryLabel='En dólares (MEP)'
             secondaryValue={pesos.assets > 0 ? `US$${formatCurrency(pesos.valueUsd)}` : '—'}
+          />
+        )}
+        {hasCedears && (
+          <Stat
+            label='CEDEARs'
+            value={`US$${formatCurrency(cedears.valueUsd)}`}
+            secondaryLabel='Ganancia'
+            secondaryValue={signed('US$', cedears.pnl ?? 0)}
+            secondaryClassName={pnlClass(cedears.pnl ?? 0)}
           />
         )}
       </section>

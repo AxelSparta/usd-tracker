@@ -151,206 +151,18 @@ Cerrada en oct 2026; el detalle (modelo, tareas 8.1–8.4 y verificación) está
 
 ---
 
-## Fase 9 — Módulo CEDEARs
+## Fases 9 y 10 — CEDEARs ✅
 
-**Objetivo:** comprar y vender CEDEARs con pesos o dólares CCL, ver posiciones y PnL en ARS y USD
-(con CCL venta como tipo de cambio, D4 y D5).
+Cerradas en oct 2026; el detalle (9.0–9.4, Fase 10, hallazgos de data912 y verificación) está en
+[`historial.md`](historial.md#fase-9--módulo-cedears-). En resumen:
 
-### 9.1 Precios (server) ✅ (oct 2026)
-
-- [x] `src/server/cedears.ts`: cliente de data912 con schemas Zod de respuesta.
-  - `getCedearPanel()` → `{ rows: { ticker, name, priceArs, change24h, volume }[], updatedAt }` desde
-    `/live/arg_cedears`, `next.revalidate` 5 min. Solo tickers base; `c = 0` → `priceArs: null`.
-    `updatedAt` sale del header `Date` de data912, que el Data Cache de Next guarda con la respuesta.
-  - **Separar variantes** (`isUsdVariant` / `baseRows` en `features/cedears/catalog.ts`). Lo que no
-    sirve:
-    - "termina en `C`/`D`": hay tickers base así (`C` Citigroup, `ELPC` Copel, `BA.C` Bank of America).
-    - "existe el símbolo sin la última letra": `BAC` es Boeing (`BA`) en CCL, y Bank of America es
-      `BA.C`, con variantes `BA.CC` y `BA.CD`. Hay variantes con punto (`C.D`, `B.C`, `CAR.D`).
-    - "precio base / variante ≈ CCL ± 30 %": las variantes tienen precios en 0 (`BMYC`, `PSXC`) o
-      viejos (`ELPCD` +40 %, `NGC` y `YELPD` −31 %).
-    - la regla del plan ("existe su base y `base.c / fila.c > 100` o `fila.c = 0`", más una lista de
-      exclusión): falla con `BBDCD` (junto a `BBDC`, otra variante: razón ≈ 1) y la lista se
-      desactualiza.
-
-    **Regla implementada:** una fila que termina en `C`/`D` (o `.C`/`.D`) es variante si vale menos
-    de 100, o si existe su base y la base vale más de 100 veces lo que ella. El corte por precio cubre
-    las huérfanas (`GOGLC`, `AKOBD`, `PETRC`…) sin lista: en pesos, el CEDEAR más barato con
-    operaciones vale 354; la razón cubre las variantes de más de US$ 100 (`MUD` 222, `HWMC` 239). Con
-    el panel de oct 2026: 406 CEDEARs en ARS y 618 variantes. Test con un snapshot real
-    (`features/cedears/__tests__/panel-2026-10.json`).
-  - `getCedearHistory(ticker, from)` desde `/historical/cedears/{ticker}` (cierre `c`, sin ceros),
-    revalidate 6 h. Un ticker sin histórico responde **200** con `{ "Error": "..." }` (no 404) →
-    `null`.
-  - Tickers con punto (`BA.C`): `CEDEAR_TICKER = ^[A-Z0-9]{1,10}(\.[A-Z0-9]{1,4})?$`; el path
-    `/historical/cedears/BA.C` funciona.
-- [x] `GET /api/cedears/prices?tickers=` → `CedearPriceMap` (precio ARS, variación, `updatedAt`),
-      `GET /api/cedears/search?q=` → `Cedear[]` (prefijo del ticker o nombre del catálogo; el ticker
-      exacto primero y después por **monto operado**, `volumen × precio`: la cantidad favorece a los
-      baratos; sin `q`, los más operados) y `GET /api/history/cedears?tickers=` (varios, como
-      `/api/history/crypto`: el dashboard los pide juntos; último año; sin histórico → se omite).
-- [x] Nombres: catálogo estático (79 tickers, los más operados) en `features/cedears/catalog.ts`
-      (`cedearName`); el resto se muestra solo con el ticker. Sin lista de exclusión.
-- [x] **Cambios de ratio: el histórico NO viene ajustado.** Saltos que coinciden con cambios de ratio
-      conocidos: AMD ×0,052, MSFT / META / MCD ×0,34 (17/11/2022), NFLX ×0,097 (17/11/2025, después
-      del split 10:1), SPY ×0,335 (29/5/2026). Que AAPL no tenga saltos no alcanzaba para concluir nada. Además, el 3 y 4/8/2023 hay
-      un dato erróneo en casi todos (cae y vuelve al día siguiente). Ver "Hallazgos de la 9.1".
-- [x] Tests de los schemas y las rutas con respuestas guardadas (`src/server/__tests__/cedears.test.ts`,
-      `features/cedears/__tests__/catalog.test.ts`); rutas simuladas en `e2e/fixtures.ts` (`AAPL`,
-      `BA.C`).
-
-**Hallazgos de la 9.1** (afectan a la Fase 10 y a P3):
-
-- **Histórico incompleto:** de los 45 CEDEARs más operados (oct 2026), 24 no tienen histórico en
-  data912, entre ellos NU, ORCL, UBER, TSM, GLD, VIST, IBIT y MRVL (tampoco en
-  `/historical/stocks`). Para esos, la evolución del valor no tiene precio: `null`, nunca inventado.
-- **Ratios sin ajustar:** el día de un cambio de ratio, el cierre salta (÷20, ÷3, ÷10). La posición
-  del usuario (cantidad de CEDEARs) también cambia ese día en la realidad, pero la app no lo sabe:
-  la valuación **en vivo** es correcta (cantidad actual × precio actual), pero el gráfico hacia atrás
-  y el costo promedio quedan desfasados para quien tenía el CEDEAR antes del cambio.
-- **Cache:** el panel responde con `cache-control: max-age=30`, no las ~2 h que se habían medido.
-
-### 9.0 Patas de CEDEARs en Pesos y Dólar ✅ (oct 2026)
-
-- [x] `cedearId?: string` en `Transaction` (Dólar) y `PesosMovement`. `transactions-storage` v4 → **v5**
-      y `pesos-storage` v1 → **v2** (`migratePesosStorage`, que antes no tenía `migrate`); campo
-      opcional, así que los datos viejos son válidos. Tests con snapshot de v4 y v1.
-- [x] Prisma: `cedearId String? @db.Uuid` + `@@index([cedearId])` en `DolarTransaction` y
-      `PesosMovement` (migración `20261008000000_cedear_legs`). `mappers.ts` ida y vuelta.
-- [x] Reglas de forma: `linkOf` suma `{ kind: 'cedear' }`; `assertDolarShape` acepta como mucho un
-      enlace ("Una operación no puede ser parte de dos operaciones enlazadas.") y la pata de CEDEAR
-      solo en `contadoconliqui` (un resultado de trade ya queda afuera: va en el dólar cripto);
-      `assertPesosShape` rechaza `conversionId` + `cedearId`.
-- [x] Las funciones puras de Dólar y Pesos rechazan editar o borrar una pata con `cedearId`
-      (`CEDEAR_LEG_CHANGE`: "Es parte de una operación de CEDEAR: modificala desde CEDEARs."). Las
-      APIs devuelven 422 solas (tests en `server/__tests__/api.test.ts`) y no crean patas: sus
-      schemas no aceptan `cedearId`.
-- [x] `commitAcross` ya aceptaba N stores: test con tres (`lib/__tests__/commit-across.test.ts`).
-      El loader compartido del server suma `cedears` en la **9.3**, cuando exista la tabla.
-- [x] Importación: `assertCedearLegsComplete(cedears, dolar, pesos)` en `features/cedears/operations.ts`
-      (exactamente una pata por operación, en el módulo de su moneda y del tipo contrario; cada
-      `cedearId` apunta a una operación) y `cedearId` en `importSchema`. Hasta la 9.3 se llama con
-      `[]` operaciones: una pata sola se rechaza (422). `toImportPayload` remapea `cedearId`.
-- La UI de las patas en `/pesos` y `/dolar` (sin editar ni borrar, con link a CEDEARs) queda en la
-  9.4: hasta entonces no hay forma de crearlas.
-
-### 9.2 Modelo y cálculos ✅ (oct 2026)
-
-```ts
-type CedearTransaction = {
-  id: string                     // las patas lo guardan como `cedearId` (D8)
-  ticker: string                 // ticker base en BYMA, ej. "AAPL", "BA.C"
-  type: TransactionType
-  quantity: number               // CEDEARs enteros, > 0
-  price: number                  // por CEDEAR, en `currency` (ARS, o USD CCL)
-  currency: 'ARS' | 'CCL'        // ARS → pata en Pesos; CCL → pata en Dólar `contadoconliqui`
-  fxRate: number                 // ARS por USD CCL ese día, CCL venta por defecto (D4)
-  fee?: number                   // comisión + derechos, en `currency`
-  date: Date | string
-}
-```
-
-- [x] `features/cedears/metrics.ts`: `toArsLot`, `toUsdLot` (con la comisión: encarece la compra,
-      reduce lo cobrado en la venta) y `computeCedearPositions(txs, prices, cclSell)` → por ticker:
-      cantidad, costo promedio ARS y USD, costo, valor de mercado ARS/USD (D5), PnL realizado y no
-      realizado en las dos monedas. Rótulo "Costo", no "Invertido" (mismo criterio que la Fase 7b).
-      Tests en `features/cedears/__tests__/` (incluido: comprar y valuar el mismo día con el mismo CCL
-      da PnL 0 en las dos monedas). Además `cedearTotal` / `cedearAmounts` (total con comisión, en las
-      dos monedas) y `summarizeCedears`; sin CCL, el valor USD es `null` y `hasMissingPrices` avisa.
-- [x] `features/cedears/operations.ts` (puro, store + server):
-  - `buildFundingLeg(tx, legId)` → con ARS: egreso de Pesos por `price × quantity + fee` en la compra,
-    o ingreso por `price × quantity − fee` en la venta. Con CCL: venta (compra de CEDEAR) o compra
-    (venta de CEDEAR) en el grupo `contadoconliqui` del Dólar por el monto USD, con `pesosAmount` =
-    USD × `fxRate`. La pata lleva `id` propio (del cliente) y `cedearId` = `tx.id`.
-  - `applyAdd/Update/RemoveCedearTransaction({ cedears, pesos, dolar }, …)`: valida las unidades del
-    CEDEAR (sin vender más de lo que hay), el saldo de pesos o de USD CCL, y devuelve los tres estados.
-    Al editar con cambio de `currency`, la pata se mueve de módulo y se revalidan los dos. Mensajes en
-    español ("No tenés pesos suficientes el dd/MM/yyyy.").
-  - Cantidad entera: en las funciones puras (`assertCedearShape`, que también rechaza una comisión
-    mayor al total de la venta); el schema Zod va con la API (9.3).
-  - Devuelven además la pata nueva y la anterior (`FundingLeg`: `pesos` o `dolar`), que el server
-    usa para saber qué filas escribir; al editar, la pata conserva su id aunque cambie de módulo.
-- [x] **Efecto en el módulo Dólar:** pagar un CEDEAR con CCL es una **venta** de USD CCL, así que
-      realiza en ARS la ganancia cambiaria de esos dólares (igual que USDT → cripto en la Fase 7a). La
-      UI del Dólar lo explica en la fila de la pata (9.4, `title` del distintivo "CEDEAR · …"). En la 9.2 sale solo: la pata es una venta
-      normal del grupo `contadoconliqui`.
-- [x] Persistencia → **9.3**: `cedears-storage` (`version: 1`) y `cedears-prices-storage`
-      (`version: 1`, último precio como fallback). Se mueve porque `createSync` necesita la API
-      (`fetchCloud`) para el modo nube.
-- [x] Prisma: `CedearTransaction` (`ticker`, `type`, `quantity Decimal`, `price Decimal`,
-      `currency` enum `ARS | CCL`, `fxRate Decimal`, `fee Decimal?`, `date`, índice
-      `[userId, ticker, date]`); migración `20261008120000_cedear_transactions`. Mappers
-      `toCedearTransaction` / `toCedearTransactionData`.
-
-### 9.3 API y stores ✅ (oct 2026)
-
-- [x] `/api/cedears/transactions[/:id]` (`server/cedear-transactions.ts`): cada escritura carga los
-      estados de CEDEARs + Pesos + Dólar del usuario, aplica la función pura y escribe la operación
-      **y su pata** en la misma `withUserTransaction` (`Serializable`). Mismos códigos
-      (401/400/404/409/422); ids del cliente (`id` y `legId`). Al editar con cambio de moneda, la pata
-      se borra de una tabla y se crea en la otra con el mismo id. Logs `cedear.*` sin montos.
-      CEDEARs se carga aparte y no en `loadLinkedState` (ciclo de imports con el servicio).
-- [x] Import: `cedears` en `importSchema` (opcional, `default([])`), `assertCedearShape`,
-      `assertCedearLegsComplete` con las operaciones reales y `validateCedearTimelines`.
-- [x] Tests en `src/server/__tests__/` (pata en Pesos y en CCL, 400 por cantidad no entera, 422 por
-      saldo de pesos / CCL / unidades sin escribir nada, edición ARS ↔ CCL, borrado bloqueado y
-      permitido, pata borrada desde `/api/pesos` → 422, ownership, 409; importación idempotente,
-      sin pata y con unidades negativas).
-- [x] Cliente: `cedearsApi` y `fetchCedearPrices` (`api.ts`), `useCedearsStore` (`cedears-storage`,
-      v1, solo `applyExternal`), `actions.ts` (alta/edición/borrado en los tres stores con
-      `commitAcross` y un solo request; solo escribe en los stores que cambian) y
-      `useCedearPricesStore` (`cedears-prices-storage`, v1). `CloudSync`, `SyncBadge` e importación
-      local incluyen CEDEARs.
-- **Antes de usar la nube:** aplicar la migración `20261008120000_cedear_transactions` en cada base
-      (producción la aplica el deploy; la de E2E cloud y la de desarrollo, con `pnpm db:deploy`): sin
-      la tabla, `GET /api/cedears/transactions` da 500 y el store queda en error.
-
-### 9.4 UI ✅ (oct 2026)
-
-- [x] Sección **CEDEARs** en `sections.ts` (`/cedears`, `/cedears/nueva`, `/cedears/[ticker]`, ícono
-      `ChartLine`; `LineChart` es el alias viejo de lucide).
-- [x] Formulario: buscador de ticker (combobox como `CoinCombobox`), compra/venta, cantidad,
-      **pagado con** Pesos / Dólares CCL (con el saldo disponible de cada uno), CCL del día
-      (`useDolarRate('contadoconliqui', 'sell', date)`, editable), precio autocompletado (en ARS, el
-      último del ticker base o su cierre de ese día; en CCL, ese precio / CCL del formulario), comisión
-      y fecha. Muestra el total que sale o entra de Pesos / CCL. Acciones con `await` y `whenReady`,
-      como el resto. Si hoy no alcanza el saldo, links a "Registrar un ingreso de pesos" o "Convertir
-      pesos a CCL" (D7); navegan fuera del formulario, así que lo cargado se pierde.
-      Al cambiar la moneda, el precio cargado se convierte con el CCL del formulario.
-- [x] Vista `/cedears`: resumen (valor ARS y USD, costo, PnL realizado y no realizado en las dos
-      monedas con selector ARS/USD), posiciones e historial con edición y borrado; aviso "precios con
-      demora" (D5) y cuándo se obtuvo el último precio.
-- [x] Detalle `/cedears/[ticker]`: operaciones filtradas y métricas del CEDEAR.
-- [x] Refresco de precios cada 5 min solo con la sección montada, con backoff ante fallos
-      (`lib/backoff.ts`), como cripto.
-- [x] En `/pesos` y `/dolar`, las patas se ven como "CEDEAR · compra 10 AAPL" con link al detalle y sin
-      editar ni borrar: contexto `use-cedear-legs` en `hooks/` (como `use-usdt-swap-links`), provisto
-      por `features/cedears`.
-- [x] E2E (`e2e/cedears.spec.ts`): ingreso de pesos → compra de CEDEAR con pesos → venta; conversión de pesos a CCL → compra con
-      CCL; error por falta de saldo; borrar la compra devuelve el saldo; la pata no se puede borrar desde
-      `/pesos` ni desde `/dolar`. Además, editar la cantidad actualiza la pata.
-
-**Criterio de salida:** se puede comprar y vender cualquier CEDEAR con pesos o dólares CCL, y los
-saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consistentes en local y en la nube.
-
----
-
-## Fase 10 — CEDEARs en el portfolio
-
-- [ ] `features/portfolio/overview.ts`: módulo `cedears`. Composición en USD: valor ARS / CCL venta
-      (D5). Resumen por módulo con su ganancia (CEDEARs en USD).
-- [ ] `history.ts`: CEDEARs por día × cierre histórico ARS / CCL venta histórico (`contadoconliqui`).
-      Sin precio → `null`, como hoy. Con data912 (P3): muchos tickers no tienen histórico y el que hay
-      no está ajustado por ratio → nota en el gráfico.
-- [ ] Verificar que una compra de CEDEAR no cambie el total el día de la compra (sale de Pesos o CCL y
-      entra en CEDEARs al mismo CCL), como se verificó con los intercambios USDT.
-- [ ] Colores: la paleta categórica sigue al activo (no hace falta otra); la tabla de composición hace
-      drill-down a `/cedears/[ticker]`.
-- [ ] Home: tarjeta de la sección nueva (sale sola de `sections.ts`).
-- [ ] Mover el detalle de las Fases 9–10 a `docs/historial.md` y actualizar `AGENTS.md`, `README.md` y
-      `docs/roadmap.md`.
-
-**Criterio de salida:** el dashboard suma CEDEARs al valor total, la composición y la evolución.
+- **9.1** precios de data912 (panel en vivo, buscador, histórico sin ajustar por ratio).
+- **9.0** `cedearId` en las patas de Pesos y del Dólar CCL, que no se editan ni se borran solas.
+- **9.2** `CedearTransaction` (moneda `ARS` | `CCL` + `fxRate`), posiciones en ARS y USD, funciones
+  puras que escriben la operación y su pata.
+- **9.3** API `/api/cedears/transactions`, importación, `cedears-storage` y acciones en tres stores.
+- **9.4** UI (`/cedears`, `/cedears/nueva`, `/cedears/[ticker]`) y patas visibles en `/pesos` y `/dolar`.
+- **10** CEDEARs en el dashboard: total, composición (ARS / CCL venta) y evolución.
 
 ---
 
@@ -384,7 +196,7 @@ Fase 7 ✅ (usdtSwapId, applyExternal, whenReady)
           │                                     9.1 ✅ (precios data912)
           └─> 9.0 ✅ (patas con cedearId) ───────┘
                  └─> 9.2 ✅ (modelo y cálculos) ─> 9.3 ✅ (API, stores) ─> 9.4 ✅ (UI)
-                        └─> Fase 10 (CEDEARs en el portfolio)
+                        └─> Fase 10 ✅ (CEDEARs en el portfolio)
 ```
 
 - La Fase 8 se fusiona sola: deja `commitAcross`, el loader compartido del server, `linkOf` y

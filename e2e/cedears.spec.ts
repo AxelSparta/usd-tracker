@@ -137,3 +137,29 @@ test('CEDEARs con CCL: sin saldo se rechaza; con una conversión previa, la pata
   await expect(page).toHaveURL(/\/cedears\/AAPL$/)
   await expect(page.getByRole('heading', { name: 'Apple' })).toBeVisible()
 })
+
+test('dashboard: los CEDEARs suman al total, entran a la composición al CCL y llevan al detalle', async ({ page }) => {
+  await addIncome(page, '1000000')
+  await startAapl(page)
+  await page.getByLabel(/^Cantidad/).fill('10')
+  await page.getByRole('button', { name: 'Guardar operación' }).click()
+  await expect(page).toHaveURL(/\/cedears$/)
+
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Tu portfolio' })).toBeVisible()
+  await expect(page.getByText('Tus pesos, dólares, CEDEARs y cripto')).toBeVisible()
+  // Comprar al precio del día no cambia el total en pesos: 740.000 de saldo + 260.000 en AAPL
+  const summary = page.getByRole('region', { name: 'Resumen' })
+  await expect(summary).toContainText('$1.000.000,00')
+  await expect(summary).toContainText('CEDEARs')
+  await expect(summary).toContainText('US$162,50')
+
+  const composition = page.getByRole('table').filter({ hasText: 'Parte' })
+  const row = composition.getByRole('row').filter({ hasText: 'AAPL' })
+  await expect(row).toContainText('US$162,50')
+  await expect(row).toContainText('$260.000,00')
+  await expect(page.getByText(/El histórico de CEDEARs no está ajustado por cambios de ratio/)).toBeVisible()
+
+  await row.getByRole('link').click()
+  await expect(page).toHaveURL(/\/cedears\/AAPL$/)
+})

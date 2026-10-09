@@ -5,7 +5,10 @@ import {
   priceAt,
   trimLeadingGaps,
 } from '@/features/portfolio/history'
+import { buildFundingLeg } from '@/features/cedears/operations'
+import type { CedearTransaction } from '@/features/cedears/types'
 import type { CryptoTransaction } from '@/features/crypto/types'
+import type { PesosMovement } from '@/features/pesos/types'
 import { DolarOption } from '@/types/dolar.types'
 import { TransactionType, type Transaction } from '@/types/transaction.types'
 
@@ -204,5 +207,127 @@ describe('computeValueHistory con Pesos', () => {
       to: '2026-01-01',
     })
     expect(point).toEqual({ date: '2026-01-01', ars: 1000, usd: null })
+  })
+})
+
+describe('CEDEARs (Fase 10)', () => {
+  const ccl = [{ date: '2026-01-01', buy: 1580, sell: 1600 }]
+  const aapl = [
+    { date: '2026-01-01', ars: 26_000 },
+    // 03 sin cierre: se usa el del 02
+    { date: '2026-01-02', ars: 32_000 },
+  ]
+  const cedearTx = (overrides: Partial<CedearTransaction> = {}): CedearTransaction => ({
+    id: '00000000-0000-4000-8000-0000000000a1',
+    ticker: 'AAPL',
+    type: TransactionType.BUY,
+    quantity: 10,
+    price: 16.25,
+    currency: 'CCL',
+    fxRate: 1600,
+    date: local('2026-01-02'),
+    ...overrides,
+  })
+
+  it('ARS = cantidad × cierre del día; USD = eso / CCL venta', () => {
+    const points = computeValueHistory({
+      dolarTxs: [],
+      cryptoTxs: [],
+      cedearTxs: [cedearTx({ date: local('2026-01-01') })],
+      cedearPrices: { AAPL: aapl },
+      dolarPrices: { [DolarOption.ContadoConLiqui]: ccl },
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-03',
+    })
+    expect(points).toEqual([
+      { date: '2026-01-01', ars: 260_000, usd: 162.5 },
+      { date: '2026-01-02', ars: 320_000, usd: 200 },
+      { date: '2026-01-03', ars: 320_000, usd: 200 },
+    ])
+  })
+
+  it('sin cierre del CEDEAR → null; sin CCL, USD es null pero ARS sigue', () => {
+    const [noPrice] = computeValueHistory({
+      dolarTxs: [],
+      cryptoTxs: [],
+      cedearTxs: [cedearTx({ date: local('2026-01-01') })],
+      cedearPrices: {},
+      dolarPrices: { [DolarOption.ContadoConLiqui]: ccl },
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-01',
+    })
+    expect(noPrice).toEqual({ date: '2026-01-01', ars: null, usd: null })
+
+    const [noCcl] = computeValueHistory({
+      dolarTxs: [],
+      cryptoTxs: [],
+      cedearTxs: [cedearTx({ date: local('2026-01-01') })],
+      cedearPrices: { AAPL: aapl },
+      dolarPrices: {},
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-01',
+    })
+    expect(noCcl).toEqual({ date: '2026-01-01', ars: 260_000, usd: null })
+  })
+
+  // Comprar al precio y al CCL del día pasa valor de un módulo a otro: el total no cambia
+  it('una compra con CCL al precio del día no cambia el total (ni en USD ni en ARS)', () => {
+    const tx = cedearTx({ price: 26_000 / 1600, date: local('2026-01-01') })
+    const { leg } = buildFundingLeg(tx, '00000000-0000-4000-8000-0000000000a2')
+    const cclBuy: Transaction = {
+      ...dolarTx(TransactionType.BUY, 1000, '2025-12-31'),
+      dolarOption: DolarOption.ContadoConLiqui,
+    }
+    const input = {
+      cryptoTxs: [],
+      cedearPrices: { AAPL: aapl },
+      dolarPrices: { [DolarOption.ContadoConLiqui]: ccl },
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-01',
+    }
+    const [before] = computeValueHistory({ ...input, dolarTxs: [cclBuy] })
+    const [after] = computeValueHistory({
+      ...input,
+      dolarTxs: [cclBuy, leg as Transaction],
+      cedearTxs: [tx],
+    })
+    expect(after.usd).toBeCloseTo(before.usd!, 9)
+    expect(after.ars).toBeCloseTo(before.ars!, 6)
+  })
+
+  it('una compra con pesos al precio del día no cambia el total en ARS', () => {
+    const tx = cedearTx({ currency: 'ARS', price: 26_000, date: local('2026-01-01') })
+    const { leg } = buildFundingLeg(tx, '00000000-0000-4000-8000-0000000000a3')
+    const income: PesosMovement = {
+      id: 'ingreso',
+      type: TransactionType.BUY,
+      amount: 1_000_000,
+      date: local('2025-12-31'),
+    }
+    const input = {
+      dolarTxs: [],
+      cryptoTxs: [],
+      cedearPrices: { AAPL: aapl },
+      dolarPrices: {
+        [DolarOption.ContadoConLiqui]: ccl,
+        [DolarOption.Bolsa]: [{ date: '2026-01-01', buy: 1540, sell: 1550 }],
+      },
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-01',
+    }
+    const [before] = computeValueHistory({ ...input, pesosMovements: [income] })
+    const [after] = computeValueHistory({
+      ...input,
+      pesosMovements: [income, leg as PesosMovement],
+      cedearTxs: [tx],
+    })
+    expect(after.ars).toBeCloseTo(before.ars!, 6)
+    // En USD cambia por la diferencia entre el MEP (pesos) y el CCL (CEDEARs)
+    expect(after.usd).not.toBeCloseTo(before.usd!, 2)
   })
 })
