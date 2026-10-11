@@ -24,6 +24,7 @@ import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group'
 import { computePesosBalance } from '@/features/pesos/operations'
 import { usePesosStore } from '@/features/pesos/pesos.store'
 import { useDolarRate } from '@/hooks/use-dolar-rate'
+import { useMounted } from '@/hooks/use-mounted'
 import {
   formatAmountArInput,
   formatCurrency,
@@ -74,6 +75,8 @@ export default function CedearTransactionForm({
   const movements = usePesosStore((s) => s.movements)
   const cclGroup = useTransactionStore((s) => s.transactions[CCL])
 
+  // "Hoy" sale del reloj de cada lado: el server (UTC) puede estar en otro día que el navegador
+  const mounted = useMounted()
   const form = useForm<CedearTransactionFormInput>({
     resolver: zodResolver(cedearTransactionFormSchema),
     defaultValues: {
@@ -372,7 +375,7 @@ export default function CedearTransactionForm({
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button variant='outline' className='w-[240px] pl-3 text-left font-normal'>
-                      {field.value ? format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
+                      {field.value ? mounted && format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
                       <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                     </Button>
                   </FormControl>

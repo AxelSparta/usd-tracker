@@ -11,6 +11,7 @@ const FORMS = [
   '/dolar/nueva',
   '/cripto/nueva',
   '/cripto/nueva?modo=intercambio',
+  '/cedears/nueva',
 ]
 
 for (const path of FORMS) {
