@@ -33,6 +33,7 @@ import {
 } from '@/components/ui/select'
 import { DolarOption } from '@/types/dolar.types'
 import { formatAmountArInput } from '@/lib/locale-amount'
+import { useMounted } from '@/hooks/use-mounted'
 
 type TransactionFormProps = {
   defaultValues?: Partial<TransactionFormInput>
@@ -47,6 +48,8 @@ export default function TransactionForm({
   submitLabel,
   onSubmit,
 }: TransactionFormProps) {
+  // "Hoy" sale del reloj de cada lado: el server (UTC) puede estar en otro día que el navegador
+  const mounted = useMounted()
   const form = useForm<TransactionFormInput>({
     resolver: zodResolver(transactionFormSchema),
     defaultValues: {
@@ -192,7 +195,7 @@ export default function TransactionForm({
                       className={'w-[240px] pl-3 text-left font-normal'}
                     >
                       {field.value ? (
-                        <p>{format(field.value, 'dd/MM/yyyy')}</p>
+                        <p>{mounted && format(field.value, 'dd/MM/yyyy')}</p>
                       ) : (
                         <span>Seleccionar fecha</span>
                       )}

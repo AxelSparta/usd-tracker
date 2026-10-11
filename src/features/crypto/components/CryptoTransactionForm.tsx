@@ -48,6 +48,7 @@ import {
   type CryptoTransactionFormInput,
 } from '../validations'
 import CoinCombobox from './CoinCombobox'
+import { useMounted } from '@/hooks/use-mounted'
 
 type CryptoTransactionFormProps = {
   initialCoin?: Coin
@@ -67,6 +68,8 @@ export default function CryptoTransactionForm({
   const [coin, setCoin] = useState<Coin | null>(initialCoin ?? null)
   const [loadingPrice, setLoadingPrice] = useState(false)
 
+  // "Hoy" sale del reloj de cada lado: el server (UTC) puede estar en otro día que el navegador
+  const mounted = useMounted()
   const form = useForm<CryptoTransactionFormInput>({
     resolver: zodResolver(cryptoTransactionFormSchema),
     defaultValues: {
@@ -318,7 +321,7 @@ export default function CryptoTransactionForm({
                       className='w-[240px] pl-3 text-left font-normal'
                     >
                       {field.value ? (
-                        format(field.value, 'dd/MM/yyyy')
+                        mounted && format(field.value, 'dd/MM/yyyy')
                       ) : (
                         <span>Seleccionar fecha</span>
                       )}
