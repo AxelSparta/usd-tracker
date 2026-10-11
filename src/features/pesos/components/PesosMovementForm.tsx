@@ -26,6 +26,7 @@ import {
   pesosMovementFormSchema,
   type PesosMovementFormInput,
 } from '../validations'
+import { useMounted } from '@/hooks/use-mounted'
 
 type PesosMovementFormProps = {
   defaultValues?: Partial<PesosMovementFormInput>
@@ -40,6 +41,8 @@ export default function PesosMovementForm({
   submitLabel,
   onSubmit,
 }: PesosMovementFormProps) {
+  // "Hoy" sale del reloj de cada lado: el server (UTC) puede estar en otro día que el navegador
+  const mounted = useMounted()
   const form = useForm<PesosMovementFormInput>({
     resolver: zodResolver(pesosMovementFormSchema),
     defaultValues: {
@@ -134,7 +137,7 @@ export default function PesosMovementForm({
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button variant='outline' className='w-[240px] pl-3 text-left font-normal'>
-                      {field.value ? format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
+                      {field.value ? mounted && format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
                       <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                     </Button>
                   </FormControl>

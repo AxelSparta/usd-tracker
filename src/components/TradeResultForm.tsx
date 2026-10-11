@@ -29,6 +29,7 @@ import {
   tradeResultFormSchema,
   type TradeResultFormInput,
 } from '@/validations/transaction'
+import { useMounted } from '@/hooks/use-mounted'
 
 type TradeResultFormProps = {
   defaultValues?: Partial<TradeResultFormInput>
@@ -42,6 +43,8 @@ type TradeResultFormProps = {
  * sin compra ni venta de por medio. Lo usan el alta y la edición.
  */
 export default function TradeResultForm({ defaultValues, submitLabel, onSubmit }: TradeResultFormProps) {
+  // "Hoy" sale del reloj de cada lado: el server (UTC) puede estar en otro día que el navegador
+  const mounted = useMounted()
   const form = useForm<TradeResultFormInput>({
     resolver: zodResolver(tradeResultFormSchema),
     defaultValues: {
@@ -169,7 +172,7 @@ export default function TradeResultForm({ defaultValues, submitLabel, onSubmit }
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button variant='outline' className='w-[240px] pl-3 text-left font-normal'>
-                      {field.value ? format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
+                      {field.value ? mounted && format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
                       <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                     </Button>
                   </FormControl>

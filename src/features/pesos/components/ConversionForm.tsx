@@ -46,6 +46,7 @@ import {
   parseConversionFormInput,
   type ConversionFormInput,
 } from '../validations'
+import { useMounted } from '@/hooks/use-mounted'
 
 type ConversionFormProps = {
   /** `?dolar=<tipo>`: viene preseleccionado (atajo "Comprar con pesos" desde `/dolar`) */
@@ -60,6 +61,8 @@ export default function ConversionForm({ defaultDolarOption }: ConversionFormPro
   const router = useRouter()
   const movements = usePesosStore((s) => s.movements)
   const dolarGroups = useTransactionStore((s) => s.transactions)
+  // "Hoy" sale del reloj de cada lado: el server (UTC) puede estar en otro día que el navegador
+  const mounted = useMounted()
   const form = useForm<ConversionFormInput>({
     resolver: zodResolver(conversionFormSchema),
     defaultValues: {
@@ -223,7 +226,7 @@ export default function ConversionForm({ defaultDolarOption }: ConversionFormPro
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button variant='outline' className='w-[240px] pl-3 text-left font-normal'>
-                      {field.value ? format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
+                      {field.value ? mounted && format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
                       <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                     </Button>
                   </FormControl>

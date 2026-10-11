@@ -45,6 +45,7 @@ import { addUsdtSwap } from '../actions'
 import { TETHER_COIN_ID, usdtMoved, type UsdtSwapDirection, type UsdtSwapInput } from '../operations'
 import { USDT_COIN, useUsdtPinned } from '../usdt-option'
 import { swapFormSchema, USDT_OPTION_ID, type SwapFormInput } from '../validations'
+import { useMounted } from '@/hooks/use-mounted'
 
 
 type SwapFormProps = {
@@ -70,6 +71,8 @@ export default function SwapForm({ defaultFrom }: SwapFormProps) {
   // Último valor autocompletado: si el usuario lo cambia a mano, no se pisa
   const autoRate = useRef<string>('')
 
+  // "Hoy" sale del reloj de cada lado: el server (UTC) puede estar en otro día que el navegador
+  const mounted = useMounted()
   const form = useForm<SwapFormInput>({
     resolver: zodResolver(swapFormSchema),
     defaultValues: {
@@ -342,7 +345,7 @@ export default function SwapForm({ defaultFrom }: SwapFormProps) {
                 <PopoverTrigger asChild>
                   <FormControl>
                     <Button variant='outline' className='w-[240px] pl-3 text-left font-normal'>
-                      {field.value ? format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
+                      {field.value ? mounted && format(field.value, 'dd/MM/yyyy') : <span>Seleccionar fecha</span>}
                       <CalendarIcon className='ml-auto h-4 w-4 opacity-50' />
                     </Button>
                   </FormControl>
