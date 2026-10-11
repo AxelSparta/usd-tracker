@@ -20,7 +20,8 @@ import { operationLabel } from '@/lib/operation-label'
 import { cn } from '@/lib/utils'
 import { Stat, pnlClass } from './Stat'
 import EditTransactionDialog from './EditTransactionDialog'
-import { ArrowLeftRight, Banknote, Trash2 } from 'lucide-react'
+import { ArrowLeftRight, Banknote, ChartLine, Trash2 } from 'lucide-react'
+import { useCedearLegs } from '@/hooks/use-cedear-legs'
 import { usePesosConversionLinks } from '@/hooks/use-pesos-conversion-links'
 import { useUsdtSwapLinks } from '@/hooks/use-usdt-swap-links'
 import type { Transaction } from '@/types/transaction.types'
@@ -38,6 +39,7 @@ export default function TransactionList() {
   const allDolarData = useDolarStore((state) => state.allDolarData)
   const usdtSwaps = useUsdtSwapLinks()
   const conversions = usePesosConversionLinks()
+  const cedearLegs = useCedearLegs()
 
   const handleDeleteTransaction = async (tx: Transaction) => {
     try {
@@ -231,6 +233,7 @@ export default function TransactionList() {
                 <tbody className='divide-y tabular-nums'>
                   {sortedTxs.map((tx) => {
                     const operation = operationLabel(tx)
+                    const cedear = tx.cedearId ? cedearLegs.describe(tx.cedearId) : null
                     return (
                       <tr key={tx.id} className='transition-colors hover:bg-muted/40'>
                         <td className='whitespace-nowrap px-4 py-3 text-muted-foreground'>
@@ -266,6 +269,20 @@ export default function TransactionList() {
                               {tx.type === 'BUY' ? 'con pesos' : 'a pesos'}
                             </Link>
                           )}
+                          {cedear && (
+                            <Link
+                              href={cedear.href}
+                              title={
+                                tx.type === 'SELL'
+                                  ? 'Pagar un CEDEAR con dólares CCL es venderlos: realiza su ganancia o pérdida en pesos.'
+                                  : 'Cobrar un CEDEAR en dólares CCL es comprarlos al CCL de la operación.'
+                              }
+                              className='ml-2 inline-flex items-center gap-1 text-xs text-muted-foreground hover:underline'
+                            >
+                              <ChartLine className='size-3' aria-hidden />
+                              CEDEAR · {cedear.label}
+                            </Link>
+                          )}
                         </td>
                         <td className='px-4 py-3 text-right'>
                           ${formatCurrency(tx.pesosAmount)}
@@ -278,37 +295,42 @@ export default function TransactionList() {
                         </td>
                         <td className='px-2 py-1'>
                           <div className='flex justify-end'>
-                            {/* Intercambios y conversiones se editan como unidad: se borran y se vuelven a cargar */}
-                            {!tx.usdtSwapId && !tx.conversionId && <EditTransactionDialog tx={tx} />}
-                            <Popover>
-                              <PopoverTrigger asChild>
-                                <Button
-                                  variant='ghost'
-                                  size='icon'
-                                  className='size-8 text-muted-foreground hover:text-destructive'
-                                  aria-label='Eliminar transacción'
-                                >
-                                  <Trash2 />
-                                </Button>
-                              </PopoverTrigger>
-                              <PopoverContent align='end' className='w-56 p-3'>
-                                <p className='mb-3 text-sm'>
-                                  {tx.usdtSwapId
-                                    ? '¿Eliminar el intercambio completo (USDT y cripto)?'
-                                    : tx.conversionId
-                                      ? '¿Eliminar la conversión completa (pesos y dólares)?'
-                                      : '¿Eliminar esta transacción?'}
-                                </p>
-                                <Button
-                                  className='w-full'
-                                  variant='destructive'
-                                  size='sm'
-                                  onClick={() => handleDeleteTransaction(tx)}
-                                >
-                                  Confirmar
-                                </Button>
-                              </PopoverContent>
-                            </Popover>
+                            {/* Las patas de un CEDEAR se editan y se borran desde CEDEARs (D6) */}
+                            {!tx.cedearId && (
+                              <>
+                                {/* Intercambios y conversiones se editan como unidad: se borran y se vuelven a cargar */}
+                                {!tx.usdtSwapId && !tx.conversionId && <EditTransactionDialog tx={tx} />}
+                                <Popover>
+                                  <PopoverTrigger asChild>
+                                    <Button
+                                      variant='ghost'
+                                      size='icon'
+                                      className='size-8 text-muted-foreground hover:text-destructive'
+                                      aria-label='Eliminar transacción'
+                                    >
+                                      <Trash2 />
+                                    </Button>
+                                  </PopoverTrigger>
+                                  <PopoverContent align='end' className='w-56 p-3'>
+                                    <p className='mb-3 text-sm'>
+                                      {tx.usdtSwapId
+                                        ? '¿Eliminar el intercambio completo (USDT y cripto)?'
+                                        : tx.conversionId
+                                          ? '¿Eliminar la conversión completa (pesos y dólares)?'
+                                          : '¿Eliminar esta transacción?'}
+                                    </p>
+                                    <Button
+                                      className='w-full'
+                                      variant='destructive'
+                                      size='sm'
+                                      onClick={() => handleDeleteTransaction(tx)}
+                                    >
+                                      Confirmar
+                                    </Button>
+                                  </PopoverContent>
+                                </Popover>
+                              </>
+                            )}
                           </div>
                         </td>
                       </tr>

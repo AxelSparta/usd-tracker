@@ -90,7 +90,7 @@ function ChartTooltip({
 export default function ValueChart() {
   const [range, setRange] = useState<HistoryRange>('3M')
   const [currency, setCurrency] = useState<HistoryCurrency>('ars')
-  const { points, gapUntil, status, error, retry } = useValueHistory(range, currency)
+  const { points, gapUntil, status, error, retry, hasCedears } = useValueHistory(range, currency)
 
   const longRange = range === '6M' || range === '1A'
   // Rangos largos: una marca por mes (el 1°), para no repetir "nov 25, nov 25"
@@ -180,6 +180,8 @@ export default function ValueChart() {
         solo el rendimiento. Cotización de cada día (si no hubo, la anterior).
         {gapUntil &&
           ` Algún activo no tiene precio antes del ${format(toDate(gapUntil), 'dd/MM/yyyy')}: el gráfico arranca ahí.`}
+        {hasCedears &&
+          ' El histórico de CEDEARs no está ajustado por cambios de ratio y falta para algunos tickers.'}
       </p>
     </section>
   )

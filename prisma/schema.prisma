@@ -24,6 +24,12 @@ enum FeeCurrency {
 }
 
 /// Variante de operación; null = compra/venta normal
+/// Con qué se paga o se cobra un CEDEAR: ARS → pata en Pesos; CCL → pata en el Dólar CCL
+enum CedearCurrency {
+  ARS
+  CCL
+}
+
 enum OperationKind {
   /// Resultado de un trade acreditado en la moneda (BUY = ganancia, SELL = pérdida)
   TRADE_RESULT
@@ -36,6 +42,7 @@ model User {
   dolarTransactions  DolarTransaction[]
   cryptoTransactions CryptoTransaction[]
   pesosMovements     PesosMovement[]
+  cedearTransactions CedearTransaction[]
 }
 
 model DolarTransaction {
@@ -52,6 +59,8 @@ model DolarTransaction {
   usdtSwapId    String?         @db.Uuid
   /// Enlaza esta pata con el movimiento de Pesos de una conversión pesos ↔ dólar
   conversionId  String?         @db.Uuid
+  /// Pata (grupo `contadoconliqui`) de una operación de CEDEAR: guarda el id de la operación
+  cedearId      String?         @db.Uuid
   kind          OperationKind?
   note          String?
   createdAt     DateTime        @default(now())
@@ -60,6 +69,7 @@ model DolarTransaction {
   @@index([userId, dolarOption, date])
   @@index([usdtSwapId])
   @@index([conversionId])
+  @@index([cedearId])
 }
 
 model CryptoTransaction {
@@ -104,9 +114,36 @@ model PesosMovement {
   note         String?
   /// Enlaza esta pata con la del módulo dólar de una conversión pesos ↔ dólar
   conversionId String?         @db.Uuid
+  /// Pata de una operación de CEDEAR pagada o cobrada en pesos: guarda el id de la operación
+  cedearId     String?         @db.Uuid
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
   @@index([userId, date])
   @@index([conversionId])
+  @@index([cedearId])
+}
+
+/// Compra o venta de CEDEARs; su pata (Pesos o Dólar CCL) guarda este id en `cedearId`
+model CedearTransaction {
+  id        String          @id @db.Uuid
+  userId    String
+  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  /// Ticker base en BYMA ('AAPL', 'BA.C'); validado con Zod en la API
+  ticker    String
+  type      TransactionType
+  /// CEDEARs enteros (Decimal como el resto de las cantidades)
+  quantity  Decimal
+  /// Por CEDEAR, en `currency`
+  price     Decimal
+  currency  CedearCurrency
+  /// ARS por USD CCL ese día
+  fxRate    Decimal
+  /// Comisión + derechos, en `currency`
+  fee       Decimal?
+  date      DateTime
+  createdAt DateTime        @default(now())
+  updatedAt DateTime        @updatedAt
+
+  @@index([userId, ticker, date])
 }

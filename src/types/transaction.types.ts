@@ -32,6 +32,11 @@ export type Transaction = {
    * (Fase 8.2). No se edita ni se borra sola. Como mucho un enlace por operación (`linkOf`).
    */
   conversionId?: string
+  /**
+   * Pata de una operación de CEDEAR pagada o cobrada en dólares CCL (Fase 9): guarda el id de
+   * la operación (solo en el grupo `contadoconliqui`). Se edita y se borra desde CEDEARs.
+   */
+  cedearId?: string
   /** Resultado de trade en USDT (solo en el grupo `cripto`) */
   kind?: OperationKind
   /** Detalle libre, ej. "BTCUSDT long x10" */

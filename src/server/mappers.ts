@@ -1,8 +1,10 @@
 import type {
+  CedearTransaction as CedearTransactionRow,
   CryptoTransaction as CryptoTransactionRow,
   DolarTransaction as DolarTransactionRow,
   PesosMovement as PesosMovementRow,
 } from '@/generated/prisma/client'
+import type { CedearTransaction } from '@/features/cedears/types'
 import type { Coin, CryptoTransaction } from '@/features/crypto/types'
 import type { PesosMovement } from '@/features/pesos/types'
 import type { DolarOption } from '@/types/dolar.types'
@@ -23,6 +25,7 @@ export const toDolarTransaction = (row: DolarTransactionRow): Transaction => ({
   dolarOption: row.dolarOption as DolarOption,
   ...(row.usdtSwapId !== null && { usdtSwapId: row.usdtSwapId }),
   ...(row.conversionId !== null && { conversionId: row.conversionId }),
+  ...(row.cedearId !== null && { cedearId: row.cedearId }),
   ...(row.kind !== null && { kind: row.kind }),
   ...(row.note !== null && { note: row.note }),
 })
@@ -35,6 +38,7 @@ export const toDolarTransactionData = (tx: Omit<Transaction, 'id'>) => ({
   dolarOption: tx.dolarOption,
   usdtSwapId: tx.usdtSwapId ?? null,
   conversionId: tx.conversionId ?? null,
+  cedearId: tx.cedearId ?? null,
   kind: tx.kind ?? null,
   note: tx.note ?? null,
 })
@@ -91,6 +95,7 @@ export const toPesosMovement = (row: PesosMovementRow): PesosMovement => ({
   date: row.date,
   ...(row.note !== null && { note: row.note }),
   ...(row.conversionId !== null && { conversionId: row.conversionId }),
+  ...(row.cedearId !== null && { cedearId: row.cedearId }),
 })
 
 export const toPesosMovementData = (movement: Omit<PesosMovement, 'id'>) => ({
@@ -99,4 +104,28 @@ export const toPesosMovementData = (movement: Omit<PesosMovement, 'id'>) => ({
   date: new Date(movement.date),
   note: movement.note ?? null,
   conversionId: movement.conversionId ?? null,
+  cedearId: movement.cedearId ?? null,
+})
+
+export const toCedearTransaction = (row: CedearTransactionRow): CedearTransaction => ({
+  id: row.id,
+  ticker: row.ticker,
+  type: row.type as TransactionType,
+  quantity: row.quantity.toNumber(),
+  price: row.price.toNumber(),
+  currency: row.currency,
+  fxRate: row.fxRate.toNumber(),
+  ...(row.fee !== null && { fee: row.fee.toNumber() }),
+  date: row.date,
+})
+
+export const toCedearTransactionData = (tx: Omit<CedearTransaction, 'id'>) => ({
+  ticker: tx.ticker,
+  type: tx.type,
+  quantity: tx.quantity,
+  price: tx.price,
+  currency: tx.currency,
+  fxRate: tx.fxRate,
+  fee: tx.fee ?? null,
+  date: new Date(tx.date),
 })

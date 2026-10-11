@@ -3,6 +3,7 @@
 import { useAuth } from '@clerk/nextjs'
 import { useMemo } from 'react'
 import { useShallow } from 'zustand/react/shallow'
+import { useCedearsStore } from '@/features/cedears/cedears.store'
 import { useCryptoStore } from '@/features/crypto/crypto.store'
 import { usePesosStore } from '@/features/pesos/pesos.store'
 import type { DataSource, SyncStatus } from '@/lib/synced-store'
@@ -21,7 +22,7 @@ import { useSyncStore } from './sync.store'
 const flatten = <T>(groups: Partial<Record<string, T[]>>): T[] =>
   Object.values(groups).flatMap((group) => group ?? [])
 
-const syncedStores = [useTransactionStore, useCryptoStore, usePesosStore]
+const syncedStores = [useTransactionStore, useCryptoStore, usePesosStore, useCedearsStore]
 
 const syncFields = (s: { source: DataSource; status: SyncStatus; pendingWrites: number }) => ({
   source: s.source,
@@ -34,7 +35,8 @@ export const useCloudStatus = () => {
   const dolar = useTransactionStore(useShallow(syncFields))
   const crypto = useCryptoStore(useShallow(syncFields))
   const pesos = usePesosStore(useShallow(syncFields))
-  const all = [dolar, crypto, pesos]
+  const cedears = useCedearsStore(useShallow(syncFields))
+  const all = [dolar, crypto, pesos, cedears]
   const statuses: SyncStatus[] = all.map((s) => s.status)
 
   return {
@@ -70,6 +72,8 @@ export const useLocalImport = () => {
   )
   const pesosLocal = usePesosStore((s) => s.localSnapshot)
   const pesosCloud = usePesosStore((s) => s.movements)
+  const cedearsLocal = useCedearsStore((s) => s.localSnapshot)
+  const cedearsCloud = useCedearsStore((s) => s.transactions)
   const handled = useSyncStore((s) => (userId ? s.handledIds[userId] : undefined))
   const markHandled = useSyncStore((s) => s.markHandled)
 
@@ -82,10 +86,26 @@ export const useLocalImport = () => {
         dolar: flatten(dolarLocal?.transactions ?? {}),
         crypto: cryptoLocal ?? EMPTY_LOCAL_DATA.crypto,
         pesos: pesosLocal?.movements ?? [],
+        cedears: cedearsLocal?.transactions ?? [],
       },
-      { dolar: flatten(dolarCloud), crypto: cryptoCloud, pesos: pesosCloud },
+      {
+        dolar: flatten(dolarCloud),
+        crypto: cryptoCloud,
+        pesos: pesosCloud,
+        cedears: cedearsCloud,
+      },
     )
-  }, [ready, dolarLocal, dolarCloud, cryptoLocal, cryptoCloud, pesosLocal, pesosCloud])
+  }, [
+    ready,
+    dolarLocal,
+    dolarCloud,
+    cryptoLocal,
+    cryptoCloud,
+    pesosLocal,
+    pesosCloud,
+    cedearsLocal,
+    cedearsCloud,
+  ])
 
   const unoffered = useMemo(
     () => excludeIds(pending, new Set(handled)),

@@ -2,6 +2,9 @@
 
 import { subDays } from 'date-fns'
 import { useEffect, useMemo } from 'react'
+import { useCedearsStore } from '@/features/cedears/cedears.store'
+import { useCedearPortfolio } from '@/features/cedears/hooks'
+import { useCedearPricesStore } from '@/features/cedears/prices.store'
 import { useCryptoStore } from '@/features/crypto/crypto.store'
 import { useCryptoPortfolio } from '@/features/crypto/hooks'
 import { useCryptoPricesStore } from '@/features/crypto/prices.store'
@@ -32,6 +35,9 @@ export const usePortfolioOverview = () => {
   const cryptoCount = useCryptoStore((s) => s.transactions.length)
   const pesosStatus = usePesosStore((s) => s.status)
   const pesosMovements = usePesosStore((s) => s.movements)
+  const cedearsStatus = useCedearsStore((s) => s.status)
+  const cedearCount = useCedearsStore((s) => s.transactions.length)
+  const { positions: cedearPositions } = useCedearPortfolio()
   const { positions } = useCryptoPortfolio()
   const allDolarData = useDolarStore((s) => s.allDolarData)
 
@@ -54,18 +60,21 @@ export const usePortfolioOverview = () => {
         cryptoArsRate,
         pesosBalance,
         mepRate,
+        cedearPositions,
       }),
-    [dolarData, allDolarData, positions, cryptoArsRate, pesosBalance, mepRate],
+    [dolarData, allDolarData, positions, cryptoArsRate, pesosBalance, mepRate, cedearPositions],
   )
 
   const hasPesos = pesosMovements.length > 0
+  const hasCedears = cedearCount > 0
   const hasOperations =
     cryptoCount > 0 ||
     hasPesos ||
+    hasCedears ||
     Object.values(dolarTransactions).some((g) => g && g.length > 0)
 
   const retry = () => {
-    for (const store of [useTransactionStore, useCryptoStore, usePesosStore]) {
+    for (const store of [useTransactionStore, useCryptoStore, usePesosStore, useCedearsStore]) {
       if (store.getState().status === 'error') void store.getState().retryCloud()
     }
   }
@@ -77,7 +86,8 @@ export const usePortfolioOverview = () => {
     pesosBalance,
     hasOperations,
     hasPesos,
-    status: combine(dolarStatus, cryptoStatus, pesosStatus),
+    hasCedears,
+    status: combine(dolarStatus, cryptoStatus, pesosStatus, cedearsStatus),
     retry,
   }
 }
@@ -96,6 +106,7 @@ export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) 
   const dolarGroups = useTransactionStore((s) => s.transactions)
   const cryptoTxs = useCryptoStore((s) => s.transactions)
   const pesosMovements = usePesosStore((s) => s.movements)
+  const cedearTxs = useCedearsStore((s) => s.transactions)
 
   const dolarTxs = useMemo(
     () => Object.values(dolarGroups).flatMap((g) => g ?? []),
@@ -107,27 +118,31 @@ export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) 
     if (cryptoTxs.length > 0) set.add(DolarOption.Cripto)
     // Pesos a dólares usa el MEP
     if (pesosMovements.length > 0) set.add(DolarOption.Bolsa)
+    // CEDEARs a dólares usa el CCL
+    if (cedearTxs.length > 0) set.add(DolarOption.ContadoConLiqui)
     return [...set].sort()
-  }, [dolarTxs, cryptoTxs, pesosMovements])
+  }, [dolarTxs, cryptoTxs, pesosMovements, cedearTxs])
   const ids = useMemo(() => [...new Set(cryptoTxs.map((t) => t.coinId))].sort(), [cryptoTxs])
+  const tickers = useMemo(() => [...new Set(cedearTxs.map((t) => t.ticker))].sort(), [cedearTxs])
 
   const allDolarData = useDolarStore((s) => s.allDolarData)
   const livePrices = useCryptoPricesStore((s) => s.prices)
+  const liveCedearPrices = useCedearPricesStore((s) => s.prices)
 
-  const key = historyKey(casas, ids)
+  const key = historyKey(casas, ids, tickers)
   const entry = useHistoryStore((s) => s.entries[key])
   const load = useHistoryStore((s) => s.load)
-  const hasTxs = dolarTxs.length + cryptoTxs.length + pesosMovements.length > 0
+  const hasTxs = dolarTxs.length + cryptoTxs.length + pesosMovements.length + cedearTxs.length > 0
 
   useEffect(() => {
-    if (hasTxs) load(casas, ids)
-  }, [hasTxs, casas, ids, load])
+    if (hasTxs) load(casas, ids, tickers)
+  }, [hasTxs, casas, ids, tickers, load])
 
   const result = useMemo(() => {
     if (entry?.status !== 'ready') return { points: [], gapUntil: null }
     const to = toDateKey(new Date())
     const rangeStart = toDateKey(subDays(new Date(), RANGE_DAYS[range]))
-    const firstTx = [...dolarTxs, ...cryptoTxs, ...pesosMovements]
+    const firstTx = [...dolarTxs, ...cryptoTxs, ...pesosMovements, ...cedearTxs]
       .map((t) => toDateKey(t.date))
       .reduce((min, d) => (d < min ? d : min), to)
     const from = firstTx > rangeStart ? firstTx : rangeStart
@@ -155,23 +170,50 @@ export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) 
         withToday(entry.data.coins[id], livePrices[id] ? { date: to, usd: livePrices[id].usd } : null) ?? [],
       ]),
     )
+    const cedearPrices = Object.fromEntries(
+      tickers.map((ticker) => {
+        const live = liveCedearPrices[ticker]?.priceArs
+        return [
+          ticker,
+          withToday(entry.data.cedears[ticker], live ? { date: to, ars: live } : null) ?? [],
+        ]
+      }),
+    )
 
     const points = computeValueHistory({
       dolarTxs,
       cryptoTxs,
       pesosMovements,
+      cedearTxs,
+      cedearPrices,
       dolarPrices,
       coinPrices,
       from,
       to,
     })
     return trimLeadingGaps(points, currency)
-  }, [entry, range, currency, dolarTxs, cryptoTxs, pesosMovements, casas, ids, allDolarData, livePrices])
+  }, [
+    entry,
+    range,
+    currency,
+    dolarTxs,
+    cryptoTxs,
+    pesosMovements,
+    cedearTxs,
+    casas,
+    ids,
+    tickers,
+    allDolarData,
+    livePrices,
+    liveCedearPrices,
+  ])
 
   return {
     ...result,
     status: !hasTxs ? ('ready' as const) : (entry?.status ?? 'loading'),
     error: entry?.status === 'error' ? entry.message : null,
-    retry: () => load(casas, ids, true),
+    retry: () => load(casas, ids, tickers, true),
+    /** El histórico de CEDEARs (data912) no está ajustado por ratio y falta para algunos tickers */
+    hasCedears: cedearTxs.length > 0,
   }
 }

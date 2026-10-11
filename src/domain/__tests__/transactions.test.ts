@@ -4,6 +4,7 @@ import {
   applyRemoveTransaction,
   applyUpdateTransaction,
   assertDolarShape,
+  CEDEAR_LEG_CHANGE,
   CONVERSION_LEG_REMOVE,
   CONVERSION_LEG_UPDATE,
   groupTransactions,
@@ -136,10 +137,55 @@ describe('patas de operaciones enlazadas', () => {
 
   it('como mucho un enlace, y un resultado de trade no es pata de una conversión', () => {
     expect(() => assertDolarShape({ ...leg, usdtSwapId: 'u' })).toThrow(
-      'Una operación no puede ser parte de un intercambio y de una conversión.',
+      'Una operación no puede ser parte de dos operaciones enlazadas.',
     )
     expect(() =>
       assertDolarShape({ ...leg, dolarOption: DolarOption.Cripto, kind: 'TRADE_RESULT' }),
     ).toThrow('Un resultado de trade no puede ser parte de una conversión.')
+  })
+})
+
+describe('patas de CEDEARs en el Dólar (Fase 9.0)', () => {
+  const leg: Transaction = {
+    ...tx('ccl', TransactionType.SELL, 100, '2026-01-02', DolarOption.ContadoConLiqui),
+    cedearId: 'op',
+  }
+  const withLeg = groupTransactions([
+    tx('buy', TransactionType.BUY, 300, '2026-01-01', DolarOption.ContadoConLiqui),
+    leg,
+  ])
+
+  it('linkOf la reconoce', () => {
+    expect(linkOf(leg)).toEqual({ kind: 'cedear', id: 'op' })
+  })
+
+  it('no se edita ni se borra desde el Dólar', () => {
+    const { id, ...data } = leg
+    expect(() => applyUpdateTransaction(withLeg, id, data)).toThrow(CEDEAR_LEG_CHANGE)
+    expect(() => applyRemoveTransaction(withLeg, id)).toThrow(CEDEAR_LEG_CHANGE)
+  })
+
+  it('solo va en el CCL y con un único enlace', () => {
+    expect(() => assertDolarShape(leg)).not.toThrow()
+    expect(() => assertDolarShape({ ...leg, dolarOption: DolarOption.Bolsa })).toThrow(
+      'Los CEDEARs se pagan con dólares CCL.',
+    )
+    expect(() => assertDolarShape({ ...leg, conversionId: 'c' })).toThrow(
+      'Una operación no puede ser parte de dos operaciones enlazadas.',
+    )
+  })
+
+  it('no es un resultado de trade', () => {
+    expect(() => assertDolarShape({ ...leg, kind: 'TRADE_RESULT' })).toThrow()
+    expect(() =>
+      assertDolarShape({ ...leg, dolarOption: DolarOption.Cripto, kind: 'TRADE_RESULT' }),
+    ).toThrow()
+  })
+
+  it('una pata ya cargada sigue entrando a la línea temporal del CCL', () => {
+    expect(withLeg[DolarOption.ContadoConLiqui]).toHaveLength(2)
+    expect(() =>
+      applyAddTransaction(withLeg, tx('sell', TransactionType.SELL, 250, '2026-01-03', DolarOption.ContadoConLiqui)),
+    ).toThrow()
   })
 })

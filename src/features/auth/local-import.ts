@@ -1,3 +1,4 @@
+import type { CedearTransaction } from '@/features/cedears/types'
 import type { CryptoPortfolioState } from '@/features/crypto/operations'
 import type { PesosMovement } from '@/features/pesos/types'
 import type { Transaction } from '@/types/transaction.types'
@@ -11,21 +12,24 @@ export type LocalData = {
   dolar: Transaction[]
   crypto: CryptoPortfolioState
   pesos: PesosMovement[]
+  cedears: CedearTransaction[]
 }
 
 export const EMPTY_LOCAL_DATA: LocalData = {
   dolar: [],
   crypto: { transactions: [], coins: {} },
   pesos: [],
+  cedears: [],
 }
 
 export const countLocalData = (data: LocalData) =>
-  data.dolar.length + data.crypto.transactions.length + data.pesos.length
+  data.dolar.length + data.crypto.transactions.length + data.pesos.length + data.cedears.length
 
 export const localDataIds = (data: LocalData): string[] => [
   ...data.dolar.map((t) => t.id),
   ...data.crypto.transactions.map((t) => t.id),
   ...data.pesos.map((m) => m.id),
+  ...data.cedears.map((t) => t.id),
 ]
 
 /** Solo las operaciones cuyo id no está en `excluded` (y las monedas que usan) */
@@ -41,6 +45,7 @@ export const excludeIds = (data: LocalData, excluded: Set<string>): LocalData =>
       ),
     },
     pesos: data.pesos.filter((m) => !excluded.has(m.id)),
+    cedears: data.cedears.filter((t) => !excluded.has(t.id)),
   }
 }
 
@@ -52,8 +57,8 @@ const UUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 /**
  * Body para la API: la base guarda ids UUID. Si algún dato viejo tiene otro formato,
- * recibe un UUID nuevo (`swapId`, `usdtSwapId` y `conversionId` se remapean igual, así las patas
- * siguen enlazadas).
+ * recibe un UUID nuevo (`swapId`, `usdtSwapId`, `conversionId` y `cedearId` se remapean igual, así
+ * las patas siguen enlazadas).
  */
 export const toImportPayload = (
   data: LocalData,
@@ -71,6 +76,7 @@ export const toImportPayload = (
       id: fix(t.id),
       ...(t.usdtSwapId && { usdtSwapId: fix(t.usdtSwapId) }),
       ...(t.conversionId && { conversionId: fix(t.conversionId) }),
+      ...(t.cedearId && { cedearId: fix(t.cedearId) }),
     })),
     crypto: {
       transactions: data.crypto.transactions.map((t) => ({
@@ -85,6 +91,8 @@ export const toImportPayload = (
       ...m,
       id: fix(m.id),
       ...(m.conversionId && { conversionId: fix(m.conversionId) }),
+      ...(m.cedearId && { cedearId: fix(m.cedearId) }),
     })),
+    cedears: data.cedears.map((t) => ({ ...t, id: fix(t.id) })),
   }
 }

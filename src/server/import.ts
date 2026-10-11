@@ -6,16 +6,24 @@ import {
   coinApiSchema,
   cryptoTransactionFields,
 } from '@/features/crypto/validations'
+import {
+  assertCedearLegsComplete,
+  assertCedearShape,
+  validateCedearTimelines,
+} from '@/features/cedears/operations'
+import { createCedearTransactionApiSchema } from '@/features/cedears/validations'
 import { assertConversionsComplete } from '@/features/pesos/conversions'
 import { assertPesosShape, validatePesosTimeline } from '@/features/pesos/operations'
 import { createPesosMovementApiSchema } from '@/features/pesos/validations'
 import { assertUsdtSwapsComplete } from '@/features/usdt-swaps/operations'
 import { createTransactionApiSchema } from '@/validations/transaction'
+import { loadCedearState } from './cedear-transactions'
 import { loadCryptoState } from './crypto-transactions'
 import { loadPesosState } from './pesos-movements'
 import { withUserTransaction } from './db'
 import { ApiError, applyOrReject } from './errors'
 import {
+  toCedearTransactionData,
   toCryptoTransactionData,
   toDolarTransaction,
   toDolarTransactionData,
@@ -38,6 +46,7 @@ export const importSchema = z
         createTransactionApiSchema.extend({
           usdtSwapId: z.uuid('Id inválido').optional(),
           conversionId: z.uuid('Id inválido').optional(),
+          cedearId: z.uuid('Id inválido').optional(),
         }),
       )
       .max(MAX_ITEMS),
@@ -55,7 +64,17 @@ export const importSchema = z
     }),
     // Opcional: un cliente anterior a la Fase 8 no lo manda
     pesos: z
-      .array(createPesosMovementApiSchema.extend({ conversionId: z.uuid('Id inválido').optional() }))
+      .array(
+        createPesosMovementApiSchema.extend({
+          conversionId: z.uuid('Id inválido').optional(),
+          cedearId: z.uuid('Id inválido').optional(),
+        }),
+      )
+      .max(MAX_ITEMS)
+      .default([]),
+    // Opcional: un cliente anterior a la Fase 9 no lo manda (las patas van en `dolar` y `pesos`)
+    cedears: z
+      .array(createCedearTransactionApiSchema.omit({ legId: true }))
       .max(MAX_ITEMS)
       .default([]),
   })
@@ -70,6 +89,7 @@ export type ImportResult = {
   dolar: { created: number; skipped: number }
   crypto: { created: number; skipped: number }
   pesos: { created: number; skipped: number }
+  cedears: { created: number; skipped: number }
 }
 
 export const importLocalData = (userId: string, input: ImportInput) =>
@@ -79,15 +99,19 @@ export const importLocalData = (userId: string, input: ImportInput) =>
     ).map(toDolarTransaction)
     const existingCrypto = await loadCryptoState(db, userId)
     const existingPesos = await loadPesosState(db, userId)
+    const existingCedears = await loadCedearState(db, userId)
     const known = new Set([
       ...existingDolar.map((t) => t.id),
       ...existingCrypto.transactions.map((t) => t.id),
       ...existingPesos.movements.map((m) => m.id),
+      ...existingCedears.transactions.map((t) => t.id),
     ])
 
     const newDolar = input.dolar.filter((t) => !known.has(t.id))
     const newCrypto = input.crypto.transactions.filter((t) => !known.has(t.id))
     const newPesos = input.pesos.filter((m) => !known.has(m.id))
+    const newCedears = input.cedears.filter((t) => !known.has(t.id))
+    const allCedears = [...existingCedears.transactions, ...newCedears]
     // Metadatos: los de la nube pisan a los locales
     const coins: Record<string, Coin> = { ...input.crypto.coins, ...existingCrypto.coins }
 
@@ -97,6 +121,7 @@ export const importLocalData = (userId: string, input: ImportInput) =>
       newDolar.forEach(assertDolarShape)
       newCrypto.forEach(assertCryptoShape)
       newPesos.forEach(assertPesosShape)
+      newCedears.forEach(assertCedearShape)
     })
     // Cada intercambio USDT necesita sus dos patas (una sola dejaría un saldo sin contraparte)
     applyOrReject(() =>
@@ -112,6 +137,14 @@ export const importLocalData = (userId: string, input: ImportInput) =>
         [...existingPesos.movements, ...newPesos],
       ),
     )
+    // Cada operación de CEDEAR tiene exactamente una pata y cada pata apunta a su operación
+    applyOrReject(() =>
+      assertCedearLegsComplete(
+        allCedears,
+        [...existingDolar, ...newDolar],
+        [...existingPesos.movements, ...newPesos],
+      ),
+    )
     applyOrReject(() => validateAllGroups(groupTransactions([...existingDolar, ...newDolar])))
     applyOrReject(() =>
       validateCryptoTimelines({
@@ -120,11 +153,13 @@ export const importLocalData = (userId: string, input: ImportInput) =>
       }),
     )
     applyOrReject(() => validatePesosTimeline([...existingPesos.movements, ...newPesos]))
-    if (newDolar.length + newCrypto.length + newPesos.length === 0) {
+    applyOrReject(() => validateCedearTimelines(allCedears))
+    if (newDolar.length + newCrypto.length + newPesos.length + newCedears.length === 0) {
       return {
         dolar: { created: 0, skipped: input.dolar.length },
         crypto: { created: 0, skipped: input.crypto.transactions.length },
         pesos: { created: 0, skipped: input.pesos.length },
+        cedears: { created: 0, skipped: input.cedears.length },
       }
     }
 
@@ -145,6 +180,10 @@ export const importLocalData = (userId: string, input: ImportInput) =>
       data: newPesos.map((m) => ({ id: m.id, userId, ...toPesosMovementData(m) })),
       skipDuplicates: true,
     })
+    const cedears = await db.cedearTransaction.createMany({
+      data: newCedears.map(({ id, ...tx }) => ({ id, userId, ...toCedearTransactionData(tx) })),
+      skipDuplicates: true,
+    })
 
     return {
       dolar: { created: dolar.count, skipped: input.dolar.length - dolar.count },
@@ -153,5 +192,6 @@ export const importLocalData = (userId: string, input: ImportInput) =>
         skipped: input.crypto.transactions.length - crypto.count,
       },
       pesos: { created: pesos.count, skipped: input.pesos.length - pesos.count },
+      cedears: { created: cedears.count, skipped: input.cedears.length - cedears.count },
     }
   })

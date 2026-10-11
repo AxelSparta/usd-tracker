@@ -5,6 +5,7 @@ export type ImportResult = {
   dolar: { created: number; skipped: number }
   crypto: { created: number; skipped: number }
   pesos: { created: number; skipped: number }
+  cedears: { created: number; skipped: number }
 }
 
 /** Sube operaciones locales; las que ya están en la nube se saltean (la nube manda) */

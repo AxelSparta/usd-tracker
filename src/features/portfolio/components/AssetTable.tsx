@@ -1,5 +1,5 @@
 import Link from 'next/link'
-import { Banknote, DollarSign } from 'lucide-react'
+import { Banknote, ChartLine, DollarSign } from 'lucide-react'
 import { pnlClass } from '@/components/Stat'
 import CoinIcon from '@/features/crypto/components/CoinIcon'
 import { formatCurrency, formatPercent } from '@/lib/locale-amount'
@@ -45,6 +45,8 @@ export default function AssetTable({ assets, segments }: AssetTableProps) {
                     <CoinIcon coin={{ symbol: asset.symbol ?? '?', image: asset.image }} size={18} />
                   ) : asset.module === 'pesos' ? (
                     <Banknote className='size-[18px] shrink-0 text-muted-foreground' />
+                  ) : asset.module === 'cedears' ? (
+                    <ChartLine className='size-[18px] shrink-0 text-muted-foreground' />
                   ) : (
                     <DollarSign className='size-[18px] shrink-0 text-muted-foreground' />
                   )}

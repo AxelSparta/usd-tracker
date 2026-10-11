@@ -1,4 +1,5 @@
 import { addDays, format, parse } from 'date-fns'
+import type { CedearTransaction } from '@/features/cedears/types'
 import { toPositionLot } from '@/features/crypto/metrics'
 import type { CryptoTransaction } from '@/features/crypto/types'
 import type { PesosMovement } from '@/features/pesos/types'
@@ -11,8 +12,9 @@ import { TransactionType, type Transaction } from '@/types/transaction.types'
  * datos actuales, aunque se edite el pasado, y funciona igual en modo local y en la nube.
  *
  * Mismas convenciones que el dashboard: dólar a la cotización de venta de su tipo,
- * cripto en USD y a pesos con el dólar cripto compra, pesos a USD con el MEP venta. Días sin cotización (fines de
- * semana, feriados) usan la última conocida. Si un activo en cartera todavía no tiene
+ * cripto en USD y a pesos con el dólar cripto compra, pesos a USD con el MEP venta, CEDEARs a su
+ * cierre en pesos y a USD con el CCL venta. Días sin cotización (fines de semana, feriados) usan la
+ * última conocida. Si un activo en cartera todavía no tiene
  * precio ese día, el valor del día es `null`: no se inventa.
  */
 
@@ -21,6 +23,8 @@ export type DateKey = string
 
 export type DolarPricePoint = { date: DateKey; buy: number; sell: number }
 export type CoinPricePoint = { date: DateKey; usd: number }
+/** Cierre de un CEDEAR en ARS (data912, sin ajustar por cambios de ratio) */
+export type CedearPricePoint = { date: DateKey; ars: number }
 
 export type ValuePoint = { date: DateKey; usd: number | null; ars: number | null }
 
@@ -29,6 +33,9 @@ export type HistoryInput = {
   cryptoTxs: CryptoTransaction[]
   /** Movimientos de Pesos (Fase 8); el saldo se pasa a USD con el MEP venta del día */
   pesosMovements?: PesosMovement[]
+  /** Operaciones de CEDEARs (Fase 10); se valúan a su cierre en ARS y a USD con el CCL venta del día */
+  cedearTxs?: CedearTransaction[]
+  cedearPrices?: Record<string, CedearPricePoint[]>
   dolarPrices: Partial<Record<DolarOption, DolarPricePoint[]>>
   coinPrices: Record<string, CoinPricePoint[]>
   from: DateKey
@@ -75,6 +82,8 @@ export const computeValueHistory = ({
   dolarTxs,
   cryptoTxs,
   pesosMovements = [],
+  cedearTxs = [],
+  cedearPrices = {},
   dolarPrices,
   coinPrices,
   from,
@@ -99,6 +108,11 @@ export const computeValueHistory = ({
       asset: 'pesos:ars',
       quantity: signed(m.type, m.amount),
     })),
+    ...cedearTxs.map((tx) => ({
+      date: toDateKey(tx.date),
+      asset: `cedear:${tx.ticker}`,
+      quantity: signed(tx.type, tx.quantity),
+    })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
   const holdings = new Map<string, number>()
@@ -116,6 +130,7 @@ export const computeValueHistory = ({
     let ars: number | null = 0
     const cryptoRate = priceAt(dolarPrices[DolarOption.Cripto], day)?.buy ?? null
     const mepRate = priceAt(dolarPrices[DolarOption.Bolsa], day)?.sell ?? null
+    const cclRate = priceAt(dolarPrices[DolarOption.ContadoConLiqui], day)?.sell ?? null
 
     for (const [asset, quantity] of holdings) {
       const [module, id] = asset.split(':')
@@ -128,6 +143,18 @@ export const computeValueHistory = ({
         if (quantity <= PESOS_DUST) continue
         if (ars !== null) ars += quantity
         usd = usd === null || mepRate === null ? null : usd + quantity / mepRate
+      } else if (module === 'cedear') {
+        // CEDEARs enteros: no hay polvo
+        if (quantity <= 0) continue
+        const price = priceAt(cedearPrices[id], day)
+        if (!price) {
+          usd = null
+          ars = null
+          continue
+        }
+        const value = quantity * price.ars
+        if (ars !== null) ars += value
+        usd = usd === null || cclRate === null ? null : usd + value / cclRate
       } else {
         if (quantity <= COIN_DUST) continue
         const price = priceAt(coinPrices[id], day)

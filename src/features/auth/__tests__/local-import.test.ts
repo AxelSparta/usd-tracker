@@ -7,6 +7,7 @@ import {
   toImportPayload,
   type LocalData,
 } from '@/features/auth/local-import'
+import type { CedearTransaction } from '@/features/cedears/types'
 import type { Coin, CryptoTransaction } from '@/features/crypto/types'
 import type { PesosMovement } from '@/features/pesos/types'
 import { DolarOption } from '@/types/dolar.types'
@@ -42,6 +43,17 @@ const pesos = (id: string, conversionId?: string): PesosMovement => ({
   ...(conversionId && { conversionId }),
 })
 
+const cedear = (id: string): CedearTransaction => ({
+  id,
+  ticker: 'AAPL',
+  type: TransactionType.BUY,
+  quantity: 1,
+  price: 1000,
+  currency: 'ARS',
+  fxRate: 1200,
+  date: '2026-01-01T03:00:00.000Z',
+})
+
 const local: LocalData = {
   dolar: [dolar('d1'), dolar('d2')],
   crypto: {
@@ -49,6 +61,7 @@ const local: LocalData = {
     coins: { bitcoin: btc, ethereum: eth },
   },
   pesos: [pesos('p1')],
+  cedears: [cedear('k1')],
 }
 
 describe('local-import', () => {
@@ -57,17 +70,19 @@ describe('local-import', () => {
       dolar: [dolar('d1')],
       crypto: { transactions: [crypto('c2', 'ethereum')], coins: { ethereum: eth } },
       pesos: [],
+      cedears: [cedear('k1')],
     }
     const pending = localNotInCloud(local, cloud)
     expect(pending.dolar.map((t) => t.id)).toEqual(['d2'])
     expect(pending.crypto.transactions.map((t) => t.id)).toEqual(['c1'])
     expect(pending.crypto.coins).toEqual({ bitcoin: btc })
     expect(pending.pesos.map((m) => m.id)).toEqual(['p1'])
+    expect(pending.cedears).toEqual([])
     expect(countLocalData(pending)).toBe(3)
   })
 
   it('excludeIds sirve para las ya ofrecidas', () => {
-    expect(countLocalData(excludeIds(local, new Set(['d1', 'd2', 'c1', 'c2', 'p1'])))).toBe(0)
+    expect(countLocalData(excludeIds(local, new Set(['d1', 'd2', 'c1', 'c2', 'p1', 'k1'])))).toBe(0)
   })
 
   it('toImportPayload conserva los UUID y remapea el resto de forma consistente', () => {
@@ -80,7 +95,8 @@ describe('local-import', () => {
           transactions: [crypto('s1', 'bitcoin', 'swap'), crypto('s2', 'ethereum', 'swap')],
           coins: { bitcoin: btc, ethereum: eth },
         },
-        pesos: [pesos('p-viejo', 'conv-viejo')],
+        pesos: [pesos('p-viejo', 'conv-viejo'), { ...pesos('p-cedear'), cedearId: 'k-viejo' }],
+        cedears: [cedear('k-viejo')],
       },
       newId,
     )
@@ -89,7 +105,10 @@ describe('local-import', () => {
     const [s1, s2] = payload.crypto.transactions
     expect(s1.swapId).toBe(s2.swapId)
     expect(s1.swapId).toMatch(/^0{8}-0000-4000/)
-    const [p] = payload.pesos
+    const [p, cedearLeg] = payload.pesos
+    // La pata del CEDEAR apunta al id nuevo de su operación
+    expect(payload.cedears[0].id).toMatch(/^0{8}-0000-4000/)
+    expect(cedearLeg.cedearId).toBe(payload.cedears[0].id)
     expect(p.id).toMatch(/^0{8}-0000-4000/)
     expect(p.conversionId).toMatch(/^0{8}-0000-4000/)
     // Las dos patas de la conversión siguen enlazadas con el UUID nuevo
@@ -98,9 +117,14 @@ describe('local-import', () => {
   })
 
   it('describe en español', () => {
-    expect(describeLocalData(local)).toBe('5 operaciones (2 del dólar, 2 de cripto y 1 de pesos)')
+    expect(describeLocalData(local)).toBe('6 operaciones (2 del dólar, 2 de cripto, 1 de pesos y 1 de CEDEARs)')
     expect(
-      describeLocalData({ dolar: [dolar('x')], crypto: { transactions: [], coins: {} }, pesos: [] }),
+      describeLocalData({
+        dolar: [dolar('x')],
+        crypto: { transactions: [], coins: {} },
+        pesos: [],
+        cedears: [],
+      }),
     ).toBe('1 operación (1 del dólar)')
     const none = { created: 0, skipped: 0 }
     expect(
@@ -108,9 +132,10 @@ describe('local-import', () => {
         dolar: { created: 2, skipped: 1 },
         crypto: { created: 1, skipped: 0 },
         pesos: { created: 1, skipped: 0 },
+        cedears: none,
       }),
     ).toBe('Subiste 4 operaciones a tu cuenta. 1 ya estaba en la nube.')
-    expect(describeImportResult({ dolar: none, crypto: none, pesos: none })).toBe(
+    expect(describeImportResult({ dolar: none, crypto: none, pesos: none, cedears: none })).toBe(
       'No había operaciones nuevas para subir.',
     )
   })

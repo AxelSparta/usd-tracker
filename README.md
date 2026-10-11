@@ -1,10 +1,11 @@
 # 💸 Portfolio Tracker
 
-Aplicación web para seguir tus ahorros en Argentina: pesos, dólares y criptomonedas en un solo lugar,
+Aplicación web para seguir tus ahorros en Argentina: pesos, dólares, CEDEARs y criptomonedas en un solo lugar,
 con cotizaciones del mercado argentino. Producción: <https://usd-tracker.vercel.app>.
 
 - **Pesos:** saldo en pesos (ingresos y egresos) y conversiones a cualquier tipo de dólar y de vuelta.
 - **Dólar:** compras y ventas de USD en pesos, por tipo de dólar (oficial, blue, MEP, CCL, cripto…).
+- **CEDEARs:** compras y ventas con tus pesos o tus dólares CCL, con resultado en pesos y en dólares.
 - **Cripto:** compras, ventas e intercambios de cualquier moneda de CoinGecko, en USD, con su valor en pesos.
 - **Portfolio:** valor total en ARS y USD, composición por activo y evolución del valor en el tiempo.
 
@@ -14,7 +15,8 @@ cuenta y los ves en cualquier dispositivo).
 ## 🧠 Funcionalidades
 
 - **Dashboard** (`/`)
-  - Valor total en ARS y USD, resumen por módulo con su ganancia (pesos: saldo y equivalente al MEP)
+  - Valor total en ARS y USD, resumen por módulo con su ganancia (pesos: saldo y equivalente al MEP;
+    CEDEARs: valor y ganancia en USD al CCL)
   - Composición por activo (barra al 100 % + tabla con variación 24 h y acceso al detalle)
   - Evolución del valor (1M / 3M / 6M / 1A, en ARS o USD), reconstruida desde tus operaciones y los precios históricos
 - **Pesos** (`/pesos`)
@@ -25,6 +27,12 @@ cuenta y los ves en cualquier dispositivo).
   - Cotizaciones en vivo (DolarAPI), con reintentos si la API o la red fallan
   - Por tipo de dólar: posición en USD, costo promedio, invertido, valor de mercado y ganancia realizada / no realizada
   - Validación de la línea temporal: nunca se puede vender (ni borrar o editar) dejando saldo negativo
+- **CEDEARs** (`/cedears`)
+  - Buscador de CEDEARs de BYMA, precio y CCL del día autocompletados (precios de data912, con demora)
+  - Pagados con pesos (egreso del saldo de Pesos) o con dólares CCL (venta en el Dólar CCL); se
+    editan y se borran junto con su movimiento, que no se toca desde Pesos ni desde el Dólar
+  - Posiciones con costo promedio y PnL realizado / no realizado en pesos o en dólares (CCL venta)
+  - Detalle por CEDEAR (`/cedears/[ticker]`)
 - **Cripto** (`/cripto`)
   - Buscador de monedas, precio autocompletado, comisiones en USD o en la moneda
   - Intercambios cripto ↔ cripto (venta + compra enlazadas) y de los USDT del dólar cripto por cualquier cripto (y al revés)
