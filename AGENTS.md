@@ -122,7 +122,7 @@ src/
 │   │                           #   DolarPrice, TransactionList, TransactionForm, TradeResultForm (USDT),
 │   │                           #   NewTransactionForm, EditTransactionDialog)
 │   └── ui/                     # primitivos shadcn — no meter lógica de negocio aquí
-├── hooks/                      # use-mobile (lo usa ui/sidebar), use-mounted (contenido de localStorage),
+├── hooks/                      # use-mobile (lo usa ui/sidebar), use-mounted (contenido de localStorage y la fecha de hoy de los formularios),
 │                               #   use-usdt-swap-links (contexto: las listas borran/describen intercambios USDT),
 │                               #   use-pesos-conversion-links (contexto: /dolar borra conversiones de pesos),
 │                               #   use-cedear-legs (contexto: Pesos y Dólar describen las patas de CEDEARs),
