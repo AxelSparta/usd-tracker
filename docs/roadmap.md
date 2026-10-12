@@ -37,6 +37,8 @@ La app está en producción (Vercel) con los módulos Dólar, Cripto, Pesos y CE
 - **CEDEARs** (Fases 9–10): compras y ventas pagadas con pesos o dólares CCL (la pata mueve el saldo
   de Pesos o del Dólar CCL), posiciones y PnL en ARS y USD al CCL venta, precios de data912 y
   CEDEARs en el dashboard.
+- **Portafolios** (Fase 11): varios portafolios separados (cada uno con sus cuatro módulos y saldos),
+  en local y en la nube; el dashboard muestra el activo o todos sumados.
 - **Calidad:** Vitest, Playwright (sin sesión y con sesión), CI en cada PR, migraciones en el deploy,
   logs JSON.
 
@@ -54,6 +56,7 @@ La app está en producción (Vercel) con los módulos Dólar, Cripto, Pesos y CE
 | 8 ✅ | Pesos: saldo en ARS, conversiones pesos ↔ dólar y Pesos en el dashboard | [historial](historial.md#fase-8--pesos-y-conversiones-a-dólar-) |
 | 9 ✅ | CEDEARs: precios (data912), patas en Pesos / Dólar CCL, modelo, API, stores y UI | [historial](historial.md#fase-9--módulo-cedears-) |
 | 10 ✅ | CEDEARs en el dashboard (total, composición y evolución) | [historial](historial.md#fase-10--cedears-en-el-portfolio-) |
+| 11 ✅ | Múltiples portafolios (local y nube) y vista "Todos" en el dashboard | [historial](historial.md#fase-11--múltiples-portafolios-) |
 
 ### Deuda técnica y riesgos vigentes
 
@@ -129,6 +132,8 @@ Sin fase asignada; se planifica cuando haga falta.
 - Migrar `tether` cargado en el módulo Cripto al grupo `cripto` del Dólar.
 - Otras stablecoins (USDC, DAI) como "dólar cripto": hoy siguen siendo monedas del módulo Cripto.
 - Resultados de trade sin moneda (solo un monto en USD que no cambia ningún saldo).
+- Portafolios: subir de una vez todos los portafolios locales al iniciar sesión (hoy se sube el
+  portafolio local activo al portafolio activo de la nube) y mover operaciones entre portafolios.
 
 ---
 
@@ -140,6 +145,7 @@ Fase 6 (pendiente: retención de Neon, base de E2E en CI, lo de "usuarios reales
 Fase 7 ✅ (7a: intercambios USDT ↔ cripto · 7b: resultados de trades)
 Fase 8 ✅ (Pesos + conversiones a dólar)
 Fases 9–10 ✅ (CEDEARs; plan y decisiones en docs/roadmap-cedears.md)
+Fase 11 ✅ (múltiples portafolios)
 ```
 
 - Lo que sigue: lo pendiente de la Fase 6, el backlog y los "posibles siguientes pasos" de

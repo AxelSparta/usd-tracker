@@ -41,7 +41,8 @@ const socialLinks = [
   },
 ]
 
-export default function AppSidebar() {
+/** `portfolioSwitcher`: lo pasa `app/layout.tsx` (un componente no importa features que componen módulos) */
+export default function AppSidebar({ portfolioSwitcher }: { portfolioSwitcher?: React.ReactNode }) {
   const pathname = usePathname()
   const { isMobile, setOpenMobile } = useSidebar()
 
@@ -65,6 +66,7 @@ export default function AppSidebar() {
             </SidebarMenuButton>
           </SidebarMenuItem>
         </SidebarMenu>
+        {portfolioSwitcher}
       </SidebarHeader>
 
       <SidebarContent>

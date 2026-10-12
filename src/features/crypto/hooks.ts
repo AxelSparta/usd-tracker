@@ -6,22 +6,25 @@ import { useCryptoStore } from './crypto.store'
 import { useCryptoPricesStore } from './prices.store'
 import { priceRefreshDelay } from './refresh'
 
-/** Ids de las monedas con operaciones, en orden estable */
-const useHeldCoinIds = () => {
+/** Ids de las monedas con operaciones (más `extra`), en orden estable */
+const useHeldCoinIds = (extra: string[]) => {
   const transactions = useCryptoStore((s) => s.transactions)
   const key = useMemo(
-    () => [...new Set(transactions.map((tx) => tx.coinId))].sort().join(','),
-    [transactions],
+    () => [...new Set([...transactions.map((tx) => tx.coinId), ...extra])].sort().join(','),
+    [transactions, extra],
   )
   return useMemo(() => (key ? key.split(',') : []), [key])
 }
 
+const NONE: string[] = []
+
 /**
  * Trae los precios de las monedas en cartera y los refresca cada minuto;
  * si la API falla (p. ej. 429), espacia los reintentos con backoff exponencial.
+ * `extra`: monedas de otros portafolios (vista "Todos" del dashboard).
  */
-export const useCryptoPriceSync = () => {
-  const ids = useHeldCoinIds()
+export const useCryptoPriceSync = (extra: string[] = NONE) => {
+  const ids = useHeldCoinIds(extra)
   const fetchPrices = useCryptoPricesStore((s) => s.fetchPrices)
 
   useEffect(() => {

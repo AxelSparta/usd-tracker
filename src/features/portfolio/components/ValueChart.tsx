@@ -14,10 +14,11 @@ import {
   YAxis,
   type TooltipContentProps,
 } from 'recharts'
+import Segmented from '@/components/Segmented'
 import { Button } from '@/components/ui/button'
 import { Skeleton } from '@/components/ui/skeleton'
 import { formatCurrency } from '@/lib/locale-amount'
-import { cn } from '@/lib/utils'
+import type { PortfolioData } from '@/features/portfolios/data-stores'
 import { useValueHistory, type HistoryCurrency, type HistoryRange } from '../hooks'
 
 const RANGES: HistoryRange[] = ['1M', '3M', '6M', '1A']
@@ -30,39 +31,6 @@ const toDate = (key: string) => parse(key, 'yyyy-MM-dd', new Date())
 const compact = new Intl.NumberFormat('es-AR', { notation: 'compact', maximumFractionDigits: 1 })
 const money = (currency: HistoryCurrency, n: number) =>
   `${currency === 'usd' ? 'US$' : '$'}${formatCurrency(n)}`
-
-/** Botones de opción excluyente (rango, moneda): una fila arriba del gráfico */
-function Segmented<T extends string>({
-  label,
-  options,
-  value,
-  onChange,
-}: {
-  label: string
-  options: { value: T; label: string }[]
-  value: T
-  onChange: (value: T) => void
-}) {
-  return (
-    <div role='radiogroup' aria-label={label} className='flex rounded-md bg-muted p-0.5'>
-      {options.map((option) => (
-        <button
-          key={option.value}
-          type='button'
-          role='radio'
-          aria-checked={option.value === value}
-          onClick={() => onChange(option.value)}
-          className={cn(
-            'rounded-[5px] px-2.5 py-1 text-xs font-medium text-muted-foreground transition-colors hover:text-foreground',
-            option.value === value && 'bg-background text-foreground',
-          )}
-        >
-          {option.label}
-        </button>
-      ))}
-    </div>
-  )
-}
 
 function ChartTooltip({
   active,
@@ -87,10 +55,14 @@ function ChartTooltip({
  * Evolución del valor del portfolio (una serie: un solo eje). El valor incluye lo que
  * se compró y vendió en el período: no es solo rendimiento, y así se aclara.
  */
-export default function ValueChart() {
+export default function ValueChart({ sets }: { sets: PortfolioData[] }) {
   const [range, setRange] = useState<HistoryRange>('3M')
   const [currency, setCurrency] = useState<HistoryCurrency>('ars')
-  const { points, gapUntil, status, error, retry, hasCedears } = useValueHistory(range, currency)
+  const { points, gapUntil, status, error, retry, hasCedears } = useValueHistory(
+    sets,
+    range,
+    currency,
+  )
 
   const longRange = range === '6M' || range === '1A'
   // Rangos largos: una marca por mes (el 1°), para no repetir "nov 25, nov 25"
@@ -181,7 +153,7 @@ export default function ValueChart() {
         {gapUntil &&
           ` Algún activo no tiene precio antes del ${format(toDate(gapUntil), 'dd/MM/yyyy')}: el gráfico arranca ahí.`}
         {hasCedears &&
-          ' El histórico de CEDEARs no está ajustado por cambios de ratio y falta para algunos tickers.'}
+          ' El histórico de CEDEARs no está ajustado por cambios de ratio; si falta para un ticker, se usa el precio de tus operaciones.'}
       </p>
     </section>
   )

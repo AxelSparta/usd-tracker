@@ -2,6 +2,7 @@ import { describe, expect, it } from 'vitest'
 import type { CedearPosition } from '@/features/cedears/types'
 import type { CryptoPosition } from '@/features/crypto/types'
 import {
+  combinePortfolioOverviews,
   computePortfolioOverview,
   toAllocationSegments,
   type AssetAllocation,
@@ -233,5 +234,42 @@ describe('CEDEARs en el portfolio (Fase 10)', () => {
     expect(overview.assets).toEqual([])
     expect(overview.missingPrices).toEqual(['MELI', 'KO (sin CCL)'])
     expect(overview.cedears.pnl).toBe(5 + 5 + 12)
+  })
+})
+
+describe('combinePortfolioOverviews (vista "Todos")', () => {
+  const largoPlazo = computePortfolioOverview({
+    ...base,
+    dolarData: { blue: dolarGroup({ totalUsd: 100, marketValuePesos: 150_000, realizedProfit: 500 }) },
+    cryptoPositions: [position('bitcoin', 0.01, 300, { realizedPnlUsd: 20, unrealizedPnlUsd: 50 })],
+  })
+  const trading = computePortfolioOverview({
+    ...base,
+    cryptoArsRate: null,
+    dolarData: {},
+    cryptoPositions: [
+      position('bitcoin', 0.02, 600, { unrealizedPnlUsd: -10 }),
+      position('nada', 1, null),
+    ],
+  })
+
+  it('un mismo activo en dos portafolios queda en una fila; las ganancias se suman', () => {
+    const all = combinePortfolioOverviews([largoPlazo, trading])
+
+    expect(all.totalUsd).toBe(1000)
+    expect(all.assets.map((a) => [a.key, a.valueUsd, a.share])).toEqual([
+      ['crypto:bitcoin', 900, 0.9],
+      ['dolar:blue', 100, 0.1],
+    ])
+    // Sin dólar cripto en uno de los dos: el valor en pesos del bitcoin no se puede sumar
+    expect(all.assets[0].valueArs).toBeNull()
+    expect(all.totalArs).toBeNull()
+    expect(all.crypto.pnl).toBe(60)
+    expect(all.dolar.pnl).toBe(500)
+    expect(all.missingPrices).toEqual(['NAD'])
+  })
+
+  it('con un solo portafolio devuelve el mismo resumen', () => {
+    expect(combinePortfolioOverviews([largoPlazo])).toBe(largoPlazo)
   })
 })

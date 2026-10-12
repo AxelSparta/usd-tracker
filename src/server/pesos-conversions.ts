@@ -9,6 +9,7 @@ import { withUserTransaction } from './db'
 import { ApiError, applyOrReject } from './errors'
 import { loadLinkedState } from './linked-state'
 import { toDolarTransactionData, toPesosMovementData } from './mappers'
+import type { Scope } from './scope'
 
 /**
  * Conversiones pesos ↔ dólar (Fase 8.2): escriben las dos tablas en una sola transacción
@@ -17,29 +18,29 @@ import { toDolarTransactionData, toPesosMovementData } from './mappers'
 
 const MODULES = ['pesos', 'dolar'] as const
 
-export const createConversion = (userId: string, conversion: ConversionInput, ids: ConversionIds) =>
-  withUserTransaction(userId, async (db) => {
-    const state = await loadLinkedState(db, userId, MODULES)
+export const createConversion = (scope: Scope, conversion: ConversionInput, ids: ConversionIds) =>
+  withUserTransaction(scope.userId, async (db) => {
+    const state = await loadLinkedState(db, scope, MODULES)
     applyOrReject(() => applyAddConversion(state, conversion, ids))
 
     const [pesosLeg, dolarLeg] = buildConversionLegs(conversion, ids)
     await db.pesosMovement.create({
-      data: { id: pesosLeg.id, userId, ...toPesosMovementData(pesosLeg) },
+      data: { id: pesosLeg.id, ...scope, ...toPesosMovementData(pesosLeg) },
     })
     await db.dolarTransaction.create({
-      data: { id: dolarLeg.id, userId, ...toDolarTransactionData(dolarLeg) },
+      data: { id: dolarLeg.id, ...scope, ...toDolarTransactionData(dolarLeg) },
     })
     return [pesosLeg, dolarLeg] as const
   })
 
 /** Devuelve los ids borrados (las dos patas) */
-export const removeConversion = (userId: string, conversionId: string) =>
-  withUserTransaction(userId, async (db) => {
-    const state = await loadLinkedState(db, userId, MODULES)
+export const removeConversion = (scope: Scope, conversionId: string) =>
+  withUserTransaction(scope.userId, async (db) => {
+    const state = await loadLinkedState(db, scope, MODULES)
     const result = applyOrReject(() => applyRemoveConversion(state, conversionId))
     if (!result) throw new ApiError(404, 'La conversión no existe.')
 
-    const where = { userId, id: { in: result.removedIds } }
+    const where = { ...scope, id: { in: result.removedIds } }
     await db.pesosMovement.deleteMany({ where })
     await db.dolarTransaction.deleteMany({ where })
     return result.removedIds

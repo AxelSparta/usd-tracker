@@ -2,23 +2,28 @@
 
 import { subDays } from 'date-fns'
 import { useEffect, useMemo } from 'react'
+import { computeTransactionsData } from '@/domain/metrics'
+import { groupTransactions } from '@/domain/transactions'
 import { useCedearsStore } from '@/features/cedears/cedears.store'
-import { useCedearPortfolio } from '@/features/cedears/hooks'
+import { useCclSell } from '@/features/cedears/hooks'
+import { computeCedearPositions } from '@/features/cedears/metrics'
 import { useCedearPricesStore } from '@/features/cedears/prices.store'
 import { useCryptoStore } from '@/features/crypto/crypto.store'
-import { useCryptoPortfolio } from '@/features/crypto/hooks'
+import { computeCryptoPositions } from '@/features/crypto/metrics'
 import { useCryptoPricesStore } from '@/features/crypto/prices.store'
 import { computePesosBalance } from '@/features/pesos/operations'
 import { usePesosStore } from '@/features/pesos/pesos.store'
+import type { PortfolioData } from '@/features/portfolios/data-stores'
+import { otherKey, usePortfolios, usePortfoliosStore } from '@/features/portfolios/portfolios.store'
 import type { SyncStatus } from '@/lib/synced-store'
-import { useDolarStore } from '@/store/dolar.store'
-import { useTransactionStore, useTransactionsData } from '@/store/transaction.store'
+import { selectMarketPrices, useDolarStore } from '@/store/dolar.store'
+import { useTransactionStore } from '@/store/transaction.store'
 import { DolarOption } from '@/types/dolar.types'
 import { computeValueHistory, toDateKey, trimLeadingGaps } from './history'
 import { historyKey, useHistoryStore } from './history.store'
-import { computePortfolioOverview } from './overview'
+import { combinePortfolioOverviews, computePortfolioOverview } from './overview'
 
-/** Peor estado de los stores: error > cargando > listo */
+/** Peor estado: error > cargando > listo */
 const combine = (...statuses: SyncStatus[]): SyncStatus =>
   statuses.includes('error')
     ? 'error'
@@ -26,20 +31,98 @@ const combine = (...statuses: SyncStatus[]): SyncStatus =>
       ? 'ready'
       : 'loading'
 
-/** Vista unificada de los módulos (derivada, no se persiste) */
-export const usePortfolioOverview = () => {
-  const dolarData = useTransactionsData()
-  const dolarTransactions = useTransactionStore((s) => s.transactions)
+/**
+ * Portafolios que muestra el dashboard: el activo (de los stores) y, en la vista "Todos", el resto
+ * (`usePortfoliosStore.others`, cargados a pedido). Cada uno por separado: se suman al final.
+ */
+export const useDashboardPortfolios = () => {
+  const dolarGroups = useTransactionStore((s) => s.transactions)
+  const cryptoTransactions = useCryptoStore((s) => s.transactions)
+  const coins = useCryptoStore((s) => s.coins)
+  const pesosMovements = usePesosStore((s) => s.movements)
+  const cedearTxs = useCedearsStore((s) => s.transactions)
   const dolarStatus = useTransactionStore((s) => s.status)
   const cryptoStatus = useCryptoStore((s) => s.status)
-  const cryptoCount = useCryptoStore((s) => s.transactions.length)
   const pesosStatus = usePesosStore((s) => s.status)
-  const pesosMovements = usePesosStore((s) => s.movements)
   const cedearsStatus = useCedearsStore((s) => s.status)
-  const cedearCount = useCedearsStore((s) => s.transactions.length)
-  const { positions: cedearPositions } = useCedearPortfolio()
-  const { positions } = useCryptoPortfolio()
+
+  const { portfolios, active, source } = usePortfolios()
+  const showAll = usePortfoliosStore((s) => s.showAll) && portfolios.length > 1
+  const others = usePortfoliosStore((s) => s.others)
+  const loadOthers = usePortfoliosStore((s) => s.loadOthers)
+
+  useEffect(() => {
+    if (showAll) loadOthers()
+  }, [showAll, portfolios, active, loadOthers])
+
+  const activeData = useMemo(
+    (): PortfolioData => ({
+      dolar: Object.values(dolarGroups).flatMap((g) => g ?? []),
+      crypto: { transactions: cryptoTransactions, coins },
+      pesos: pesosMovements,
+      cedears: cedearTxs,
+    }),
+    [dolarGroups, cryptoTransactions, coins, pesosMovements, cedearTxs],
+  )
+
+  const otherEntries = useMemo(
+    () =>
+      showAll
+        ? portfolios
+            .filter((p) => p.id !== active?.id)
+            .map((p) => others[otherKey(source, p.id)] ?? { status: 'loading' as const })
+        : [],
+    [showAll, portfolios, active, others, source],
+  )
+
+  const sets = useMemo(
+    () => [
+      activeData,
+      ...otherEntries.flatMap((entry) => (entry.status === 'ready' ? [entry.data] : [])),
+    ],
+    [activeData, otherEntries],
+  )
+
+  const othersStatus: SyncStatus = otherEntries.some((e) => e.status === 'error')
+    ? 'error'
+    : otherEntries.some((e) => e.status === 'loading')
+      ? 'loading'
+      : 'ready'
+
+  const retry = () => {
+    for (const store of [useTransactionStore, useCryptoStore, usePesosStore, useCedearsStore]) {
+      if (store.getState().status === 'error') void store.getState().retryCloud()
+    }
+    if (othersStatus === 'error') {
+      usePortfoliosStore.getState().invalidateOthers()
+      usePortfoliosStore.getState().loadOthers()
+    }
+  }
+
+  return {
+    sets,
+    showAll,
+    status: combine(dolarStatus, cryptoStatus, pesosStatus, cedearsStatus, othersStatus),
+    retry,
+  }
+}
+
+/** Monedas y tickers de los portafolios no activos (para traer sus precios en la vista "Todos") */
+export const useOtherHeldAssets = (sets: PortfolioData[]) =>
+  useMemo(() => {
+    const rest = sets.slice(1)
+    return {
+      coinIds: [...new Set(rest.flatMap((d) => d.crypto.transactions.map((t) => t.coinId)))],
+      tickers: [...new Set(rest.flatMap((d) => d.cedears.map((t) => t.ticker)))],
+    }
+  }, [sets])
+
+/** Vista unificada de los módulos (derivada, no se persiste) */
+export const usePortfolioOverview = (sets: PortfolioData[]) => {
   const allDolarData = useDolarStore((s) => s.allDolarData)
+  const coinPrices = useCryptoPricesStore((s) => s.prices)
+  const cedearPrices = useCedearPricesStore((s) => s.prices)
+  const cclSell = useCclSell()
 
   const cryptoArsRate = allDolarData?.[DolarOption.Cripto]
     ? Number(allDolarData[DolarOption.Cripto].compra) || null
@@ -48,48 +131,41 @@ export const usePortfolioOverview = () => {
   const mepRate = allDolarData?.[DolarOption.Bolsa]
     ? Number(allDolarData[DolarOption.Bolsa].venta) || null
     : null
-  const pesosBalance = useMemo(() => computePesosBalance(pesosMovements), [pesosMovements])
 
-  const overview = useMemo(
-    () =>
-      computePortfolioOverview({
-        dolarData,
-        // DolarAPI trae el nombre largo ("Contado con liquidación"); sin cotizaciones, el id
-        dolarLabel: (option) => `Dólar ${allDolarData?.[option]?.nombre ?? option}`,
-        cryptoPositions: positions,
-        cryptoArsRate,
-        pesosBalance,
-        mepRate,
-        cedearPositions,
-      }),
-    [dolarData, allDolarData, positions, cryptoArsRate, pesosBalance, mepRate, cedearPositions],
+  const overview = useMemo(() => {
+    const marketPrices = selectMarketPrices({ allDolarData })
+    return combinePortfolioOverviews(
+      sets.map((data) =>
+        computePortfolioOverview({
+          dolarData: computeTransactionsData(groupTransactions(data.dolar), marketPrices),
+          // DolarAPI trae el nombre largo ("Contado con liquidación"); sin cotizaciones, el id
+          dolarLabel: (option) => `Dólar ${allDolarData?.[option]?.nombre ?? option}`,
+          cryptoPositions: computeCryptoPositions(
+            data.crypto.transactions,
+            data.crypto.coins,
+            coinPrices,
+          ),
+          cryptoArsRate,
+          pesosBalance: computePesosBalance(data.pesos),
+          mepRate,
+          cedearPositions: computeCedearPositions(data.cedears, cedearPrices, cclSell),
+        }),
+      ),
+    )
+  }, [sets, allDolarData, coinPrices, cedearPrices, cclSell, cryptoArsRate, mepRate])
+
+  const pesosBalance = useMemo(
+    () => sets.reduce((sum, data) => sum + computePesosBalance(data.pesos), 0),
+    [sets],
   )
-
-  const hasPesos = pesosMovements.length > 0
-  const hasCedears = cedearCount > 0
+  const hasPesos = sets.some((d) => d.pesos.length > 0)
+  const hasCedears = sets.some((d) => d.cedears.length > 0)
   const hasOperations =
-    cryptoCount > 0 ||
     hasPesos ||
     hasCedears ||
-    Object.values(dolarTransactions).some((g) => g && g.length > 0)
+    sets.some((d) => d.dolar.length > 0 || d.crypto.transactions.length > 0)
 
-  const retry = () => {
-    for (const store of [useTransactionStore, useCryptoStore, usePesosStore, useCedearsStore]) {
-      if (store.getState().status === 'error') void store.getState().retryCloud()
-    }
-  }
-
-  return {
-    overview,
-    cryptoArsRate,
-    mepRate,
-    pesosBalance,
-    hasOperations,
-    hasPesos,
-    hasCedears,
-    status: combine(dolarStatus, cryptoStatus, pesosStatus, cedearsStatus),
-    retry,
-  }
+  return { overview, cryptoArsRate, mepRate, pesosBalance, hasOperations, hasPesos, hasCedears }
 }
 
 export type HistoryRange = '1M' | '3M' | '6M' | '1A'
@@ -102,15 +178,20 @@ const RANGE_DAYS: Record<HistoryRange, number> = { '1M': 30, '3M': 91, '6M': 182
  * transacciones y los precios históricos (ver `history.ts`). Arranca en el primer día
  * con operaciones dentro del rango, y recorta los días iniciales sin precio.
  */
-export const useValueHistory = (range: HistoryRange, currency: HistoryCurrency) => {
-  const dolarGroups = useTransactionStore((s) => s.transactions)
-  const cryptoTxs = useCryptoStore((s) => s.transactions)
-  const pesosMovements = usePesosStore((s) => s.movements)
-  const cedearTxs = useCedearsStore((s) => s.transactions)
-
-  const dolarTxs = useMemo(
-    () => Object.values(dolarGroups).flatMap((g) => g ?? []),
-    [dolarGroups],
+export const useValueHistory = (
+  sets: PortfolioData[],
+  range: HistoryRange,
+  currency: HistoryCurrency,
+) => {
+  // Con varios portafolios se suman las tenencias: el valor de un día es aditivo
+  const { dolarTxs, cryptoTxs, pesosMovements, cedearTxs } = useMemo(
+    () => ({
+      dolarTxs: sets.flatMap((d) => d.dolar),
+      cryptoTxs: sets.flatMap((d) => d.crypto.transactions),
+      pesosMovements: sets.flatMap((d) => d.pesos),
+      cedearTxs: sets.flatMap((d) => d.cedears),
+    }),
+    [sets],
   )
   const casas = useMemo(() => {
     const set = new Set<string>(dolarTxs.map((t) => t.dolarOption))

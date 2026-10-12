@@ -1,4 +1,4 @@
-import { requireUserId } from '@/server/auth'
+import { requireScope } from '@/server/scope'
 import {
   createCryptoTransaction,
   listCryptoTransactions,
@@ -8,10 +8,10 @@ import { logEvent } from '@/server/log'
 import { createCryptoTransactionApiSchema } from '@/features/crypto/validations'
 
 /** GET /api/crypto/transactions → `{ transactions, coins }` del usuario */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const userId = await requireUserId()
-    return Response.json(await listCryptoTransactions(userId))
+    const scope = await requireScope(request)
+    return Response.json(await listCryptoTransactions(scope))
   } catch (error) {
     return errorResponse(error)
   }
@@ -20,13 +20,13 @@ export async function GET() {
 /** POST /api/crypto/transactions `{ transaction, coin }` (id del cliente) → 201 */
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId()
+    const scope = await requireScope(request)
     const { transaction, coin } = await parseBody(
       request,
       createCryptoTransactionApiSchema,
     )
-    const created = await createCryptoTransaction(userId, transaction, coin)
-    logEvent('crypto.created', { userId, type: transaction.type, coinId: transaction.coinId })
+    const created = await createCryptoTransaction(scope, transaction, coin)
+    logEvent('crypto.created', { ...scope, type: transaction.type, coinId: transaction.coinId })
     return Response.json(created, { status: 201 })
   } catch (error) {
     return errorResponse(error)

@@ -20,7 +20,7 @@ import { describeImportResult, describeLocalData } from './describe'
  * (y no se ofrecieron antes), propone subirlas. No se cierra solo mientras sube.
  */
 export default function LocalImportDialog() {
-  const { unoffered, upload, dismiss } = useLocalImport()
+  const { unoffered, upload, dismiss, target } = useLocalImport()
   const [uploading, setUploading] = useState(false)
   const open = countLocalData(unoffered) > 0
 
@@ -47,7 +47,8 @@ export default function LocalImportDialog() {
           <DialogTitle>Tenés operaciones en este navegador</DialogTitle>
           <DialogDescription>
             Encontramos {describeLocalData(unoffered)} que cargaste sin sesión. ¿Las subimos
-            a tu cuenta? Las que ya estén en la nube no se duplican.
+            a tu cuenta{target && <>, en el portafolio «{target.name}»</>}? Las que ya estén en la
+            nube no se duplican.
           </DialogDescription>
         </DialogHeader>
         <p className='text-sm text-muted-foreground'>

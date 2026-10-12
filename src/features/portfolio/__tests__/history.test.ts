@@ -210,6 +210,20 @@ describe('computeValueHistory con Pesos', () => {
   })
 })
 
+describe('moneda sin histórico en CoinGecko', () => {
+  it('usa el precio de la operación y lo arrastra', () => {
+    const points = computeValueHistory({
+      dolarTxs: [],
+      cryptoTxs: [cryptoTx(TransactionType.BUY, 2, '2026-01-01', { priceUsd: 50 })],
+      dolarPrices: {},
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-02',
+    })
+    expect(points.map((p) => p.usd)).toEqual([100, 100])
+  })
+})
+
 describe('CEDEARs (Fase 10)', () => {
   const ccl = [{ date: '2026-01-01', buy: 1580, sell: 1600 }]
   const aapl = [
@@ -247,18 +261,41 @@ describe('CEDEARs (Fase 10)', () => {
     ])
   })
 
-  it('sin cierre del CEDEAR → null; sin CCL, USD es null pero ARS sigue', () => {
-    const [noPrice] = computeValueHistory({
+  it('sin histórico del CEDEAR → precio de la operación (sin comisión), arrastrado; hoy en vivo', () => {
+    // Pasa con IBIT: data912 no tiene su histórico
+    const points = computeValueHistory({
       dolarTxs: [],
       cryptoTxs: [],
-      cedearTxs: [cedearTx({ date: local('2026-01-01') })],
-      cedearPrices: {},
+      cedearTxs: [cedearTx({ date: local('2026-01-01'), fee: 5 })],
+      cedearPrices: { AAPL: [{ date: '2026-01-03', ars: 30_000 }] },
+      dolarPrices: { [DolarOption.ContadoConLiqui]: ccl },
+      coinPrices: {},
+      from: '2026-01-01',
+      to: '2026-01-03',
+    })
+    expect(points).toEqual([
+      { date: '2026-01-01', ars: 260_000, usd: 162.5 },
+      { date: '2026-01-02', ars: 260_000, usd: 162.5 },
+      { date: '2026-01-03', ars: 300_000, usd: 187.5 },
+    ])
+  })
+
+  it('el cierre de mercado manda sobre el precio de la operación', () => {
+    const [point] = computeValueHistory({
+      dolarTxs: [],
+      cryptoTxs: [],
+      // Pagado a 20 × 1600 = 32.000 por CEDEAR; cierre del día 26.000
+      cedearTxs: [cedearTx({ date: local('2026-01-01'), price: 20 })],
+      cedearPrices: { AAPL: aapl },
       dolarPrices: { [DolarOption.ContadoConLiqui]: ccl },
       coinPrices: {},
       from: '2026-01-01',
       to: '2026-01-01',
     })
-    expect(noPrice).toEqual({ date: '2026-01-01', ars: null, usd: null })
+    expect(point.ars).toBe(260_000)
+  })
+
+  it('sin CCL, USD es null pero ARS sigue', () => {
 
     const [noCcl] = computeValueHistory({
       dolarTxs: [],

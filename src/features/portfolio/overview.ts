@@ -186,6 +186,21 @@ export const computePortfolioOverview = ({
     })
   }
 
+  return finalize(
+    assets,
+    { dolar: dolarPnl, crypto: cryptoPnl, cedears: cedearsPnl },
+    missingPrices,
+  )
+}
+
+type ModulePnl = { dolar: number; crypto: number; cedears: number }
+
+/** Participaciones, orden por valor y resumen por módulo */
+const finalize = (
+  assets: Omit<AssetAllocation, 'share'>[],
+  pnl: ModulePnl,
+  missingPrices: string[],
+): PortfolioOverview => {
   const totalUsd = assets.reduce((acc, a) => acc + a.valueUsd, 0)
   const share = (value: number) => (totalUsd > 0 ? value / totalUsd : 0)
   const withShare = assets
@@ -207,13 +222,43 @@ export const computePortfolioOverview = ({
   return {
     totalUsd,
     totalArs: sumOrNull(withShare.map((a) => a.valueArs)),
-    dolar: summarize('dolar', dolarPnl),
-    crypto: summarize('crypto', cryptoPnl),
+    dolar: summarize('dolar', pnl.dolar),
+    crypto: summarize('crypto', pnl.crypto),
     pesos: summarize('pesos', null),
-    cedears: summarize('cedears', cedearsPnl),
+    cedears: summarize('cedears', pnl.cedears),
     assets: withShare,
     missingPrices,
   }
+}
+
+/**
+ * Vista "Todos": suma los resúmenes de cada portafolio. Cada uno se calcula por separado (su costo
+ * promedio y su ganancia realizada no dependen de lo que pasó en otro portafolio) y acá solo se
+ * suman valores y ganancias; un mismo activo en varios portafolios queda en una sola fila.
+ */
+export const combinePortfolioOverviews = (overviews: PortfolioOverview[]): PortfolioOverview => {
+  if (overviews.length === 1) return overviews[0]
+  const byKey = new Map<string, Omit<AssetAllocation, 'share'>>()
+  for (const { share: _share, ...asset } of overviews.flatMap((o) => o.assets)) {
+    const seen = byKey.get(asset.key)
+    byKey.set(
+      asset.key,
+      seen
+        ? {
+            ...seen,
+            valueUsd: seen.valueUsd + asset.valueUsd,
+            valueArs: sumOrNull([seen.valueArs, asset.valueArs]),
+          }
+        : asset,
+    )
+  }
+  const sumPnl = (module: keyof ModulePnl) =>
+    overviews.reduce((acc, o) => acc + (o[module].pnl ?? 0), 0)
+  return finalize(
+    [...byKey.values()],
+    { dolar: sumPnl('dolar'), crypto: sumPnl('crypto'), cedears: sumPnl('cedears') },
+    [...new Set(overviews.flatMap((o) => o.missingPrices))],
+  )
 }
 
 /** Hasta `max` segmentos (en orden de valor): los primeros `max − 1` activos y el resto en "Otros" */

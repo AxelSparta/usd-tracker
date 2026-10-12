@@ -1,3 +1,5 @@
+import { getCloudPortfolioId, PORTFOLIO_HEADER } from './portfolio-scope'
+
 /** Error HTTP de nuestras APIs (`/api/*`): conserva el status y el mensaje en español del server. */
 export class ApiRequestError extends Error {
   constructor(
@@ -10,21 +12,25 @@ export class ApiRequestError extends Error {
 
 /**
  * `fetch` a un route handler propio. Lanza `ApiRequestError` con el `error` del body
- * si la respuesta no es OK, o con un mensaje genérico si no hubo red.
+ * si la respuesta no es OK, o con un mensaje genérico si no hubo red. Manda el portafolio activo
+ * (`PORTFOLIO_HEADER`) salvo que `init.headers` ya lo traiga.
  */
 export const requestJson = async <T>(
   url: string,
   init?: Omit<RequestInit, 'body'> & { body?: unknown },
 ): Promise<T> => {
-  const { body, ...rest } = init ?? {}
+  const { body, headers, ...rest } = init ?? {}
+  const portfolioId = getCloudPortfolioId()
   let response: Response
   try {
     response = await fetch(url, {
       ...rest,
-      ...(body !== undefined && {
-        body: JSON.stringify(body),
-        headers: { 'content-type': 'application/json', ...rest.headers },
-      }),
+      headers: {
+        ...(portfolioId && { [PORTFOLIO_HEADER]: portfolioId }),
+        ...(body !== undefined && { 'content-type': 'application/json' }),
+        ...(headers as Record<string, string> | undefined),
+      },
+      ...(body !== undefined && { body: JSON.stringify(body) }),
     })
   } catch (error) {
     if (error instanceof DOMException && error.name === 'AbortError') throw error

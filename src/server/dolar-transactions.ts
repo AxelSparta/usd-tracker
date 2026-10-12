@@ -8,10 +8,11 @@ import type { Transaction } from '@/types/transaction.types'
 import { getDb, withUserTransaction, type DbTransaction } from './db'
 import { ApiError, applyOrReject } from './errors'
 import { toDolarTransaction, toDolarTransactionData } from './mappers'
+import type { Scope } from './scope'
 
 /**
- * Operaciones del módulo dólar en la base. Todas filtran por `userId` (ownership):
- * una operación de otro usuario es, para este, inexistente (404).
+ * Operaciones del módulo dólar en la base. Todas filtran por usuario y portafolio
+ * (`Scope`): una operación de otro portafolio o usuario es, para este, inexistente (404).
  * Antes de escribir se valida la línea temporal con las mismas funciones que el store.
  */
 
@@ -19,53 +20,53 @@ const NOT_FOUND = 'La operación no existe.'
 
 export const loadGroups = async (
   db: Pick<DbTransaction, 'dolarTransaction'>,
-  userId: string,
+  scope: Scope,
 ) =>
   groupTransactions(
-    (await db.dolarTransaction.findMany({ where: { userId } })).map(toDolarTransaction),
+    (await db.dolarTransaction.findMany({ where: scope })).map(toDolarTransaction),
   )
 
-export const listDolarTransactions = async (userId: string): Promise<Transaction[]> =>
+export const listDolarTransactions = async (scope: Scope): Promise<Transaction[]> =>
   (
     await getDb().dolarTransaction.findMany({
-      where: { userId },
+      where: scope,
       orderBy: { date: 'asc' },
     })
   ).map(toDolarTransaction)
 
-export const createDolarTransaction = (userId: string, tx: Transaction) =>
-  withUserTransaction(userId, async (db) => {
-    const groups = await loadGroups(db, userId)
+export const createDolarTransaction = (scope: Scope, tx: Transaction) =>
+  withUserTransaction(scope.userId, async (db) => {
+    const groups = await loadGroups(db, scope)
     applyOrReject(() => applyAddTransaction(groups, tx))
 
     const row = await db.dolarTransaction.create({
-      data: { id: tx.id, userId, ...toDolarTransactionData(tx) },
+      data: { id: tx.id, ...scope, ...toDolarTransactionData(tx) },
     })
     return toDolarTransaction(row)
   })
 
 export const updateDolarTransaction = (
-  userId: string,
+  scope: Scope,
   id: string,
   tx: Omit<Transaction, 'id'>,
 ) =>
-  withUserTransaction(userId, async (db) => {
-    const groups = await loadGroups(db, userId)
+  withUserTransaction(scope.userId, async (db) => {
+    const groups = await loadGroups(db, scope)
     const updated = applyOrReject(() => applyUpdateTransaction(groups, id, tx))
     if (!updated) throw new ApiError(404, NOT_FOUND)
 
     const row = await db.dolarTransaction.update({
-      where: { id, userId },
+      where: { id, ...scope },
       data: toDolarTransactionData(tx),
     })
     return toDolarTransaction(row)
   })
 
-export const removeDolarTransaction = (userId: string, id: string) =>
-  withUserTransaction(userId, async (db) => {
-    const groups = await loadGroups(db, userId)
+export const removeDolarTransaction = (scope: Scope, id: string) =>
+  withUserTransaction(scope.userId, async (db) => {
+    const groups = await loadGroups(db, scope)
     const updated = applyOrReject(() => applyRemoveTransaction(groups, id))
     if (!updated) throw new ApiError(404, NOT_FOUND)
 
-    await db.dolarTransaction.delete({ where: { id, userId } })
+    await db.dolarTransaction.delete({ where: { id, ...scope } })
   })

@@ -5,7 +5,7 @@ import { Prisma } from '@/generated/prisma/client'
  * montos como `Decimal` (como Postgres) para ejercitar también los mappers.
  */
 
-type Row = Record<string, unknown> & { id: string; userId: string; date: Date }
+type Row = Record<string, unknown> & { id: string; userId: string; date?: Date; createdAt?: Date }
 
 const DECIMAL_FIELDS = ['dollarsAmount', 'pesosAmount', 'quantity', 'priceUsd', 'feeAmount', 'amount', 'price', 'fxRate', 'fee']
 
@@ -23,16 +23,21 @@ const duplicate = () =>
     clientVersion: 'fake',
   })
 
-type Where = { id?: string | { in: string[] }; userId?: string }
+/** `id` (o `{ in }`) y cualquier otro campo por igualdad (`userId`, `portfolioId`) */
+type Where = { id?: string | { in: string[] } } & Record<string, unknown>
 
-const matches = (row: Row, where: Where) =>
-  (where.userId === undefined || row.userId === where.userId) &&
-  (where.id === undefined ||
-    (typeof where.id === 'string' ? row.id === where.id : where.id.in.includes(row.id)))
+const matches = (row: Row, { id, ...fields }: Where) =>
+  Object.entries(fields).every(([key, value]) => value === undefined || row[key] === value) &&
+  (id === undefined || (typeof id === 'string' ? row.id === id : id.in.includes(row.id)))
+
+// Operaciones por fecha; portafolios por creación
+const time = (row: Row) => (row.date ?? row.createdAt)!.getTime()
 
 const table = (rows: Row[]) => ({
   findMany: async ({ where }: { where: Where }) =>
-    rows.filter((r) => matches(r, where)).sort((a, b) => a.date.getTime() - b.date.getTime()),
+    rows.filter((r) => matches(r, where)).sort((a, b) => time(a) - time(b)),
+  findFirst: async ({ where }: { where: Where }) =>
+    rows.filter((r) => matches(r, where)).sort((a, b) => time(a) - time(b))[0] ?? null,
   create: async ({ data }: { data: Record<string, unknown> }) => {
     if (rows.some((r) => r.id === data.id)) throw duplicate()
     const row = toRow(data)
@@ -72,7 +77,10 @@ const table = (rows: Row[]) => ({
 
 export const createFakeDb = () => {
   const users = new Set<string>()
+  // Creación estrictamente creciente: el orden de los portafolios no depende del reloj
+  let clock = 0
   const db = {
+    portfolioRows: [] as Row[],
     dolarRows: [] as Row[],
     cryptoRows: [] as Row[],
     pesosRows: [] as Row[],
@@ -85,8 +93,25 @@ export const createFakeDb = () => {
       },
     },
   }
+  const operations = [db.dolarRows, db.cryptoRows, db.pesosRows, db.cedearRows]
+  const portfolios = table(db.portfolioRows)
   return {
     ...db,
+    portfolio: {
+      ...portfolios,
+      create: ({ data }: { data: Record<string, unknown> }) =>
+        portfolios.create({ data: { createdAt: new Date(++clock), ...data } }),
+      // Cascade: las operaciones del portafolio se van con él
+      delete: async ({ where }: { where: Where }) => {
+        const removed = await portfolios.delete({ where })
+        for (const rows of operations) {
+          for (let i = rows.length - 1; i >= 0; i--) {
+            if (rows[i].portfolioId === removed.id) rows.splice(i, 1)
+          }
+        }
+        return removed
+      },
+    },
     dolarTransaction: table(db.dolarRows),
     cryptoTransaction: table(db.cryptoRows),
     pesosMovement: table(db.pesosRows),

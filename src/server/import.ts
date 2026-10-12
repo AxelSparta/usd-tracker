@@ -20,7 +20,7 @@ import { createTransactionApiSchema } from '@/validations/transaction'
 import { loadCedearState } from './cedear-transactions'
 import { loadCryptoState } from './crypto-transactions'
 import { loadPesosState } from './pesos-movements'
-import { withUserTransaction } from './db'
+import { withUserTransaction, type DbTransaction } from './db'
 import { ApiError, applyOrReject } from './errors'
 import {
   toCedearTransactionData,
@@ -29,12 +29,14 @@ import {
   toDolarTransactionData,
   toPesosMovementData,
 } from './mappers'
+import type { Scope } from './scope'
 
 /**
  * Subida de los datos locales a la nube (Fase 3). Regla de conflictos: **la nube manda**.
  * Lo local solo agrega operaciones nuevas; un id que ya existe en la nube se saltea
  * (gana la versión de la nube) y lo mismo con los metadatos de monedas ya conocidas.
- * Idempotente: subir dos veces lo mismo no duplica nada.
+ * Idempotente: subir dos veces lo mismo no duplica nada. Se sube al portafolio del `Scope`; un id
+ * que ya está en otro portafolio del usuario también se saltea.
  */
 
 const MAX_ITEMS = 5000
@@ -92,20 +94,31 @@ export type ImportResult = {
   cedears: { created: number; skipped: number }
 }
 
-export const importLocalData = (userId: string, input: ImportInput) =>
-  withUserTransaction(userId, async (db): Promise<ImportResult> => {
+/** Ids de todas las operaciones del usuario (todos sus portafolios) */
+export const listOperationIds = async (
+  db: Pick<DbTransaction, 'dolarTransaction' | 'cryptoTransaction' | 'pesosMovement' | 'cedearTransaction'>,
+  userId: string,
+): Promise<string[]> => {
+  const query = { where: { userId }, select: { id: true } } as const
+  const rows = [
+    ...(await db.dolarTransaction.findMany(query)),
+    ...(await db.cryptoTransaction.findMany(query)),
+    ...(await db.pesosMovement.findMany(query)),
+    ...(await db.cedearTransaction.findMany(query)),
+  ]
+  return rows.map((row) => row.id)
+}
+
+export const importLocalData = (scope: Scope, input: ImportInput) =>
+  withUserTransaction(scope.userId, async (db): Promise<ImportResult> => {
     const existingDolar = (
-      await db.dolarTransaction.findMany({ where: { userId } })
+      await db.dolarTransaction.findMany({ where: scope })
     ).map(toDolarTransaction)
-    const existingCrypto = await loadCryptoState(db, userId)
-    const existingPesos = await loadPesosState(db, userId)
-    const existingCedears = await loadCedearState(db, userId)
-    const known = new Set([
-      ...existingDolar.map((t) => t.id),
-      ...existingCrypto.transactions.map((t) => t.id),
-      ...existingPesos.movements.map((m) => m.id),
-      ...existingCedears.transactions.map((t) => t.id),
-    ])
+    const existingCrypto = await loadCryptoState(db, scope)
+    const existingPesos = await loadPesosState(db, scope)
+    const existingCedears = await loadCedearState(db, scope)
+    // Ids de cualquier portafolio del usuario: lo ya subido a otro portafolio no se duplica acá
+    const known = new Set(await listOperationIds(db, scope.userId))
 
     const newDolar = input.dolar.filter((t) => !known.has(t.id))
     const newCrypto = input.crypto.transactions.filter((t) => !known.has(t.id))
@@ -165,23 +178,23 @@ export const importLocalData = (userId: string, input: ImportInput) =>
 
     // skipDuplicates: un id que choca con una operación de otro usuario se saltea sin revelarla
     const dolar = await db.dolarTransaction.createMany({
-      data: newDolar.map((tx) => ({ id: tx.id, userId, ...toDolarTransactionData(tx) })),
+      data: newDolar.map((tx) => ({ id: tx.id, ...scope, ...toDolarTransactionData(tx) })),
       skipDuplicates: true,
     })
     const crypto = await db.cryptoTransaction.createMany({
       data: newCrypto.map((tx) => {
         const coin = coins[tx.coinId]
         if (!coin) throw new ApiError(400, 'Falta la moneda de alguna operación cripto.')
-        return { id: tx.id, userId, ...toCryptoTransactionData(tx, coin) }
+        return { id: tx.id, ...scope, ...toCryptoTransactionData(tx, coin) }
       }),
       skipDuplicates: true,
     })
     const pesos = await db.pesosMovement.createMany({
-      data: newPesos.map((m) => ({ id: m.id, userId, ...toPesosMovementData(m) })),
+      data: newPesos.map((m) => ({ id: m.id, ...scope, ...toPesosMovementData(m) })),
       skipDuplicates: true,
     })
     const cedears = await db.cedearTransaction.createMany({
-      data: newCedears.map(({ id, ...tx }) => ({ id, userId, ...toCedearTransactionData(tx) })),
+      data: newCedears.map(({ id, ...tx }) => ({ id, ...scope, ...toCedearTransactionData(tx) })),
       skipDuplicates: true,
     })
 

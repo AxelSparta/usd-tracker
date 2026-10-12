@@ -39,16 +39,37 @@ model User {
   /// userId de Clerk (`user_…`); la fila se crea en la primera escritura
   id                 String              @id
   createdAt          DateTime            @default(now())
+  portfolios         Portfolio[]
   dolarTransactions  DolarTransaction[]
   cryptoTransactions CryptoTransaction[]
   pesosMovements     PesosMovement[]
   cedearTransactions CedearTransaction[]
 }
 
+/// Portafolio: agrupa las operaciones de los cuatro módulos con saldos propios. Las operaciones
+/// enlazadas (conversiones, patas de CEDEARs, intercambios USDT) nunca cruzan portafolios.
+model Portfolio {
+  /// UUID generado por el cliente
+  id                 String              @id @db.Uuid
+  userId             String
+  user               User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  name               String
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+  dolarTransactions  DolarTransaction[]
+  cryptoTransactions CryptoTransaction[]
+  pesosMovements     PesosMovement[]
+  cedearTransactions CedearTransaction[]
+
+  @@index([userId, createdAt])
+}
+
 model DolarTransaction {
   id            String          @id @db.Uuid
   userId        String
   user          User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId   String          @db.Uuid
+  portfolio     Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   /// Valor de `DolarOption` ('blue', 'oficial', …); validado con Zod en la API
   dolarOption   String
   type          TransactionType
@@ -66,7 +87,7 @@ model DolarTransaction {
   createdAt     DateTime        @default(now())
   updatedAt     DateTime        @updatedAt
 
-  @@index([userId, dolarOption, date])
+  @@index([portfolioId, dolarOption, date])
   @@index([usdtSwapId])
   @@index([conversionId])
   @@index([cedearId])
@@ -76,6 +97,8 @@ model CryptoTransaction {
   id          String          @id @db.Uuid
   userId      String
   user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId String          @db.Uuid
+  portfolio   Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   /// id de CoinGecko, ej. `bitcoin`
   coinId      String
   /// Metadatos de la moneda, para mostrarla sin consultar CoinGecko
@@ -98,7 +121,7 @@ model CryptoTransaction {
   createdAt   DateTime        @default(now())
   updatedAt   DateTime        @updatedAt
 
-  @@index([userId, coinId, date])
+  @@index([portfolioId, coinId, date])
   @@index([swapId])
   @@index([usdtSwapId])
 }
@@ -108,6 +131,8 @@ model PesosMovement {
   id           String          @id @db.Uuid
   userId       String
   user         User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId  String          @db.Uuid
+  portfolio    Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   type         TransactionType
   amount       Decimal
   date         DateTime
@@ -119,31 +144,33 @@ model PesosMovement {
   createdAt    DateTime        @default(now())
   updatedAt    DateTime        @updatedAt
 
-  @@index([userId, date])
+  @@index([portfolioId, date])
   @@index([conversionId])
   @@index([cedearId])
 }
 
 /// Compra o venta de CEDEARs; su pata (Pesos o Dólar CCL) guarda este id en `cedearId`
 model CedearTransaction {
-  id        String          @id @db.Uuid
-  userId    String
-  user      User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  id          String          @id @db.Uuid
+  userId      String
+  user        User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  portfolioId String          @db.Uuid
+  portfolio   Portfolio       @relation(fields: [portfolioId], references: [id], onDelete: Cascade)
   /// Ticker base en BYMA ('AAPL', 'BA.C'); validado con Zod en la API
-  ticker    String
-  type      TransactionType
+  ticker      String
+  type        TransactionType
   /// CEDEARs enteros (Decimal como el resto de las cantidades)
-  quantity  Decimal
+  quantity    Decimal
   /// Por CEDEAR, en `currency`
-  price     Decimal
-  currency  CedearCurrency
+  price       Decimal
+  currency    CedearCurrency
   /// ARS por USD CCL ese día
-  fxRate    Decimal
+  fxRate      Decimal
   /// Comisión + derechos, en `currency`
-  fee       Decimal?
-  date      DateTime
-  createdAt DateTime        @default(now())
-  updatedAt DateTime        @updatedAt
+  fee         Decimal?
+  date        DateTime
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
 
-  @@index([userId, ticker, date])
+  @@index([portfolioId, ticker, date])
 }
