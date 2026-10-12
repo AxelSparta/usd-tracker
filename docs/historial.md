@@ -813,7 +813,19 @@ saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consist
       `cedear_transactions` aplicadas con `pnpm db:deploy`).
 - [x] Capturas de `/cedears`, `/cedears/nueva` (escritorio, mobile y oscuro), `/pesos` con la pata y
       el dashboard con cinco tarjetas.
-- [ ] Verificación manual en `pnpm dev` con sesión y PR a `main`.
+- [x] Verificación manual en `pnpm dev` con sesión y PR a `main` (#9, fusionado el 10/10/2026).
+
+---
+
+## Correcciones posteriores
+
+- **Fecha por defecto e hidratación** (oct 2026, PR #10 y #9): los formularios arrancan en "hoy"
+  (`new Date()`), y de 21 a 24 h ART el server (UTC) está en otro día que el navegador. El texto
+  distinto rompía la hidratación y React volvía a montar el formulario (lo escrito en ese momento se
+  perdía; así falló el E2E de CEDEARs en CI). Ahora el botón de la fecha se muestra solo en el
+  cliente (`useMounted`) en todos los formularios con fecha, incluido `CedearTransactionForm`. E2E
+  `e2e/date-hydration.spec.ts`: pone el reloj del navegador dos días adelante del server y verifica
+  la fecha mostrada y que no haya errores de hidratación.
 
 ---
 

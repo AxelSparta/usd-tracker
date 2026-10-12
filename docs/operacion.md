@@ -78,6 +78,9 @@ El server escribe una línea JSON por evento (`src/server/log.ts`); Vercel las g
 | `crypto.created/updated/removed` | Escritura OK en `/api/crypto/transactions*`        |
 | `crypto.swapped`      | Intercambio creado                                            |
 | `usdtSwap.created/removed` | Intercambio USDT ↔ cripto creado / borrado (las dos patas) |
+| `pesos.created/updated/removed`  | Escritura OK en `/api/pesos/movements*`            |
+| `pesosConversion.created/removed` | Conversión pesos ↔ dólar creada / borrada (las dos patas) |
+| `cedear.created/updated/removed` | Escritura OK en `/api/cedears/transactions*` (operación + pata) |
 | `sync.imported`       | Subida de datos locales a la cuenta (creadas / salteadas)     |
 | `api.unexpected`      | Error no previsto en `/api/*` (el usuario ve un 500 genérico) |
 | `request.error`       | Error del server fuera de `/api/*` (render, proxy), vía `src/instrumentation.ts` |

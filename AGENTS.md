@@ -158,7 +158,7 @@ src/
 │   ├── hooks.ts, refresh.ts    # useCedearPriceSync (5 min + backoff), useCedearPortfolio, useCclSell
 │   └── components/             # CedearPortfolio, CedearDetail, CedearTransactionList, CedearTransactionForm,
 │                               #   NewCedearTransaction, EditCedearTransactionDialog, CedearCombobox,
-│                               #   CurrencyToggle, CedearLegsProvider
+│                               #   CurrencyToggle, CedearLegsProvider, format (money, signedMoney)
 ├── features/usdt-swaps/        # USDT del dólar cripto ↔ cripto: intercambios (7a) y alta de resultados de trades (7b)
 │   ├── operations.ts           # puro (store + server): buildUsdtSwapLegs, applyAdd/RemoveUsdtSwap, assertUsdtSwapsComplete
 │   ├── validations.ts          # usdtSwapApiSchema (API) y swapFormSchema (form)
@@ -179,7 +179,7 @@ src/
 │   ├── types.ts, metrics.ts, validations.ts, refresh.ts (backoff de precios)
 │   ├── api.ts                  # fetch del navegador a /api/crypto/* (precios, búsqueda, cryptoApi CRUD)
 │   ├── operations.ts           # applyAdd/Update/RemoveCryptoTransaction, applyAddSwap (store + server)
-│   ├── crypto.store.ts         # operaciones + monedas + intercambios (persist `crypto-storage`, v3)
+│   ├── crypto.store.ts         # operaciones + monedas + intercambios (persist `crypto-storage`, v4)
 │   ├── prices.store.ts         # último precio por moneda (persist `crypto-prices-storage`, v1)
 │   ├── hooks.ts                # useCryptoPriceSync, useCryptoPortfolio
 │   └── components/             # CryptoPortfolio, CryptoCoinDetail, CryptoTransactionList,
@@ -201,6 +201,7 @@ src/
 │   ├── pesos-conversions.ts    # conversiones: las dos patas en una transacción
 │   ├── linked-state.ts         # loadLinkedState(db, userId, ['dolar' | 'crypto' | 'pesos'])
 │   ├── cedear-transactions.ts  # CEDEARs: operación + pata en una transacción (carga CEDEARs + Pesos + Dólar)
+│   ├── usdt-swaps.ts           # intercambios USDT ↔ cripto: las dos patas en una transacción
 │   └── {dolar,crypto}-transactions.ts  # servicios con ownership + validación de línea temporal
 ├── lib/
 │   ├── locale-amount.ts        # parse/format de montos AR (parseLocaleAmount, formatCurrency…)

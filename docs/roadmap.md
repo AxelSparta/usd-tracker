@@ -68,24 +68,26 @@ La app está en producción (Vercel) con los módulos Dólar, Cripto, Pesos y CE
 
 ## Reglas de arquitectura
 
-- **Dos módulos independientes.** Dólar: operaciones ARS ↔ USD por tipo de dólar, reporte en ARS.
+- **Cuatro módulos independientes.** Dólar: operaciones ARS ↔ USD por tipo de dólar, reporte en ARS.
   Cripto: operaciones en USD por moneda de CoinGecko, reporte en USD con equivalente en pesos
-  usando el dólar cripto (cotización de compra).
+  usando el dólar cripto (cotización de compra). Pesos: saldo en ARS, en USD al MEP venta. CEDEARs:
+  operaciones pagadas con pesos o dólares CCL, reporte en ARS y en USD al CCL venta.
 - **Motor compartido, modelos separados.** Cada módulo adapta sus operaciones a
   `PositionLot` (`quantity`, `quoteAmount`) y redondea según su unidad; no hay un tipo
   `Transaction` genérico ni `AssetKey`.
 - **Dependencias:** `domain` no importa nada de `features`, `app` ni `store`; los módulos no se
-  importan entre sí (excepción acordada: cripto **lee** la cotización del dólar cripto de
-  `useDolarStore`; desde la Fase 8, Pesos importa el store y las funciones puras del Dólar para las
-  conversiones, nunca al revés: `dólar ← pesos`). Los *composers* (`features/auth`, `features/portfolio` y, desde la Fase 7,
-  `features/usdt-swaps`) leen los dos módulos y solo los importa `app/`. `server/` nunca se importa
-  desde componentes cliente.
-- **APIs externas detrás de route handlers**: el navegador no llama a CoinGecko ni a ArgentinaDatos
-  directo; los handlers validan parámetros, cachean con el Data Cache de Next (`next.revalidate`) y
-  validan la respuesta con Zod.
-- **Reglas de negocio en funciones puras** (`domain/transactions.ts`, `features/crypto/operations.ts`)
-  que usan tanto los stores como el server; el origen local/nube de cada store lo resuelve
-  `src/lib/synced-store.ts`.
+  importan entre sí, salvo las excepciones acordadas: cripto **lee** la cotización del dólar cripto
+  de `useDolarStore`, y en capas `dólar ← pesos ← cedears` (Pesos importa el store y las funciones
+  puras del Dólar para las conversiones; CEDEARs, los de Pesos y Dólar para sus patas). Nunca al
+  revés: los módulos de abajo ven sus patas por contextos de `hooks/`. Los *composers*
+  (`features/auth`, `features/portfolio` y `features/usdt-swaps`) leen los módulos y solo los
+  importa `app/`. `server/` nunca se importa desde componentes cliente.
+- **APIs externas detrás de route handlers**: el navegador no llama a CoinGecko, ArgentinaDatos ni
+  data912 directo; los handlers validan parámetros, cachean con el Data Cache de Next
+  (`next.revalidate`) y validan la respuesta con Zod.
+- **Reglas de negocio en funciones puras** (`domain/transactions.ts`, `features/*/operations.ts`,
+  `features/pesos/conversions.ts`) que usan tanto los stores como el server; el origen local/nube
+  de cada store lo resuelve `src/lib/synced-store.ts`.
 
 ---
 
@@ -94,7 +96,7 @@ La app está en producción (Vercel) con los módulos Dólar, Cripto, Pesos y CE
 Lo hecho (CI, E2E en modo local, errores de red, logs, migraciones en el deploy, guía de operación)
 está en [`historial.md`](historial.md#fase-6--calidad-operación-y-despliegue-parte-hecha).
 
-**Antes de la Fase 7a:**
+**Entorno y CI:**
 
 - [x] **(manual)** Neon: el `.env` local apunta a una rama de desarrollo, no a producción (oct 2026).
 - [x] **(manual)** Vercel: `DATABASE_URL` de *Preview* apunta a una rama de Neon, no a producción
@@ -134,7 +136,7 @@ Sin fase asignada; se planifica cuando haga falta.
 
 ```
 Fases 0–5 ✅
-Fase 6 (pendiente: retención de Neon, secretos E2E en CI, lo de "usuarios reales")
+Fase 6 (pendiente: retención de Neon, base de E2E en CI, lo de "usuarios reales")
 Fase 7 ✅ (7a: intercambios USDT ↔ cripto · 7b: resultados de trades)
 Fase 8 ✅ (Pesos + conversiones a dólar)
 Fases 9–10 ✅ (CEDEARs; plan y decisiones en docs/roadmap-cedears.md)

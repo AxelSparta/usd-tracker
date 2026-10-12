@@ -51,8 +51,9 @@ Next.js 16 (App Router) · React 19 · TypeScript · Tailwind CSS 4 · shadcn/ui
 React Hook Form + Zod · Clerk · Prisma 7 + Neon · recharts · Vitest · Playwright.
 
 Datos externos: [DolarAPI](https://dolarapi.com) (cotizaciones), [ArgentinaDatos](https://argentinadatos.com)
-(histórico del dólar) y [CoinGecko](https://www.coingecko.com/en/api) (precios cripto). El navegador
-solo llama directo a DolarAPI; el resto pasa por las rutas `/api/*` del server, que validan y cachean.
+(histórico del dólar), [CoinGecko](https://www.coingecko.com/en/api) (precios cripto) y
+[data912](https://data912.com) (precios de CEDEARs, con demora). El navegador solo llama directo a
+DolarAPI; el resto pasa por las rutas `/api/*` del server, que validan y cachean.
 
 ## 🛠️ Desarrollo
 
@@ -102,4 +103,6 @@ producción (Clerk, backups, logs): [`docs/operacion.md`](docs/operacion.md).
 - [`AGENTS.md`](AGENTS.md): arquitectura, convenciones y comportamiento del estado.
 - [`docs/roadmap.md`](docs/roadmap.md): lo pendiente, deuda técnica y próximas fases.
 - [`docs/historial.md`](docs/historial.md): fases cerradas y sus decisiones.
+- [`docs/roadmap-cedears.md`](docs/roadmap-cedears.md): decisiones de Pesos y CEDEARs (D1–D9) y posibles siguientes pasos.
+- [`docs/cambios/`](docs/cambios/): registro de cada cambio con su explicación.
 - [`docs/operacion.md`](docs/operacion.md): producción (variables, Clerk, backups de Neon, logs, migraciones).

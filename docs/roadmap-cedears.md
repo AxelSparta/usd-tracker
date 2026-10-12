@@ -1,7 +1,8 @@
 # Roadmap — Pesos y CEDEARs
 
 Extiende `docs/roadmap.md` (Fases 0–7, cerradas en `docs/historial.md`) con dos secciones nuevas, al
-mismo nivel que **Dólar** y **Cripto**:
+mismo nivel que **Dólar** y **Cripto**. Las Fases 8–10 están cerradas (oct 2026): este documento
+queda como registro de las decisiones (D1–D9) y de los posibles siguientes pasos.
 
 1. **Pesos:** saldo en ARS del portafolio (ingresos y egresos) y **conversiones** de esos pesos a
    cualquier tipo de dólar del módulo Dólar (y de vuelta a pesos).
@@ -147,7 +148,7 @@ Cerrada en oct 2026; el detalle (modelo, tareas 8.1–8.4 y verificación) está
 [`historial.md`](historial.md#fase-8--pesos-y-conversiones-a-dólar-). Lo que deja para CEDEARs:
 `commitAcross` (commit optimista en N stores, `lib/synced-store.ts`), `loadLinkedState`
 (`server/linked-state.ts`), `linkOf(tx)` (`domain/transactions.ts`) y `useDolarRate`.
-`PesosMovement` todavía **no** tiene `cedearId`: lo suma la 9.0.
+`cedearId` en `PesosMovement` lo sumó después la 9.0.
 
 ---
 
