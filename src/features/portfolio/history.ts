@@ -1,4 +1,5 @@
 import { addDays, format, parse } from 'date-fns'
+import { cedearAmounts } from '@/features/cedears/metrics'
 import type { CedearTransaction } from '@/features/cedears/types'
 import { toPositionLot } from '@/features/crypto/metrics'
 import type { CryptoTransaction } from '@/features/crypto/types'
@@ -14,8 +15,10 @@ import { TransactionType, type Transaction } from '@/types/transaction.types'
  * Mismas convenciones que el dashboard: dólar a la cotización de venta de su tipo,
  * cripto en USD y a pesos con el dólar cripto compra, pesos a USD con el MEP venta, CEDEARs a su
  * cierre en pesos y a USD con el CCL venta. Días sin cotización (fines de semana, feriados) usan la
- * última conocida. Si un activo en cartera todavía no tiene
- * precio ese día, el valor del día es `null`: no se inventa.
+ * última conocida. Si la fuente no tiene cotización de un activo (data912 no tiene histórico de
+ * muchos CEDEARs, p. ej. IBIT), cuenta el precio de las propias operaciones de ese día
+ * (`withOperationPrices`). Si un activo en cartera todavía no tiene ningún precio ese día, el
+ * valor del día es `null`: no se inventa.
  */
 
 /** `yyyy-MM-dd` */
@@ -71,6 +74,23 @@ export const priceAt = <T extends { date: DateKey }>(series: T[] | undefined, ke
   return found
 }
 
+/**
+ * Agrega a la serie de mercado el precio de las operaciones en los días que no tiene cotización
+ * (la de mercado manda). Es un precio real, el pagado o cobrado, sin la comisión.
+ */
+export const withOperationPrices = <T extends { date: DateKey }>(
+  series: T[] | undefined,
+  operations: T[],
+): T[] => {
+  const market = series ?? []
+  const known = new Set(market.map((p) => p.date))
+  const extra = new Map<DateKey, T>()
+  // Varias operaciones el mismo día: la última
+  for (const op of operations) if (!known.has(op.date)) extra.set(op.date, op)
+  if (extra.size === 0) return market
+  return [...market, ...extra.values()].sort((a, b) => a.date.localeCompare(b.date))
+}
+
 type Delta = { date: DateKey; asset: string; quantity: number }
 
 // Mismo criterio de "polvo" que el motor (`computePosition`): restos de coma flotante
@@ -115,6 +135,35 @@ export const computeValueHistory = ({
     })),
   ].sort((a, b) => a.date.localeCompare(b.date))
 
+  const operationPrices = <T extends { date: DateKey }>(
+    series: Record<string, T[]>,
+    points: [string, T][],
+  ) => {
+    const byAsset = new Map<string, T[]>()
+    for (const [id, point] of points) byAsset.set(id, [...(byAsset.get(id) ?? []), point])
+    const merged = { ...series }
+    for (const [id, ops] of byAsset) {
+      merged[id] = withOperationPrices(series[id], ops.sort((a, b) => a.date.localeCompare(b.date)))
+    }
+    return merged
+  }
+  const cedearSeries = operationPrices<CedearPricePoint>(
+    cedearPrices,
+    cedearTxs
+      .filter((tx) => tx.price > 0)
+      .map((tx) => [
+        tx.ticker,
+        // Precio por CEDEAR en ARS, sin comisión
+        { date: toDateKey(tx.date), ars: cedearAmounts({ ...tx, fee: 0 }).ars / tx.quantity },
+      ]),
+  )
+  const coinSeries = operationPrices<CoinPricePoint>(
+    coinPrices,
+    cryptoTxs
+      .filter((tx) => tx.priceUsd > 0)
+      .map((tx) => [tx.coinId, { date: toDateKey(tx.date), usd: tx.priceUsd }]),
+  )
+
   const holdings = new Map<string, number>()
   let next = 0
   const points: ValuePoint[] = []
@@ -146,7 +195,7 @@ export const computeValueHistory = ({
       } else if (module === 'cedear') {
         // CEDEARs enteros: no hay polvo
         if (quantity <= 0) continue
-        const price = priceAt(cedearPrices[id], day)
+        const price = priceAt(cedearSeries[id], day)
         if (!price) {
           usd = null
           ars = null
@@ -157,7 +206,7 @@ export const computeValueHistory = ({
         usd = usd === null || cclRate === null ? null : usd + value / cclRate
       } else {
         if (quantity <= COIN_DUST) continue
-        const price = priceAt(coinPrices[id], day)
+        const price = priceAt(coinSeries[id], day)
         if (!price) {
           usd = null
           ars = null
