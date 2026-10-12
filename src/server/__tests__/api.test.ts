@@ -34,6 +34,11 @@ const conversionById = await import('@/app/api/pesos/conversions/[id]/route')
 const cedears = await import('@/app/api/cedears/transactions/route')
 const cedearById = await import('@/app/api/cedears/transactions/[id]/route')
 
+/** GET del portafolio principal (sin header), o del de `portfolioId` */
+const get = (portfolioId?: string) =>
+  new Request('http://localhost/api', {
+    headers: portfolioId ? { 'x-portfolio-id': portfolioId } : {},
+  })
 const json = (body: unknown) =>
   new Request('http://localhost/api', {
     method: 'POST',
@@ -62,12 +67,16 @@ const dolarTx = (id: string, type: 'BUY' | 'SELL', dollarsAmount: number, date: 
   dolarOption: 'blue',
 })
 
+/** Portafolio principal de `user_a` (las filas sembradas a mano lo necesitan) */
+const PORTFOLIO = '00000000-0000-4000-8000-0000000000f1'
+
 let db: FakeDb
 
-beforeEach(() => {
+beforeEach(async () => {
   db = createFakeDb()
   fake.db = db
   session.userId = 'user_a'
+  await db.portfolio.create({ data: { id: PORTFOLIO, userId: 'user_a', name: 'Principal' } })
   log.logEvent.mockClear()
   log.logError.mockClear()
 })
@@ -75,7 +84,7 @@ beforeEach(() => {
 describe('/api/dolar/transactions', () => {
   it('401 sin sesión', async () => {
     session.userId = null
-    const response = await dolar.GET()
+    const response = await dolar.GET(get())
     expect(response.status).toBe(401)
     expect(await response.json()).toEqual({ error: 'Iniciá sesión para sincronizar tus datos.' })
   })
@@ -85,7 +94,7 @@ describe('/api/dolar/transactions', () => {
     expect(created.status).toBe(201)
     expect(await created.json()).toMatchObject({ id: ID.buy, dollarsAmount: 100.5 })
 
-    const list = await (await dolar.GET()).json()
+    const list = await (await dolar.GET(get())).json()
     expect(list).toEqual([
       {
         id: ID.buy,
@@ -145,7 +154,7 @@ describe('/api/dolar/transactions', () => {
     await dolar.POST(json(dolarTx(ID.buy, 'BUY', 100, '2026-01-01')))
     session.userId = 'user_b'
 
-    expect(await (await dolar.GET()).json()).toEqual([])
+    expect(await (await dolar.GET(get())).json()).toEqual([])
     const { id, ...data } = dolarTx(ID.buy, 'BUY', 1, '2026-01-01')
     expect((await dolarById.PATCH(json(data), ctx(ID.buy))).status).toBe(404)
     expect((await dolarById.DELETE(json({}), ctx(ID.buy))).status).toBe(404)
@@ -165,7 +174,7 @@ describe('logs', () => {
     await dolar.POST(json(dolarTx(ID.sell, 'SELL', 500, '2026-01-02T03:00:00.000Z')))
     expect(log.logEvent).toHaveBeenCalledTimes(1)
     expect(log.logEvent).toHaveBeenCalledWith('dolar.created', {
-      userId: 'user_a',
+      userId: 'user_a', portfolioId: PORTFOLIO,
       type: 'BUY',
       dolarOption: 'blue',
     })
@@ -174,7 +183,7 @@ describe('logs', () => {
 
   it('un error inesperado es 500 genérico y queda registrado', async () => {
     db.dolarTransaction.findMany = () => Promise.reject(new Error('conexión caída'))
-    const response = await dolar.GET()
+    const response = await dolar.GET(get())
     expect(response.status).toBe(500)
     expect(await response.json()).toEqual({ error: 'Error inesperado del servidor.' })
     expect(log.logError).toHaveBeenCalledWith('api.unexpected', expect.any(Error))
@@ -199,7 +208,7 @@ describe('/api/crypto/*', () => {
 
   it('crea con comisión y lista operaciones + monedas', async () => {
     expect((await crypto.POST(json(buyBtc))).status).toBe(201)
-    const { transactions, coins } = await (await crypto.GET()).json()
+    const { transactions, coins } = await (await crypto.GET(get())).json()
     expect(transactions).toEqual([{ ...buyBtc.transaction }])
     expect(coins).toEqual({ bitcoin: btc })
   })
@@ -244,7 +253,7 @@ describe('/api/crypto/*', () => {
     expect(db.cryptoRows).toHaveLength(3)
 
     // Editar una pata está prohibido
-    const { transactions } = await (await crypto.GET()).json()
+    const { transactions } = await (await crypto.GET(get())).json()
     const { id, ...leg } = transactions.find((t: { id: string }) => t.id === ID.swapBuy)
     expect((await cryptoById.PATCH(json({ transaction: leg, coin: eth }), ctx(ID.swapBuy))).status).toBe(422)
 
@@ -256,7 +265,7 @@ describe('/api/crypto/*', () => {
   it('ownership también en cripto', async () => {
     await crypto.POST(json(buyBtc))
     session.userId = 'user_b'
-    expect((await (await crypto.GET()).json()).transactions).toEqual([])
+    expect((await (await crypto.GET(get())).json()).transactions).toEqual([])
     expect((await cryptoById.DELETE(json({}), ctx(ID.buy))).status).toBe(404)
   })
 })
@@ -282,7 +291,7 @@ describe('/api/usdt-swaps', () => {
     const response = await usdtSwaps.POST(json(body))
     expect(response.status).toBe(201)
 
-    const dolarList = await (await dolar.GET()).json()
+    const dolarList = await (await dolar.GET(get())).json()
     expect(dolarList.find((t: { id: string }) => t.id === ID.usdtLeg)).toMatchObject({
       type: 'SELL',
       dollarsAmount: 600.6,
@@ -290,7 +299,7 @@ describe('/api/usdt-swaps', () => {
       dolarOption: 'cripto',
       usdtSwapId: ID.usdtSwap,
     })
-    const { transactions, coins } = await (await crypto.GET()).json()
+    const { transactions, coins } = await (await crypto.GET(get())).json()
     expect(transactions).toEqual([
       expect.objectContaining({ id: ID.coinLeg, type: 'BUY', quantity: 0.01, usdtSwapId: ID.usdtSwap }),
     ])
@@ -354,7 +363,7 @@ describe('resultados de trades', () => {
 
   it('en USDT: se guarda con kind y note y se lista igual', async () => {
     expect((await dolar.POST(json(usdtGain))).status).toBe(201)
-    const [listed] = await (await dolar.GET()).json()
+    const [listed] = await (await dolar.GET(get())).json()
     expect(listed).toMatchObject({ kind: 'TRADE_RESULT', note: 'BTCUSDT long x10', dolarOption: 'cripto' })
   })
 
@@ -403,7 +412,7 @@ describe('/api/pesos/movements', () => {
 
   it('401 sin sesión', async () => {
     session.userId = null
-    expect((await pesos.GET()).status).toBe(401)
+    expect((await pesos.GET(get())).status).toBe(401)
   })
 
   it('crea, lista con montos numéricos y registra el alta sin montos', async () => {
@@ -411,12 +420,12 @@ describe('/api/pesos/movements', () => {
       json(pesosMovement(ID.buy, 'BUY', 1_500_000.5, '2026-01-01T03:00:00.000Z', { note: 'Sueldo' })),
     )
     expect(created.status).toBe(201)
-    expect(await (await pesos.GET()).json()).toEqual({
+    expect(await (await pesos.GET(get())).json()).toEqual({
       movements: [
         { id: ID.buy, type: 'BUY', amount: 1_500_000.5, date: '2026-01-01T03:00:00.000Z', note: 'Sueldo' },
       ],
     })
-    expect(log.logEvent).toHaveBeenCalledWith('pesos.created', { userId: 'user_a', type: 'BUY' })
+    expect(log.logEvent).toHaveBeenCalledWith('pesos.created', { userId: 'user_a', portfolioId: PORTFOLIO, type: 'BUY' })
   })
 
   it('400 con monto no positivo', async () => {
@@ -456,7 +465,7 @@ describe('/api/pesos/movements', () => {
 
   it('una pata de conversión no se edita ni se borra sola', async () => {
     await db.pesosMovement.create({
-      data: { id: ID.buy, userId: 'user_a', type: 'BUY', amount: 1000, date: new Date('2026-01-01'), note: null, conversionId: ID.other },
+      data: { id: ID.buy, userId: 'user_a', portfolioId: PORTFOLIO, type: 'BUY', amount: 1000, date: new Date('2026-01-01'), note: null, conversionId: ID.other },
     })
     const { id, ...data } = pesosMovement(ID.buy, 'BUY', 2000, '2026-01-01')
     expect((await pesosById.PATCH(json(data), ctx(ID.buy))).status).toBe(422)
@@ -468,7 +477,7 @@ describe('/api/pesos/movements', () => {
   it('un usuario no ve ni toca movimientos de otro (404)', async () => {
     await pesos.POST(json(pesosMovement(ID.buy, 'BUY', 1000, '2026-01-01')))
     session.userId = 'user_b'
-    expect(await (await pesos.GET()).json()).toEqual({ movements: [] })
+    expect(await (await pesos.GET(get())).json()).toEqual({ movements: [] })
     const { id, ...data } = pesosMovement(ID.buy, 'BUY', 1, '2026-01-01')
     expect((await pesosById.PATCH(json(data), ctx(ID.buy))).status).toBe(404)
     expect((await pesosById.DELETE(json({}), ctx(ID.buy))).status).toBe(404)
@@ -499,13 +508,13 @@ describe('/api/pesos/conversions', () => {
     const response = await conversions.POST(json({ conversion: toBlue, ids: CONV }))
     expect(response.status).toBe(201)
 
-    const { movements } = await (await pesos.GET()).json()
+    const { movements } = await (await pesos.GET(get())).json()
     expect(movements.find((m: { id: string }) => m.id === CONV.pesosId)).toMatchObject({
       type: 'SELL',
       amount: 1_560_000,
       conversionId: CONV.conversionId,
     })
-    expect(await (await dolar.GET()).json()).toEqual([
+    expect(await (await dolar.GET(get())).json()).toEqual([
       {
         id: CONV.dolarId,
         type: 'BUY',
@@ -517,7 +526,7 @@ describe('/api/pesos/conversions', () => {
       },
     ])
     expect(log.logEvent).toHaveBeenCalledWith('pesosConversion.created', {
-      userId: 'user_a',
+      userId: 'user_a', portfolioId: PORTFOLIO,
       conversionId: CONV.conversionId,
       direction: 'PESOS_TO_DOLAR',
       dolarOption: 'blue',
@@ -585,7 +594,7 @@ describe('patas de CEDEARs (Fase 9.0)', () => {
 
   it('una pata de pesos no se edita ni se borra desde /api/pesos', async () => {
     await db.pesosMovement.create({
-      data: { id: ID.buy, userId: 'user_a', type: 'BUY', amount: 1000, date, note: null, conversionId: null, cedearId: ID.other },
+      data: { id: ID.buy, userId: 'user_a', portfolioId: PORTFOLIO, type: 'BUY', amount: 1000, date, note: null, conversionId: null, cedearId: ID.other },
     })
     const body = { type: 'BUY', amount: 2000, date: date.toISOString() }
     const updated = await pesosById.PATCH(json(body), ctx(ID.buy))
@@ -601,7 +610,7 @@ describe('patas de CEDEARs (Fase 9.0)', () => {
         ...dolarTx(ID.buy, 'BUY', 100, date.toISOString()),
         date,
         dolarOption: 'contadoconliqui',
-        userId: 'user_a',
+        userId: 'user_a', portfolioId: PORTFOLIO,
         usdtSwapId: null,
         conversionId: null,
         cedearId: ID.other,
@@ -660,15 +669,15 @@ describe('/api/cedears/transactions (Fase 9.3)', () => {
     expect(created.transaction).toMatchObject({ id: C.buy, ticker: 'AAPL', quantity: 10, fee: 1000 })
     expect(created.leg).toMatchObject({ module: 'pesos', leg: { id: C.buyLeg, type: 'SELL', amount: 201_000 } })
 
-    expect((await (await cedears.GET()).json()).transactions).toHaveLength(1)
-    const { movements } = await (await pesos.GET()).json()
+    expect((await (await cedears.GET(get())).json()).transactions).toHaveLength(1)
+    const { movements } = await (await pesos.GET(get())).json()
     expect(movements.find((m: { id: string }) => m.id === C.buyLeg)).toMatchObject({
       type: 'SELL',
       amount: 201_000,
       cedearId: C.buy,
     })
     expect(log.logEvent).toHaveBeenCalledWith('cedear.created', {
-      userId: 'user_a',
+      userId: 'user_a', portfolioId: PORTFOLIO,
       id: C.buy,
       type: 'BUY',
       currency: 'ARS',
@@ -748,7 +757,7 @@ describe('/api/cedears/transactions (Fase 9.3)', () => {
   it('ownership: otro usuario no la ve, no la edita ni la borra (404)', async () => {
     await cedears.POST(json({ ...buy, id: C.buy, legId: C.buyLeg }))
     session.userId = 'user_b'
-    expect((await (await cedears.GET()).json()).transactions).toEqual([])
+    expect((await (await cedears.GET(get())).json()).transactions).toEqual([])
     expect((await cedearById.PATCH(json(buy), ctx(C.buy))).status).toBe(404)
     expect((await cedearById.DELETE(json({}), ctx(C.buy))).status).toBe(404)
     expect(db.cedearRows).toHaveLength(1)

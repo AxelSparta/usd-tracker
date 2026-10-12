@@ -19,7 +19,7 @@ import { describeImportResult, describeLocalData } from './describe'
 export default function SyncBadge() {
   const { isSignedIn } = useAuth()
   const { status, pendingWrites, retry } = useCloudStatus()
-  const { pending, upload } = useLocalImport()
+  const { pending, upload, target } = useLocalImport()
   const [uploading, setUploading] = useState(false)
   const pendingCount = countLocalData(pending)
 
@@ -85,7 +85,7 @@ export default function SyncBadge() {
               <div className='space-y-2 border-t pt-3'>
                 <p className='text-muted-foreground'>
                   En este navegador hay {describeLocalData(pending)} que no están en tu
-                  cuenta.
+                  cuenta.{target && <> Se suben al portafolio «{target.name}».</>}
                 </p>
                 <Button size='sm' className='w-full' onClick={handleUpload} disabled={uploading}>
                   {uploading ? 'Subiendo…' : 'Subir a mi cuenta'}

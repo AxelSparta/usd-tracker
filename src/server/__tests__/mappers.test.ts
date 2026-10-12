@@ -15,7 +15,12 @@ import { DolarOption } from '@/types/dolar.types'
 import { TransactionType } from '@/types/transaction.types'
 
 const date = new Date('2026-01-01T03:00:00Z')
-const meta = { userId: 'user_1', createdAt: date, updatedAt: date }
+const meta = {
+  userId: 'user_1',
+  portfolioId: '00000000-0000-4000-8000-0000000000f1',
+  createdAt: date,
+  updatedAt: date,
+}
 
 const cryptoRow = {
   ...meta,

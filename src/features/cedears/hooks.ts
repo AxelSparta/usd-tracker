@@ -8,22 +8,25 @@ import { computeCedearPositions, summarizeCedears } from './metrics'
 import { useCedearPricesStore } from './prices.store'
 import { priceRefreshDelay } from './refresh'
 
-/** Tickers con operaciones, en orden estable */
-const useHeldTickers = () => {
+/** Tickers con operaciones (más `extra`), en orden estable */
+const useHeldTickers = (extra: string[]) => {
   const transactions = useCedearsStore((s) => s.transactions)
   const key = useMemo(
-    () => [...new Set(transactions.map((tx) => tx.ticker))].sort().join(','),
-    [transactions],
+    () => [...new Set([...transactions.map((tx) => tx.ticker), ...extra])].sort().join(','),
+    [transactions, extra],
   )
   return useMemo(() => (key ? key.split(',') : []), [key])
 }
 
+const NONE: string[] = []
+
 /**
  * Trae los precios de los CEDEARs en cartera y los refresca cada 5 min mientras la sección está
  * montada; si data912 falla, espacia los reintentos con backoff.
+ * `extra`: tickers de otros portafolios (vista "Todos" del dashboard).
  */
-export const useCedearPriceSync = () => {
-  const tickers = useHeldTickers()
+export const useCedearPriceSync = (extra: string[] = NONE) => {
+  const tickers = useHeldTickers(extra)
   const fetchPrices = useCedearPricesStore((s) => s.fetchPrices)
 
   useEffect(() => {

@@ -11,3 +11,7 @@ export type ImportResult = {
 /** Sube operaciones locales; las que ya están en la nube se saltean (la nube manda) */
 export const importLocalData = (data: LocalData) =>
   requestJson<ImportResult>('/api/sync/import', { method: 'POST', body: data })
+
+/** Ids de todas las operaciones de la cuenta (cualquier portafolio) */
+export const fetchCloudIds = () =>
+  requestJson<{ ids: string[] }>('/api/sync/import').then(({ ids }) => ids)

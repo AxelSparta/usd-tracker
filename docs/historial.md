@@ -817,6 +817,35 @@ saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consist
 
 ---
 
+## Fase 11 — Múltiples portafolios ✅
+
+Decisiones (oct 2026): los portafolios son **separados** (cada uno con sus cuatro módulos, saldos,
+validaciones y PnL; las operaciones enlazadas nunca cruzan portafolios), funcionan **sin sesión y
+con sesión**, y el dashboard tiene selector **"<activo> / Todos"**.
+
+- [x] Base: tabla `Portfolio` y `portfolioId` (FK, cascade) en las cuatro tablas. La migración
+      `20261012000000_portfolios` crea un "Principal" por usuario y le asigna sus operaciones.
+- [x] Server: `requireScope(request)` (`server/scope.ts`) resuelve el portafolio del header
+      `x-portfolio-id` (ajeno o inválido = 404; sin header, el más viejo, creado si falta). Los
+      servicios reciben `Scope` (usuario + portafolio) en vez de `userId`. `/api/portfolios[/:id]`
+      (listar, crear, renombrar, borrar; nunca el último). La importación saltea ids de cualquier
+      portafolio y valida contra el de destino; `GET /api/sync/import` da los ids de la cuenta.
+- [x] Cliente: los stores de datos siguen teniendo un solo portafolio, el activo. En la nube,
+      `requestJson` manda el header y cambiar de portafolio recarga los stores; en local, cada
+      portafolio usa sus claves (`<clave>:<id>`; el `principal` conserva las de siempre, sin migrar
+      datos) y `switchLocalPortfolio` cambia el `name` de `persist`. `CloudSync` resuelve el portafolio
+      antes de conectar los stores.
+- [x] UI: `PortfolioSwitcher` en el sidebar (cambiar, crear, renombrar, borrar con confirmación).
+      Dashboard: "Todos" resume cada portafolio por separado y los suma
+      (`combinePortfolioOverviews`), la evolución suma tenencias; un portafolio vacío entre varios
+      muestra un aviso en vez de la presentación.
+- [x] Tests: API (`server/__tests__/portfolios.test.ts`: aislamiento, ownership, cascade,
+      importación), store local/nube (`features/portfolios/__tests__`), suma de resúmenes y E2E
+      `e2e/portfolios.spec.ts` (local) y uno con sesión en `e2e/sync.cloud.spec.ts`; migración aplicada
+      a la rama de desarrollo de Neon con `pnpm db:deploy`.
+
+---
+
 ## Correcciones posteriores
 
 - **Fecha por defecto e hidratación** (oct 2026, PR #10 y #9): los formularios arrancan en "hoy"
@@ -826,6 +855,11 @@ saldos de Pesos y Dólar CCL, las posiciones y el PnL (ARS y USD) quedan consist
   cliente (`useMounted`) en todos los formularios con fecha, incluido `CedearTransactionForm`. E2E
   `e2e/date-hydration.spec.ts`: pone el reloj del navegador dos días adelante del server y verifica
   la fecha mostrada y que no haya errores de hidratación.
+- **Gráfico de evolución cortado** (oct 2026): data912 no tiene histórico de muchos CEDEARs (p. ej.
+  IBIT); con uno en cartera, cada día desde la compra valía `null` y el gráfico terminaba el día
+  anterior. Ahora, si falta la cotización de mercado, se usa el precio de las propias operaciones de
+  ese día (sin comisión; la de mercado manda) y se arrastra hasta el próximo cierre o el precio en
+  vivo de hoy (`withOperationPrices`, también para monedas que CoinGecko no conoce).
 
 ---
 

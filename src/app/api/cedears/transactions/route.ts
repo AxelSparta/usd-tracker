@@ -1,14 +1,14 @@
 import { createCedearTransactionApiSchema } from '@/features/cedears/validations'
-import { requireUserId } from '@/server/auth'
+import { requireScope } from '@/server/scope'
 import { createCedearTransaction, listCedearTransactions } from '@/server/cedear-transactions'
 import { errorResponse, parseBody } from '@/server/errors'
 import { logEvent } from '@/server/log'
 
 /** GET /api/cedears/transactions → `{ transactions }` del usuario */
-export async function GET() {
+export async function GET(request: Request) {
   try {
-    const userId = await requireUserId()
-    return Response.json(await listCedearTransactions(userId))
+    const scope = await requireScope(request)
+    return Response.json(await listCedearTransactions(scope))
   } catch (error) {
     return errorResponse(error)
   }
@@ -20,10 +20,10 @@ export async function GET() {
  */
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId()
+    const scope = await requireScope(request)
     const { id, legId, ...input } = await parseBody(request, createCedearTransactionApiSchema)
-    const created = await createCedearTransaction(userId, input, { id, legId })
-    logEvent('cedear.created', { userId, id, type: input.type, currency: input.currency })
+    const created = await createCedearTransaction(scope, input, { id, legId })
+    logEvent('cedear.created', { ...scope, id, type: input.type, currency: input.currency })
     return Response.json(created, { status: 201 })
   } catch (error) {
     return errorResponse(error)

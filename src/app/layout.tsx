@@ -6,6 +6,7 @@ import './globals.css'
 import AppSidebar from '@/components/AppSidebar'
 import LocalImportDialog from '@/features/auth/components/LocalImportDialog'
 import SyncBadge from '@/features/auth/components/SyncBadge'
+import PortfolioSwitcher from '@/features/portfolios/components/PortfolioSwitcher'
 import {
   SidebarInset,
   SidebarProvider,
@@ -93,7 +94,7 @@ export default function RootLayout({
         <ClerkProvider localization={esUY} appearance={clerkAppearance}>
           <ClientProviders>
             <SidebarProvider>
-              <AppSidebar />
+              <AppSidebar portfolioSwitcher={<PortfolioSwitcher />} />
               <SidebarInset>
                 <header className='sticky top-0 z-10 flex h-12 items-center justify-between border-b bg-background/80 px-4 backdrop-blur'>
                   <SidebarTrigger className='-ml-1 text-muted-foreground' />

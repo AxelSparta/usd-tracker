@@ -19,6 +19,11 @@ const { POST } = await import('@/app/api/sync/import/route')
 const dolarRoute = await import('@/app/api/dolar/transactions/route')
 const cryptoRoute = await import('@/app/api/crypto/transactions/route')
 
+/** GET del portafolio principal (sin header), o del de `portfolioId` */
+const get = (portfolioId?: string) =>
+  new Request('http://localhost/api', {
+    headers: portfolioId ? { 'x-portfolio-id': portfolioId } : {},
+  })
 const json = (body: unknown) => new Request('http://x', { method: 'POST', body: JSON.stringify(body) })
 const uuid = (n: number) => `00000000-0000-4000-8000-${String(n).padStart(12, '0')}`
 
@@ -82,7 +87,7 @@ describe('POST /api/sync/import', () => {
     })
     expect(db.dolarRows).toHaveLength(2)
 
-    const { transactions } = await (await cryptoRoute.GET()).json()
+    const { transactions } = await (await cryptoRoute.GET(get())).json()
     expect(transactions[0].fee).toEqual({ amount: 5, currency: 'USD' })
   })
 
@@ -90,7 +95,7 @@ describe('POST /api/sync/import', () => {
     await dolarRoute.POST(json(dolarTx(1, 'BUY', 500, '2026-01-01T03:00:00.000Z')))
     const result = await (await POST(json(payload))).json()
     expect(result.dolar).toEqual({ created: 1, skipped: 1 })
-    const list = await (await dolarRoute.GET()).json()
+    const list = await (await dolarRoute.GET(get())).json()
     expect(list.find((t: { id: string }) => t.id === uuid(1)).dollarsAmount).toBe(500)
   })
 
@@ -133,7 +138,7 @@ describe('POST /api/sync/import', () => {
         },
       }),
     )
-    const { transactions } = await (await cryptoRoute.GET()).json()
+    const { transactions } = await (await cryptoRoute.GET(get())).json()
     expect(transactions.filter((t: { swapId?: string }) => t.swapId === swapId)).toHaveLength(2)
   })
 })

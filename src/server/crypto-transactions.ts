@@ -12,10 +12,11 @@ import type { Coin, CryptoTransaction } from '@/features/crypto/types'
 import { getDb, withUserTransaction, type DbTransaction } from './db'
 import { ApiError, applyOrReject } from './errors'
 import { toCoin, toCryptoTransaction, toCryptoTransactionData } from './mappers'
+import type { Scope } from './scope'
 
 /**
- * Operaciones del módulo cripto en la base. Todas filtran por `userId` (ownership):
- * una operación de otro usuario es, para este, inexistente (404).
+ * Operaciones del módulo cripto en la base. Todas filtran por usuario y portafolio
+ * (`Scope`): una operación de otro portafolio o usuario es, para este, inexistente (404).
  * Antes de escribir se valida la línea temporal con las mismas funciones que el store.
  */
 
@@ -23,10 +24,10 @@ const NOT_FOUND = 'La operación no existe.'
 
 export const loadCryptoState = async (
   db: Pick<DbTransaction, 'cryptoTransaction'>,
-  userId: string,
+  scope: Scope,
 ): Promise<CryptoPortfolioState> => {
   const rows = await db.cryptoTransaction.findMany({
-    where: { userId },
+    where: scope,
     orderBy: { date: 'asc' },
   })
   const coins: Record<string, Coin> = {}
@@ -34,31 +35,31 @@ export const loadCryptoState = async (
   return { transactions: rows.map(toCryptoTransaction), coins }
 }
 
-export const listCryptoTransactions = (userId: string) => loadCryptoState(getDb(), userId)
+export const listCryptoTransactions = (scope: Scope) => loadCryptoState(getDb(), scope)
 
 export const createCryptoTransaction = (
-  userId: string,
+  scope: Scope,
   tx: CryptoTransaction,
   coin: Coin,
 ) =>
-  withUserTransaction(userId, async (db) => {
-    const state = await loadCryptoState(db, userId)
+  withUserTransaction(scope.userId, async (db) => {
+    const state = await loadCryptoState(db, scope)
     applyOrReject(() => applyAddCryptoTransaction(state, tx, coin))
 
     const row = await db.cryptoTransaction.create({
-      data: { id: tx.id, userId, ...toCryptoTransactionData(tx, coin) },
+      data: { id: tx.id, ...scope, ...toCryptoTransactionData(tx, coin) },
     })
     return toCryptoTransaction(row)
   })
 
 export const updateCryptoTransaction = (
-  userId: string,
+  scope: Scope,
   id: string,
   tx: Omit<CryptoTransaction, 'id'>,
   coin: Coin,
 ) =>
-  withUserTransaction(userId, async (db) => {
-    const state = await loadCryptoState(db, userId)
+  withUserTransaction(scope.userId, async (db) => {
+    const state = await loadCryptoState(db, scope)
     const updated = applyOrReject(() =>
       applyUpdateCryptoTransaction(state, id, tx, coin),
     )
@@ -66,15 +67,15 @@ export const updateCryptoTransaction = (
 
     // Sin `fee` en el body = se quitó la comisión (el mapper la deja en null)
     const row = await db.cryptoTransaction.update({
-      where: { id, userId },
+      where: { id, ...scope },
       data: toCryptoTransactionData(tx, coin),
     })
     return toCryptoTransaction(row)
   })
 
-export const createCryptoSwap = (userId: string, swap: CryptoSwapInput, ids: SwapIds) =>
-  withUserTransaction(userId, async (db) => {
-    const state = await loadCryptoState(db, userId)
+export const createCryptoSwap = (scope: Scope, swap: CryptoSwapInput, ids: SwapIds) =>
+  withUserTransaction(scope.userId, async (db) => {
+    const state = await loadCryptoState(db, scope)
     applyOrReject(() => applyAddSwap(state, swap, ids))
 
     const legs = buildSwapLegs(swap, ids)
@@ -82,7 +83,7 @@ export const createCryptoSwap = (userId: string, swap: CryptoSwapInput, ids: Swa
     await db.cryptoTransaction.createMany({
       data: legs.map((leg, i) => ({
         id: leg.id,
-        userId,
+        ...scope,
         ...toCryptoTransactionData(leg, coins[i]),
       })),
     })
@@ -90,14 +91,14 @@ export const createCryptoSwap = (userId: string, swap: CryptoSwapInput, ids: Swa
   })
 
 /** Devuelve los ids borrados (las dos patas si era un intercambio) */
-export const removeCryptoTransaction = (userId: string, id: string) =>
-  withUserTransaction(userId, async (db) => {
-    const state = await loadCryptoState(db, userId)
+export const removeCryptoTransaction = (scope: Scope, id: string) =>
+  withUserTransaction(scope.userId, async (db) => {
+    const state = await loadCryptoState(db, scope)
     const result = applyOrReject(() => applyRemoveCryptoTransaction(state, id))
     if (!result) throw new ApiError(404, NOT_FOUND)
 
     await db.cryptoTransaction.deleteMany({
-      where: { userId, id: { in: result.removedIds } },
+      where: { ...scope, id: { in: result.removedIds } },
     })
     return result.removedIds
   })

@@ -1,6 +1,7 @@
 'use client'
 
 import DolarPrice from '@/components/DolarPrice'
+import Segmented from '@/components/Segmented'
 import { Stat, pnlClass } from '@/components/Stat'
 import SyncGate from '@/components/SyncGate'
 import { Skeleton } from '@/components/ui/skeleton'
@@ -8,7 +9,8 @@ import { useCedearPriceSync } from '@/features/cedears/hooks'
 import { useCryptoPriceSync } from '@/features/crypto/hooks'
 import { formatCurrency } from '@/lib/locale-amount'
 import { cn } from '@/lib/utils'
-import { usePortfolioOverview } from '../hooks'
+import { usePortfolios, usePortfoliosStore } from '@/features/portfolios/portfolios.store'
+import { useDashboardPortfolios, useOtherHeldAssets, usePortfolioOverview } from '../hooks'
 import { toAllocationSegments } from '../overview'
 import AllocationBar from './AllocationBar'
 import AssetTable from './AssetTable'
@@ -38,14 +40,19 @@ function DashboardSkeleton() {
 }
 
 /**
- * Home con datos: valor total, resumen por módulo y composición por activo.
- * Sin operaciones muestra `onboarding` (la presentación de la app).
+ * Home con datos: valor total, resumen por módulo y composición por activo, del portafolio activo
+ * o de todos sumados. Sin operaciones muestra `onboarding` (la presentación de la app), salvo que
+ * haya varios portafolios: ahí, un aviso de portafolio vacío.
  */
 export default function PortfolioDashboard({ onboarding }: { onboarding: React.ReactNode }) {
-  useCryptoPriceSync()
-  useCedearPriceSync()
-  const { overview, hasOperations, hasPesos, hasCedears, pesosBalance, status, retry } =
-    usePortfolioOverview()
+  const { sets, showAll, status, retry } = useDashboardPortfolios()
+  const others = useOtherHeldAssets(sets)
+  useCryptoPriceSync(others.coinIds)
+  useCedearPriceSync(others.tickers)
+  const { overview, hasOperations, hasPesos, hasCedears, pesosBalance } = usePortfolioOverview(sets)
+  const { portfolios, active } = usePortfolios()
+  const setShowAll = usePortfoliosStore((s) => s.setShowAll)
+  const several = portfolios.length > 1
 
   if (status !== 'ready') {
     return (
@@ -54,7 +61,8 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
       </SyncGate>
     )
   }
-  if (!hasOperations) return onboarding
+  // Un portafolio vacío entre varios: no es la primera visita, no va la presentación
+  if (!hasOperations && !several) return onboarding
 
   const { totalArs, totalUsd, dolar, crypto, pesos, cedears, assets, missingPrices } = overview
   const segments = toAllocationSegments(assets)
@@ -66,14 +74,44 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
     'cripto',
   ].filter((part): part is string => !!part)
 
-  return (
-    <div className='space-y-12'>
-      <header className='space-y-1'>
-        <h1 className='text-2xl font-semibold tracking-tight'>Tu portfolio</h1>
+  const header = (
+    <header className='flex flex-wrap items-end justify-between gap-3'>
+      <div className='space-y-1'>
+        <h1 className='text-2xl font-semibold tracking-tight'>
+          {!several ? 'Tu portfolio' : showAll ? 'Todos tus portafolios' : active?.name}
+        </h1>
         <p className='text-sm text-muted-foreground'>
           Tus {listFormat.format(held)} valuados con las cotizaciones actuales.
         </p>
-      </header>
+      </div>
+      {several && active && (
+        <Segmented
+          label='Qué portafolio ver'
+          options={[
+            { value: 'active', label: active.name },
+            { value: 'all', label: `Todos (${portfolios.length})` },
+          ]}
+          value={showAll ? 'all' : 'active'}
+          onChange={(value) => setShowAll(value === 'all')}
+        />
+      )}
+    </header>
+  )
+
+  if (!hasOperations) {
+    return (
+      <div className='space-y-12'>
+        {header}
+        <div className='rounded-lg border border-dashed p-10 text-center text-sm text-muted-foreground'>
+          Este portafolio todavía no tiene operaciones. Cargá la primera desde los trackers.
+        </div>
+      </div>
+    )
+  }
+
+  return (
+    <div className='space-y-12'>
+      {header}
 
       <section
         aria-label='Resumen'
@@ -126,7 +164,7 @@ export default function PortfolioDashboard({ onboarding }: { onboarding: React.R
         )}
       </section>
 
-      <ValueChart />
+      <ValueChart sets={sets} />
 
       <section aria-labelledby='composicion' className='space-y-4'>
         <div className='flex flex-wrap items-baseline justify-between gap-2'>

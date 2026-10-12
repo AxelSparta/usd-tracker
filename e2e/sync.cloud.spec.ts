@@ -211,3 +211,32 @@ test('con sesión, una conversión pesos → blue escribe las dos patas y se bor
   await page.goto('/dolar')
   await expect(page.getByText('Todavía no registraste transacciones.')).toBeVisible()
 })
+
+test('con sesión, cada portafolio tiene sus operaciones y el activo se recuerda', async ({ page }) => {
+  const switcher = page.getByRole('button', { name: /^Portafolio/ })
+  await signIn(page)
+  await addDolarBuy(page)
+  await expect(switcher).toContainText('Principal')
+
+  await switcher.click()
+  await page.getByRole('menuitem', { name: 'Nuevo portafolio' }).click()
+  await page.getByLabel('Nombre').fill('Trading')
+  await page.getByRole('button', { name: 'Crear' }).click()
+  await expect(switcher).toContainText('Trading')
+  // El nuevo viene vacío de la nube
+  await expect(page.getByText('Todavía no registraste transacciones')).toBeVisible()
+
+  // Al recargar sigue activo el mismo (se recuerda por usuario)
+  await page.reload()
+  await expect(switcher).toContainText('Trading')
+  await expect(buyRow(page)).toHaveCount(0)
+
+  await page.goto('/')
+  await page.getByRole('radio', { name: 'Todos (2)' }).click()
+  await expect(page.getByText('US$100,00').first()).toBeVisible()
+
+  await switcher.click()
+  await page.getByRole('menuitem', { name: 'Principal' }).click()
+  await page.goto('/dolar')
+  await expect(buyRow(page)).toContainText('150.000,00')
+})

@@ -1,5 +1,5 @@
 import { conversionApiSchema } from '@/features/pesos/validations'
-import { requireUserId } from '@/server/auth'
+import { requireScope } from '@/server/scope'
 import { errorResponse, parseBody } from '@/server/errors'
 import { logEvent } from '@/server/log'
 import { createConversion } from '@/server/pesos-conversions'
@@ -7,11 +7,11 @@ import { createConversion } from '@/server/pesos-conversions'
 /** POST /api/pesos/conversions `{ conversion, ids }` → 201 `[pata pesos, pata dólar]` */
 export async function POST(request: Request) {
   try {
-    const userId = await requireUserId()
+    const scope = await requireScope(request)
     const { conversion, ids } = await parseBody(request, conversionApiSchema)
-    const legs = await createConversion(userId, conversion, ids)
+    const legs = await createConversion(scope, conversion, ids)
     logEvent('pesosConversion.created', {
-      userId,
+      ...scope,
       conversionId: ids.conversionId,
       direction: conversion.direction,
       dolarOption: conversion.dolarOption,
